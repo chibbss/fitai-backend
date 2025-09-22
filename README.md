@@ -28,3 +28,14 @@ pip install fastapi uvicorn
 
 # 4. Run server
 uvicorn main:app --reload
+
+
+
+### API Contract
+
+**POST** `/chat`  
+Request:
+```json
+{
+  "message": "string"
+}
