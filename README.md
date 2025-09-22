@@ -15,7 +15,7 @@ Backend for the **FitAI fitness assistant app**. Built with [FastAPI](https://fa
 
 ```bash
 # 1. Clone repo
-git clone https://github.com/YOUR_USERNAME/fitai-backend.git
+git clone https://github.com/chibbss/fitai-backend.git
 cd fitai-backend
 
 # 2. Create virtual environment
