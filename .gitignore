@@ -24,4 +24,4 @@ logs/
 *.dylib
 
 # System files
-Thumbs.db
+Thumbs.dbvenv/
