@@ -1,6 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
 venv/
-venv/
-venv/
-venv/
-venv/
-venv/
+.env
+.env.*
+.DS_Store
+
+# Modal build cache
+.modal/
+cache/
+logs/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Byte-compiled
+*.so
+*.dll
+*.dylib
+
+# System files
+Thumbs.db
