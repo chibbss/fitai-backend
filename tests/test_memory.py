@@ -6,6 +6,7 @@ import types
 from fastapi.testclient import TestClient
 
 from main import app, rag_service
+from auth import create_test_token
 from memory import redact_pii, refresh_user_memory
 
 
@@ -18,13 +19,14 @@ def test_redact_pii():
 
 
 def test_memory_upsert_and_endpoint(monkeypatch):
-    # Ensure DB is reachable
     client = TestClient(app)
+    token = create_test_token(user_id="test_user_memory", tier="premium")
+    headers = {"Authorization": f"Bearer {token}"}
 
     user_id = "test_user_memory"
 
     # Upsert user
-    resp = client.put(f"/users/{user_id}", json={"name": "Tester", "profile": {"age": 25}})
+    resp = client.put(f"/users/{user_id}", json={"name": "Tester", "profile": {"age": 25}}, headers=headers)
     assert resp.status_code == 200
 
     # Add a couple of logs
@@ -35,6 +37,7 @@ def test_memory_upsert_and_endpoint(monkeypatch):
         r = client.post(
             "/add_training_log",
             json={"user_id": user_id, "notes": notes, "kind": "workout"},
+            headers=headers,
         )
         assert r.status_code == 200
 
@@ -43,7 +46,7 @@ def test_memory_upsert_and_endpoint(monkeypatch):
     assert res.get("updated") is True
 
     # Fetch memories via endpoint
-    r = client.get(f"/memories/me", params={"user_id": user_id})
+    r = client.get(f"/memories/me", headers=headers)
     assert r.status_code == 200
     data = r.json()
     assert isinstance(data.get("items"), list)
@@ -54,10 +57,13 @@ def test_memory_upsert_and_endpoint(monkeypatch):
 def test_chat_injects_memory(monkeypatch):
     client = TestClient(app)
     user_id = "test_user_memory_chat"
-    client.put(f"/users/{user_id}", json={"name": "Tester"})
+    token = create_test_token(user_id=user_id, tier="free")
+    headers = {"Authorization": f"Bearer {token}"}
+    client.put(f"/users/{user_id}", json={"name": "Tester"}, headers=headers)
     client.post(
         "/add_training_log",
         json={"user_id": user_id, "notes": "Loves morning workouts", "kind": "note"},
+        headers=headers,
     )
 
     res = refresh_user_memory(rag_service, user_id=user_id, n=3)
@@ -71,7 +77,7 @@ def test_chat_injects_memory(monkeypatch):
 
     monkeypatch.setattr(rag_service, "chat", fake_chat)
 
-    r = client.post("/chat", json={"user_id": user_id, "session_id": "s1", "query": "plan"})
+    r = client.post("/chat", json={"session_id": "s1", "query": "plan"}, headers=headers)
     assert r.status_code == 200
     j = r.json()
     assert j.get("answer") == "ok"
