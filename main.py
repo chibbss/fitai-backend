@@ -8,15 +8,18 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel, Field
 
 from rag import RAGService
+from memory import refresh_user_memory, refresh_all_users_memories
 from utils import AppConfig, get_config, get_logger
 
 import os
 import io
 import asyncio
+from apscheduler.schedulers.background import BackgroundScheduler
 
 logger = get_logger("main")
 app = FastAPI(title="Production RAG API", version="1.0.0")
 rag_service = RAGService()
+_scheduler: Optional[BackgroundScheduler] = None
 
 # -------------------------------------------------
 # Response Models
@@ -107,6 +110,18 @@ class HistoryResponse(BaseModel):
     items: List[HistoryItem]
 
 
+class MemoryItem(BaseModel):
+    id: str
+    summary: str
+    source: Optional[str] = None
+    metadata: Dict[str, Any]
+    updated_at: Optional[str] = None
+
+
+class MemoriesResponse(BaseModel):
+    items: List[MemoryItem]
+
+
 class AddDocsResponse(BaseModel):
     added_docs: int
     added_vectors: int
@@ -125,10 +140,28 @@ async def on_startup() -> None:
     try:
         rag_service.startup()
         logger.info("RAG service initialized")
+        # Dev scheduler: refresh memories on a cron schedule inside API process
+        if os.getenv("ENABLE_SCHEDULER", "1") in ("1", "true", "True"):
+            global _scheduler
+            _scheduler = BackgroundScheduler()
+            cron_hour = os.getenv("MEMORY_CRON_HOUR", "3")
+            _scheduler.add_job(lambda: refresh_all_users_memories(rag_service), "cron", hour=cron_hour)
+            _scheduler.start()
     except Exception as e:
         err = f"Startup failed: {e}\n{traceback.format_exc()}"
         logger.error(err)
         raise
+
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    global _scheduler
+    try:
+        if _scheduler:
+            _scheduler.shutdown(wait=False)
+            _scheduler = None
+    except Exception:
+        pass
 
 
 # -------------------------------------------------
@@ -312,6 +345,13 @@ async def upsert_user(user_id: str, body: UserUpsertRequest) -> UserResponse:
             goals=body.goals,
             metadata=body.metadata,
         )
+        # Optionally refresh long-term memory immediately on profile/goal updates
+        if os.getenv("REFRESH_MEMORY_ON_UPSERT", "1") in ("1", "true", "True"):
+            try:
+                from memory import refresh_user_memory as _refresh
+                _ = _refresh(rag_service, user_id=user_id, n=10)
+            except Exception:
+                logger.warning("Memory refresh on upsert failed; will rely on scheduler")
         return UserResponse(**user)
     except Exception as e:
         logger.error("/users PUT error: %s", e, exc_info=True)
@@ -345,6 +385,56 @@ async def history(user_id: str, limit: int = 100, since: Optional[str] = None) -
         return HistoryResponse(items=[HistoryItem(**r) for r in rows])
     except Exception as e:
         logger.error("/history error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------- Memories --------
+@app.get("/memories/me", response_model=MemoriesResponse)
+async def memories_me(user_id: str) -> MemoriesResponse:
+    try:
+        items = rag_service.list_memories(user_id=user_id)
+        return MemoriesResponse(items=[MemoryItem(**m) for m in items])
+    except Exception as e:
+        logger.error("/memories/me error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class MemoryRefreshRequest(BaseModel):
+    user_id: str
+    n: Optional[int] = 10
+
+
+class MemoryRefreshResponse(BaseModel):
+    user_id: str
+    updated: bool
+    memory_id: Optional[str] = None
+    reason: Optional[str] = None
+    summary: Optional[str] = None
+
+
+@app.post("/memories/refresh", response_model=MemoryRefreshResponse)
+async def memories_refresh(body: MemoryRefreshRequest) -> MemoryRefreshResponse:
+    try:
+        res = refresh_user_memory(rag_service, user_id=body.user_id, n=body.n or 10)
+        return MemoryRefreshResponse(
+            user_id=res.get("user_id", body.user_id),
+            updated=bool(res.get("updated")),
+            memory_id=res.get("memory_id"),
+            reason=res.get("reason"),
+            summary=res.get("summary"),
+        )
+    except Exception as e:
+        logger.error("/memories/refresh error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/memories/{user_id}", response_model=MemoriesResponse)
+async def memories_for_user(user_id: str) -> MemoriesResponse:
+    try:
+        items = rag_service.list_memories(user_id=user_id)
+        return MemoriesResponse(items=[MemoryItem(**m) for m in items])
+    except Exception as e:
+        logger.error("/memories/{user_id} error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

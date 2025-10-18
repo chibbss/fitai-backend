@@ -9,6 +9,7 @@ This project provides a clean, production-ready Retrieval-Augmented Generation (
 - Hugging Face generator (default: `microsoft/phi-3-mini-4k-instruct`)
 - dotenv configuration, logging, structured JSON responses
 - Endpoints: `/chat`, `/add_docs`, `/reembed_all`, `/health`
+- Long-term memory summaries with `/memories/me` and `/memories/refresh` endpoints
 - Persistent storage in Postgres (documents/chunks tables)
 - Runs on CPU or GPU (configurable with `DEVICE`)
 
@@ -68,6 +69,8 @@ Open docs at `http://localhost:8000/docs`.
 - `POST /add_training_log` – add a personal log (embeds `notes`)
 - `GET /history?user_id=...` – retrieve recent logs
 - `POST /onboarding_step` – incremental onboarding updates to profile/goals
+- `GET /memories/me` – fetch long-term memory summaries for the authenticated user
+- `POST /memories/refresh` – trigger memory summarization for a user
 
 ### Example cURL Requests
 Add documents (for a user; set user_id to null for global docs):

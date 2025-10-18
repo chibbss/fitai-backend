@@ -156,8 +156,26 @@ class RAGService:
                     conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_training_logs_time ON training_logs(occurred_at DESC)"))
                     conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_training_logs_tags_gin ON training_logs USING gin (tags)"))
                     conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_training_logs_metadata_gin ON training_logs USING gin (meta_data)"))
+                    # User memory indexes (if table exists in runtime mode)
+                    try:
+                        conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_user_memory_embedding_hnsw ON user_memory USING hnsw (embedding vector_cosine_ops);"))
+                        conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_user_memory_user ON user_memory(user_id)"))
+                        conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_user_memory_meta_gin ON user_memory USING gin (meta_data)"))
+                    except Exception:
+                        pass
             except Exception as e:
                 self.logger.warning("Runtime schema setup warning: %s", e)
+        else:
+            # Fallback safeguard: if critical tables are missing (fresh DB), create them
+            try:
+                with self.engine.begin() as conn:
+                    check = conn.execute(sql_text("SELECT to_regclass('public.users')")).scalar()
+                    if check is None:
+                        self.logger.warning("Users table missing under migrations mode; creating base schema at runtime for dev")
+                        conn.execute(sql_text("CREATE EXTENSION IF NOT EXISTS vector"))
+                        Base.metadata.create_all(self.engine)
+            except Exception as e:
+                self.logger.warning("Schema fallback setup warning: %s", e)
 
     # ------------------------
     # Chunking
@@ -525,6 +543,65 @@ class RAGService:
             rank += 1
         return out
 
+    # ------------------------
+    # Long-term memory retrieval
+    # ------------------------
+    def retrieve_memories(self, user_id: Optional[str], query: Optional[str], top_k: int = 3) -> List[Dict[str, Any]]:
+        if not user_id:
+            return []
+        k = max(1, top_k)
+        with self.SessionLocal() as session:
+            if query and query.strip():
+                qvec = self._embed([query])[0].tolist()
+                dist = UserMemoryModel.embedding.cosine_distance(qvec)
+                stmt = (
+                    select(UserMemoryModel)
+                    .where(UserMemoryModel.user_id == user_id)
+                    .order_by(dist)
+                    .limit(k)
+                )
+                rows = session.execute(stmt).scalars().all()
+            else:
+                stmt = (
+                    select(UserMemoryModel)
+                    .where(UserMemoryModel.user_id == user_id)
+                    .order_by(UserMemoryModel.updated_at.desc())
+                    .limit(k)
+                )
+                rows = session.execute(stmt).scalars().all()
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            out.append(
+                {
+                    "id": r.id,
+                    "summary": r.summary,
+                    "source": r.source,
+                    "metadata": r.meta_data or {},
+                    "updated_at": str(r.updated_at) if r.updated_at is not None else None,
+                }
+            )
+        return out
+
+    def list_memories(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+        with self.SessionLocal() as session:
+            stmt = (
+                select(UserMemoryModel)
+                .where(UserMemoryModel.user_id == user_id)
+                .order_by(UserMemoryModel.updated_at.desc())
+                .limit(limit)
+            )
+            rows = session.execute(stmt).scalars().all()
+        return [
+            {
+                "id": r.id,
+                "summary": r.summary,
+                "source": r.source,
+                "metadata": r.meta_data or {},
+                "updated_at": str(r.updated_at) if r.updated_at is not None else None,
+            }
+            for r in rows
+        ]
+
     def chat(
         self,
         query: str,
@@ -560,14 +637,20 @@ class RAGService:
         ]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
 
+        # Long-term memory context
+        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
+        mem_lines = [f"- {m['summary']}" for m in memories]
+        memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
+
         # Build prompt using chat template when available; fallback to instruction prompt
         system_text = (
             "You are FitAI, a tough-love yet supportive fitness coach. "
-            "Use STATIC (profile/goals), SESSION (recent messages), DYNAMIC (personal history), and KB (general docs). "
+            "Use MEMORY (long-term user memory), STATIC (profile/goals), SESSION (recent messages), DYNAMIC (personal history), and KB (general docs). "
             "If the info is insufficient, say you don't know. Respond in 2–4 concise sentences. "
             "Do not include role tags or Q/A markers."
         )
         context_text = (
+            f"MEMORY:\n{memory_text}\n\n"
             f"STATIC:\n{static_summary}\n\n"
             f"SESSION:\n{session_context}\n\n"
             f"DYNAMIC:\n{dyn_text}\n\n"
@@ -793,3 +876,16 @@ class TrainingLogModel(Base):
     meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     embedding: Mapped[Any] = mapped_column(Vector(384), nullable=False)
     created_at: Mapped[Optional[str]] = mapped_column(server_default=sql_text("now()"))
+
+
+class UserMemoryModel(Base):
+    __tablename__ = "user_memory"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    embedding: Mapped[Any] = mapped_column(Vector(384), nullable=False)
+    source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[Optional[str]] = mapped_column(server_default=sql_text("now()"))
+    updated_at: Mapped[Optional[str]] = mapped_column(server_default=sql_text("now()"))
