@@ -4,12 +4,13 @@ from __future__ import annotations
 import traceback
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
 from pydantic import BaseModel, Field
 
 from rag import RAGService
 from memory import refresh_user_memory, refresh_all_users_memories
 from utils import AppConfig, get_config, get_logger
+from auth import AuthUser, get_current_user, get_optional_user, ensure_user_owns_resource, require_admin
 
 import os
 import io
@@ -29,7 +30,6 @@ class HealthResponse(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    user_id: Optional[str] = Field(None, description="User identifier; null => global context only")
     session_id: Optional[str] = Field(None, description="Session identifier for short-term memory")
     query: str = Field(..., description="User query/question")
 
@@ -176,11 +176,11 @@ async def health() -> HealthResponse:
 # Chat Endpoint
 # -------------------------------------------------
 @app.post("/chat", response_model=ChatResponse)
-async def chat(body: ChatRequest) -> ChatResponse:
+async def chat(body: ChatRequest, user: AuthUser = Depends(get_current_user)) -> ChatResponse:
     try:
         result = rag_service.chat(
             query=body.query,
-            user_id=body.user_id,
+            user_id=user.user_id,
             session_id=body.session_id,
         )
         refs = [Reference(**r) for r in result.get("references", [])]
@@ -299,10 +299,12 @@ async def transcribe_chat(
 # Other Routes
 # -------------------------------------------------
 @app.post("/add_docs", response_model=AddDocsResponse)
-async def add_docs(body: AddDocsRequest) -> AddDocsResponse:
+async def add_docs(body: AddDocsRequest, user: Optional[AuthUser] = Depends(get_optional_user)) -> AddDocsResponse:
     try:
+        # If authenticated, default to storing under the authenticated user when user_id not provided
+        target_user_id = body.user_id if body.user_id is not None else (user.user_id if user else None)
         payload = {"documents": [d.model_dump() for d in body.documents]}
-        result = rag_service.add_documents(payload["documents"], user_id=body.user_id)
+        result = rag_service.add_documents(payload["documents"], user_id=target_user_id)
         return AddDocsResponse(**result)
     except Exception as e:
         logger.error("/add_docs error: %s", e, exc_info=True)
@@ -310,7 +312,7 @@ async def add_docs(body: AddDocsRequest) -> AddDocsResponse:
 
 
 @app.post("/reembed_all", response_model=RebuildResponse)
-async def reembed_all(user_id: Optional[str] = None) -> RebuildResponse:
+async def reembed_all(user_id: Optional[str] = None, _: AuthUser = Depends(require_admin)) -> RebuildResponse:
     try:
         result = rag_service.reembed_all(user_id=user_id)
         return RebuildResponse(**result)
@@ -321,8 +323,9 @@ async def reembed_all(user_id: Optional[str] = None) -> RebuildResponse:
 
 # -------- User management --------
 @app.get("/users/{user_id}", response_model=UserResponse)
-async def get_user(user_id: str) -> UserResponse:
+async def get_user(user_id: str, user: AuthUser = Depends(get_current_user)) -> UserResponse:
     try:
+        ensure_user_owns_resource(user_id, user)
         user = rag_service.get_user(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -335,8 +338,9 @@ async def get_user(user_id: str) -> UserResponse:
 
 
 @app.put("/users/{user_id}", response_model=UserResponse)
-async def upsert_user(user_id: str, body: UserUpsertRequest) -> UserResponse:
+async def upsert_user(user_id: str, body: UserUpsertRequest, user: AuthUser = Depends(get_current_user)) -> UserResponse:
     try:
+        ensure_user_owns_resource(user_id, user)
         user = rag_service.upsert_user(
             user_id=user_id,
             name=body.name,
@@ -359,8 +363,9 @@ async def upsert_user(user_id: str, body: UserUpsertRequest) -> UserResponse:
 
 
 @app.post("/add_training_log", response_model=TrainingLogResponse)
-async def add_training_log(body: TrainingLogRequest) -> TrainingLogResponse:
+async def add_training_log(body: TrainingLogRequest, user: AuthUser = Depends(get_current_user)) -> TrainingLogResponse:
     try:
+        ensure_user_owns_resource(body.user_id, user)
         occurred_at = body.occurred_at if body.occurred_at else None
         res = rag_service.add_training_log(
             user_id=body.user_id,
@@ -378,8 +383,9 @@ async def add_training_log(body: TrainingLogRequest) -> TrainingLogResponse:
 
 
 @app.get("/history", response_model=HistoryResponse)
-async def history(user_id: str, limit: int = 100, since: Optional[str] = None) -> HistoryResponse:
+async def history(user_id: str, limit: int = 100, since: Optional[str] = None, user: AuthUser = Depends(get_current_user)) -> HistoryResponse:
     try:
+        ensure_user_owns_resource(user_id, user)
         since_dt = since if since else None
         rows = rag_service.get_training_history(user_id=user_id, limit=limit, since=since_dt)
         return HistoryResponse(items=[HistoryItem(**r) for r in rows])
@@ -390,9 +396,9 @@ async def history(user_id: str, limit: int = 100, since: Optional[str] = None) -
 
 # -------- Memories --------
 @app.get("/memories/me", response_model=MemoriesResponse)
-async def memories_me(user_id: str) -> MemoriesResponse:
+async def memories_me(user: AuthUser = Depends(get_current_user)) -> MemoriesResponse:
     try:
-        items = rag_service.list_memories(user_id=user_id)
+        items = rag_service.list_memories(user_id=user.user_id)
         return MemoriesResponse(items=[MemoryItem(**m) for m in items])
     except Exception as e:
         logger.error("/memories/me error: %s", e, exc_info=True)
@@ -413,8 +419,9 @@ class MemoryRefreshResponse(BaseModel):
 
 
 @app.post("/memories/refresh", response_model=MemoryRefreshResponse)
-async def memories_refresh(body: MemoryRefreshRequest) -> MemoryRefreshResponse:
+async def memories_refresh(body: MemoryRefreshRequest, user: AuthUser = Depends(get_current_user)) -> MemoryRefreshResponse:
     try:
+        ensure_user_owns_resource(body.user_id, user)
         res = refresh_user_memory(rag_service, user_id=body.user_id, n=body.n or 10)
         return MemoryRefreshResponse(
             user_id=res.get("user_id", body.user_id),
@@ -429,7 +436,7 @@ async def memories_refresh(body: MemoryRefreshRequest) -> MemoryRefreshResponse:
 
 
 @app.get("/memories/{user_id}", response_model=MemoriesResponse)
-async def memories_for_user(user_id: str) -> MemoriesResponse:
+async def memories_for_user(user_id: str, _: AuthUser = Depends(require_admin)) -> MemoriesResponse:
     try:
         items = rag_service.list_memories(user_id=user_id)
         return MemoriesResponse(items=[MemoryItem(**m) for m in items])
