@@ -18,7 +18,7 @@ import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 from starlette.middleware.base import BaseHTTPMiddleware
 from asgi_correlation_id import CorrelationIdMiddleware
-from slowapi import Limiter
+from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -55,7 +55,7 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
-app.add_exception_handler(RateLimitExceeded, lambda r, e: (HTTPException(status_code=429, detail=str(e))))
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.state.limiter = limiter
 
 # -------------------------------------------------
@@ -256,7 +256,7 @@ async def readiness() -> ReadinessResponse:
 # -------------------------------------------------
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_CHAT", "60/minute"))
-async def chat(body: ChatRequest, user: AuthUser = Depends(get_current_user)) -> ChatResponse:
+async def chat(request: Request, body: ChatRequest, user: AuthUser = Depends(get_current_user)) -> ChatResponse:
     try:
         # Simple profanity/guardrail filter (mask or block)
         q = body.query or ""
@@ -389,7 +389,7 @@ async def transcribe_chat(
 # -------------------------------------------------
 @app.post("/add_docs", response_model=AddDocsResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADD_DOCS", "30/minute"))
-async def add_docs(body: AddDocsRequest, user: Optional[AuthUser] = Depends(get_optional_user)) -> AddDocsResponse:
+async def add_docs(request: Request, body: AddDocsRequest, user: Optional[AuthUser] = Depends(get_optional_user)) -> AddDocsResponse:
     try:
         # If authenticated, default to storing under the authenticated user when user_id not provided
         target_user_id = body.user_id if body.user_id is not None else (user.user_id if user else None)
@@ -403,7 +403,7 @@ async def add_docs(body: AddDocsRequest, user: Optional[AuthUser] = Depends(get_
 
 @app.post("/reembed_all", response_model=RebuildResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN", "10/minute"))
-async def reembed_all(user_id: Optional[str] = None, _: AuthUser = Depends(require_admin)) -> RebuildResponse:
+async def reembed_all(request: Request, user_id: Optional[str] = None, _: AuthUser = Depends(require_admin)) -> RebuildResponse:
     try:
         result = rag_service.reembed_all(user_id=user_id)
         return RebuildResponse(**result)
@@ -455,7 +455,7 @@ async def upsert_user(user_id: str, body: UserUpsertRequest, user: AuthUser = De
 
 @app.post("/add_training_log", response_model=TrainingLogResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_LOGS", "120/minute"))
-async def add_training_log(body: TrainingLogRequest, user: AuthUser = Depends(get_current_user)) -> TrainingLogResponse:
+async def add_training_log(request: Request, body: TrainingLogRequest, user: AuthUser = Depends(get_current_user)) -> TrainingLogResponse:
     try:
         ensure_user_owns_resource(body.user_id, user)
         occurred_at = body.occurred_at if body.occurred_at else None
@@ -489,7 +489,7 @@ async def history(user_id: str, limit: int = 100, since: Optional[str] = None, u
 # -------- Memories --------
 @app.get("/memories/me", response_model=MemoriesResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_MEMORIES", "60/minute"))
-async def memories_me(user: AuthUser = Depends(get_current_user)) -> MemoriesResponse:
+async def memories_me(request: Request, user: AuthUser = Depends(get_current_user)) -> MemoriesResponse:
     try:
         items = rag_service.list_memories(user_id=user.user_id)
         return MemoriesResponse(items=[MemoryItem(**m) for m in items])
