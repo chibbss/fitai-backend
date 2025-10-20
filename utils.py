@@ -44,6 +44,12 @@ class AppConfig(BaseModel):
     # Schema management: 'migrations' (preferred) or 'runtime'
     db_schema_management: str = "migrations"
 
+    # Output quality and safety
+    max_query_chars: int = 2000
+    max_context_chars: int = 16000
+    profanity_filter_enabled: bool = True
+    profanity_block_mode: str = "mask"  # mask | block
+
 
 def load_env() -> None:
     # Load .env if present
@@ -72,6 +78,10 @@ def get_config() -> AppConfig:
         gen_timeout_ms=int(os.getenv("GEN_TIMEOUT_MS", "60000")),
         remote_fallback_local=os.getenv("REMOTE_FALLBACK_LOCAL", "1") in ("1", "true", "True", "yes"),
         db_schema_management=os.getenv("DB_SCHEMA_MANAGEMENT", "migrations"),
+        max_query_chars=int(os.getenv("MAX_QUERY_CHARS", "2000")),
+        max_context_chars=int(os.getenv("MAX_CONTEXT_CHARS", "16000")),
+        profanity_filter_enabled=os.getenv("PROFANITY_FILTER_ENABLED", "1") in ("1", "true", "True", "yes"),
+        profanity_block_mode=os.getenv("PROFANITY_BLOCK_MODE", "mask"),
     )
 
 

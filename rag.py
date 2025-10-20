@@ -613,6 +613,9 @@ class RAGService:
         max_new_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
     ) -> Dict[str, Any]:
+        # Clamp input length
+        if len(query) > self.config.max_query_chars:
+            query = query[: self.config.max_query_chars]
         # Append user message to session buffer
         if user_id:
             self.append_session_message(user_id, session_id, role="user", content=query)
@@ -658,6 +661,9 @@ class RAGService:
             f"DYNAMIC:\n{dyn_text}\n\n"
             f"KB:\n{kb_text}\n\n"
         )
+        # Clamp context size
+        if len(context_text) > self.config.max_context_chars:
+            context_text = context_text[: self.config.max_context_chars]
         use_chat_template = False
         prompt = None
         try:

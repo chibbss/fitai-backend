@@ -67,7 +67,7 @@ class HealthResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     session_id: Optional[str] = Field(None, description="Session identifier for short-term memory")
-    query: str = Field(..., description="User query/question")
+    query: str = Field(..., description="User query/question (safety filtered)")
 
 
 class Reference(BaseModel):
@@ -258,8 +258,17 @@ async def readiness() -> ReadinessResponse:
 @limiter.limit(os.getenv("RATE_LIMIT_CHAT", "60/minute"))
 async def chat(body: ChatRequest, user: AuthUser = Depends(get_current_user)) -> ChatResponse:
     try:
+        # Simple profanity/guardrail filter (mask or block)
+        q = body.query or ""
+        if rag_service.config.profanity_filter_enabled:
+            import re
+            bad = re.compile(r"\b(fuck|shit|bitch|asshole|bastard)\b", re.IGNORECASE)
+            if bad.search(q):
+                if rag_service.config.profanity_block_mode == "block":
+                    raise HTTPException(status_code=400, detail="Inappropriate language detected")
+                q = bad.sub("[CENSORED]", q)
         result = rag_service.chat(
-            query=body.query,
+            query=q,
             user_id=user.user_id,
             session_id=body.session_id,
         )
