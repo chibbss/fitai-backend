@@ -6,8 +6,6 @@ from ingest_common import ingest_from_seeds
 
 DEFAULTS = [
     "https://www.nhs.uk/live-well/exercise/",
-    "https://www.nhs.uk/conditions/obesity/",
-    "https://www.nhs.uk/live-well/eat-well/",
 ]
 
 if __name__ == "__main__":

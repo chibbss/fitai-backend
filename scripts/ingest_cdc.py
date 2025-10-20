@@ -5,8 +5,7 @@ import os
 from ingest_common import ingest_from_seeds
 
 DEFAULTS = [
-    "https://www.cdc.gov/physical-activity/index.html",
-    "https://www.cdc.gov/nutrition/index.html",
+    "https://www.cdc.gov/physicalactivity/",
 ]
 
 if __name__ == "__main__":
