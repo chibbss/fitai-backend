@@ -4,7 +4,7 @@ from __future__ import annotations
 import traceback
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request
 from pydantic import BaseModel, Field
 
 from rag import RAGService
@@ -16,11 +16,47 @@ import os
 import io
 import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
+from starlette.middleware.base import BaseHTTPMiddleware
+from asgi_correlation_id import CorrelationIdMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from prometheus_fastapi_instrumentator import Instrumentator
+import sentry_sdk
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 logger = get_logger("main")
 app = FastAPI(title="Production RAG API", version="1.0.0")
 rag_service = RAGService()
 _scheduler: Optional[BackgroundScheduler] = None
+limiter = Limiter(key_func=get_remote_address)
+
+
+# -------------------------------
+# Middleware: Body size limit
+# -------------------------------
+MAX_BODY_BYTES = int(os.getenv("MAX_BODY_BYTES", "10485760"))  # 10MB default
+
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        cl = request.headers.get("content-length")
+        if cl and int(cl) > MAX_BODY_BYTES:
+            raise HTTPException(status_code=413, detail="Request too large")
+        received = 0
+        async for chunk in request.stream():
+            received += len(chunk)
+            if received > MAX_BODY_BYTES:
+                raise HTTPException(status_code=413, detail="Request too large")
+        request._stream_consumed = True  # type: ignore[attr-defined]
+        return await call_next(request)
+
+
+app.add_middleware(BodySizeLimitMiddleware)
+app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
+app.add_exception_handler(RateLimitExceeded, lambda r, e: (HTTPException(status_code=429, detail=str(e))))
+app.state.limiter = limiter
 
 # -------------------------------------------------
 # Response Models
@@ -138,6 +174,21 @@ class RebuildResponse(BaseModel):
 @app.on_event("startup")
 async def on_startup() -> None:
     try:
+        # Observability (env-gated)
+        if os.getenv("SENTRY_DSN"):
+            sentry_sdk.init(dsn=os.getenv("SENTRY_DSN"), traces_sample_rate=float(os.getenv("SENTRY_TRACES", "0.1")))
+            app.add_middleware(SentryAsgiMiddleware)
+
+        try:
+            FastAPIInstrumentor.instrument_app(app)
+        except Exception:
+            pass
+
+        try:
+            Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+        except Exception:
+            pass
+
         rag_service.startup()
         logger.info("RAG service initialized")
         # Dev scheduler: refresh memories on a cron schedule inside API process
@@ -172,10 +223,39 @@ async def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
+class ReadinessResponse(BaseModel):
+    ok: bool
+    db_ok: bool
+    gen_ok: bool
+
+
+@app.get("/readiness", response_model=ReadinessResponse)
+async def readiness() -> ReadinessResponse:
+    db_ok = False
+    gen_ok = False
+    try:
+        # lightweight DB check
+        with rag_service.engine.connect() as conn:
+            conn.execute("SELECT 1")
+        db_ok = True
+    except Exception:
+        db_ok = False
+    try:
+        if rag_service.config.gen_backend == "remote" and rag_service._remote_session and rag_service.config.remote_gen_url:
+            gen_ok = True
+        else:
+            # If local backend, ensure tokenizer/model loaded
+            gen_ok = rag_service.generator_tokenizer is not None or (rag_service._remote_session is not None)
+    except Exception:
+        gen_ok = False
+    return ReadinessResponse(ok=db_ok and gen_ok, db_ok=db_ok, gen_ok=gen_ok)
+
+
 # -------------------------------------------------
 # Chat Endpoint
 # -------------------------------------------------
 @app.post("/chat", response_model=ChatResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_CHAT", "60/minute"))
 async def chat(body: ChatRequest, user: AuthUser = Depends(get_current_user)) -> ChatResponse:
     try:
         result = rag_service.chat(
@@ -299,6 +379,7 @@ async def transcribe_chat(
 # Other Routes
 # -------------------------------------------------
 @app.post("/add_docs", response_model=AddDocsResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADD_DOCS", "30/minute"))
 async def add_docs(body: AddDocsRequest, user: Optional[AuthUser] = Depends(get_optional_user)) -> AddDocsResponse:
     try:
         # If authenticated, default to storing under the authenticated user when user_id not provided
@@ -312,6 +393,7 @@ async def add_docs(body: AddDocsRequest, user: Optional[AuthUser] = Depends(get_
 
 
 @app.post("/reembed_all", response_model=RebuildResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_ADMIN", "10/minute"))
 async def reembed_all(user_id: Optional[str] = None, _: AuthUser = Depends(require_admin)) -> RebuildResponse:
     try:
         result = rag_service.reembed_all(user_id=user_id)
@@ -363,6 +445,7 @@ async def upsert_user(user_id: str, body: UserUpsertRequest, user: AuthUser = De
 
 
 @app.post("/add_training_log", response_model=TrainingLogResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_LOGS", "120/minute"))
 async def add_training_log(body: TrainingLogRequest, user: AuthUser = Depends(get_current_user)) -> TrainingLogResponse:
     try:
         ensure_user_owns_resource(body.user_id, user)
@@ -396,6 +479,7 @@ async def history(user_id: str, limit: int = 100, since: Optional[str] = None, u
 
 # -------- Memories --------
 @app.get("/memories/me", response_model=MemoriesResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_MEMORIES", "60/minute"))
 async def memories_me(user: AuthUser = Depends(get_current_user)) -> MemoriesResponse:
     try:
         items = rag_service.list_memories(user_id=user.user_id)

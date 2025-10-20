@@ -55,7 +55,17 @@ pip install --index-url https://download.pytorch.org/whl/cu121 torch torchvision
 
 ### Running Locally
 ```bash
+# Dev
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+# Prod-like
+gunicorn -k uvicorn.workers.UvicornWorker main:app \
+  --bind 0.0.0.0:8000 \
+  --workers ${WORKERS:-2} \
+  --timeout ${TIMEOUT:-60} \
+  --graceful-timeout 30 \
+  --keep-alive 5 \
+  --access-logfile - --error-logfile -
 ```
 Open docs at `http://localhost:8000/docs`.
 
@@ -149,6 +159,11 @@ See `.env.example` for all options:
 - `DEVICE`: `auto` | `cuda` | `cpu`
 - `TOP_K`, `CHUNK_SIZE_TOKENS`, `CHUNK_OVERLAP_TOKENS`
 - `MAX_NEW_TOKENS`, `TEMPERATURE`
+- `DB_SCHEMA_MANAGEMENT` = `migrations` (prod)
+- `MAX_BODY_BYTES` (default 10MB)
+- Rate limiting (examples): `RATE_LIMIT_CHAT=60/minute`, `RATE_LIMIT_LOGS=120/minute`
+- Observability: `SENTRY_DSN`, `SENTRY_TRACES=0.1`, `OTEL_EXPORTER_OTLP_ENDPOINT`
+- Metrics: `/metrics` exposed (Prometheus)
 
 ### Run on GPU Pods (e.g., RunPod)
 - Set `DEVICE=cuda` in `.env`.
