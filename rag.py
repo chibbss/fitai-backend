@@ -27,6 +27,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship,
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from pgvector.sqlalchemy import Vector
 
+import os
 from utils import AppConfig, get_config, get_logger, resolve_device_map
 
 
@@ -166,16 +167,17 @@ class RAGService:
             except Exception as e:
                 self.logger.warning("Runtime schema setup warning: %s", e)
         else:
-            # Fallback safeguard: if critical tables are missing (fresh DB), create them
-            try:
-                with self.engine.begin() as conn:
-                    check = conn.execute(sql_text("SELECT to_regclass('public.users')")).scalar()
-                    if check is None:
-                        self.logger.warning("Users table missing under migrations mode; creating base schema at runtime for dev")
-                        conn.execute(sql_text("CREATE EXTENSION IF NOT EXISTS vector"))
-                        Base.metadata.create_all(self.engine)
-            except Exception as e:
-                self.logger.warning("Schema fallback setup warning: %s", e)
+            # No runtime DDL in migrations mode. Optional DEV-only safeguard can be enabled explicitly.
+            if os.getenv("ALLOW_SCHEMA_FALLBACK_DEV") in ("1", "true", "True"):
+                try:
+                    with self.engine.begin() as conn:
+                        check = conn.execute(sql_text("SELECT to_regclass('public.users')")).scalar()
+                        if check is None:
+                            self.logger.warning("DEV safeguard: creating base schema at runtime (ALLOW_SCHEMA_FALLBACK_DEV=1)")
+                            conn.execute(sql_text("CREATE EXTENSION IF NOT EXISTS vector"))
+                            Base.metadata.create_all(self.engine)
+                except Exception as e:
+                    self.logger.warning("Schema fallback setup warning: %s", e)
 
     # ------------------------
     # Chunking
