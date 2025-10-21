@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Annotated
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request, Body
 from pydantic import BaseModel, Field
 
 from rag import RAGService
@@ -68,6 +68,9 @@ class HealthResponse(BaseModel):
 class ChatRequest(BaseModel):
     session_id: Optional[str] = Field(None, description="Session identifier for short-term memory")
     query: str = Field(..., description="User query/question (safety filtered)")
+
+# Resolve forward refs for Pydantic v2 when using future annotations
+ChatRequest.model_rebuild()
 
 
 class Reference(BaseModel):
@@ -256,7 +259,11 @@ async def readiness() -> ReadinessResponse:
 # -------------------------------------------------
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_CHAT", "60/minute"))
-async def chat(request: Request, body: ChatRequest, user: AuthUser = Depends(get_current_user)) -> ChatResponse:
+async def chat(
+    request: Request,
+    body: Annotated[ChatRequest, Body(...)],
+    user: AuthUser = Depends(get_current_user),
+) -> ChatResponse:
     try:
         # Simple profanity/guardrail filter (mask or block)
         q = body.query or ""
