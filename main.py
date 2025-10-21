@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import traceback
-from typing import Any, Dict, List, Optional, Annotated
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request, Body
 from pydantic import BaseModel, Field
@@ -70,7 +70,10 @@ class ChatRequest(BaseModel):
     query: str = Field(..., description="User query/question (safety filtered)")
 
 # Resolve forward refs for Pydantic v2 when using future annotations
-ChatRequest.model_rebuild()
+try:
+    ChatRequest.model_rebuild()
+except Exception:
+    pass
 
 
 class Reference(BaseModel):
@@ -261,7 +264,7 @@ async def readiness() -> ReadinessResponse:
 @limiter.limit(os.getenv("RATE_LIMIT_CHAT", "60/minute"))
 async def chat(
     request: Request,
-    body: Annotated[ChatRequest, Body(...)],
+    body: ChatRequest = Body(...),
     user: AuthUser = Depends(get_current_user),
 ) -> ChatResponse:
     try:
