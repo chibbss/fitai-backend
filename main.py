@@ -41,14 +41,12 @@ MAX_BODY_BYTES = int(os.getenv("MAX_BODY_BYTES", "10485760"))  # 10MB default
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         cl = request.headers.get("content-length")
-        if cl and int(cl) > MAX_BODY_BYTES:
-            raise HTTPException(status_code=413, detail="Request too large")
-        received = 0
-        async for chunk in request.stream():
-            received += len(chunk)
-            if received > MAX_BODY_BYTES:
-                raise HTTPException(status_code=413, detail="Request too large")
-        request._stream_consumed = True  # type: ignore[attr-defined]
+        if cl:
+            try:
+                if int(cl) > MAX_BODY_BYTES:
+                    raise HTTPException(status_code=413, detail="Request too large")
+            except Exception:
+                pass
         return await call_next(request)
 
 
@@ -95,7 +93,7 @@ class TranscribeResponse(BaseModel):
 
 class AddDocItem(BaseModel):
     id: Optional[str] = Field(None, description="Optional document ID")
-    text: str = Field(..., description="Raw document text")
+    text: str = Field(..., min_length=1, description="Raw document text")
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
