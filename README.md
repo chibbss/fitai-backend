@@ -165,6 +165,34 @@ See `.env.example` for all options:
 - Observability: `SENTRY_DSN`, `SENTRY_TRACES=0.1`, `OTEL_EXPORTER_OTLP_ENDPOINT`
 - Metrics: `/metrics` exposed (Prometheus)
 
+### Embeddings provider
+- Local (default): compute embeddings in-process with SentenceTransformers
+- Remote (Modal/OpenAI-compatible): set env to offload embeddings
+  - `EMBEDDING_PROVIDER=modal`
+  - `REMOTE_EMBED_URL=https://<your-embed>/embed`
+  - `REMOTE_EMBED_API_KEY=<token>` (optional)
+
+You can deploy the minimal embed service under `infra/embed_service_modal.py` to Modal/GPU; it exposes:
+- `GET /embed_health` – liveness
+- `POST /embed` – body: `{ "texts": ["..."] }` → `{ "embeddings": [[...], ...] }`
+
+### Ingestion
+- Web sources (seeded): `scripts/ingest_nhs.py`, `ingest_cdc.py`, `ingest_who.py`, `ingest_nutrition_gov.py`, `ingest_apa.py`
+  - Configure with `{PREFIX}_SEED_FILE` or `{PREFIX}_START_URLS`, `{PREFIX}_MAX_PAGES`
+  - Batches POST to `/add_docs` as global docs
+
+- Local documents: `scripts/ingest_local_docs.py`
+```bash
+pip install pypdf
+python scripts/ingest_local_docs.py data/pdfs/*.pdf --category fitness --api http://localhost:8000
+```
+
+- File upload endpoint:
+```bash
+curl -X POST http://localhost:8000/add_docs_files \
+  -F files=@/path/doc1.pdf -F files=@/path/notes.txt -F category=fitness
+```
+
 ### Run on GPU Pods (e.g., RunPod)
 - Set `DEVICE=cuda` in `.env`.
 - Ensure the container has NVIDIA drivers and CUDA runtime.

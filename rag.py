@@ -218,15 +218,33 @@ class RAGService:
     # Embedding helpers
     # ------------------------
     def _embed(self, texts: List[str]) -> np.ndarray:
-        assert self.embedding_model is not None
-        vectors = self.embedding_model.encode(
-            texts,
-            batch_size=64,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-        )
-        return vectors.astype("float32")
+        if self.config.embedding_provider == "local":
+            assert self.embedding_model is not None
+            vectors = self.embedding_model.encode(
+                texts,
+                batch_size=64,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+                normalize_embeddings=True,
+            )
+            return vectors.astype("float32")
+        # Remote embedding provider (Modal or compatible)
+        import json
+        import requests
+        if not self._remote_session:
+            self._remote_session = requests.Session()
+            if self.config.remote_embed_api_key:
+                self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
+        if not self.config.remote_embed_url:
+            raise RuntimeError("REMOTE_EMBED_URL not configured for remote embeddings")
+        resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        vecs = data.get("embeddings") or data.get("data")
+        if not vecs:
+            raise RuntimeError("Remote embed response missing 'embeddings'")
+        arr = np.array(vecs, dtype="float32")
+        return arr
 
     # ------------------------
     # Public operations

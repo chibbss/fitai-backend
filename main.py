@@ -408,6 +408,60 @@ async def add_docs(request: Request, body: AddDocsRequest, user: Optional[AuthUs
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/add_docs_files", response_model=AddDocsResponse)
+async def add_docs_files(
+    files: List[UploadFile] = File(..., description="Upload PDFs/TXT/MD files"),
+    user: Optional[AuthUser] = Depends(get_optional_user),
+    category: Optional[str] = Form(None),
+) -> AddDocsResponse:
+    try:
+        try:
+            from pypdf import PdfReader  # type: ignore
+        except Exception:
+            PdfReader = None  # type: ignore
+        def _extract_pdf_bytes(data: bytes) -> str:
+            if PdfReader is None:
+                raise HTTPException(status_code=500, detail="PDF support requires pypdf installed")
+            import io
+            reader = PdfReader(io.BytesIO(data))
+            parts: List[str] = []
+            for page in reader.pages:
+                try:
+                    t = page.extract_text() or ""
+                    if t.strip():
+                        parts.append(t)
+                except Exception:
+                    continue
+            return "\n".join(parts)
+
+        docs: List[AddDocItem] = []  # type: ignore
+        for f in files:
+            name = f.filename or "doc"
+            ct = f.content_type or ""
+            data = await f.read()
+            text = ""
+            if name.lower().endswith(".pdf") or ct == "application/pdf":
+                text = _extract_pdf_bytes(data)
+            elif name.lower().endswith(".txt") or name.lower().endswith(".md") or ct.startswith("text/"):
+                text = data.decode("utf-8", errors="ignore")
+            else:
+                continue
+            text = (text or "").strip()
+            if not text:
+                continue
+            meta: Dict[str, Any] = {"source": "upload", "title": name}
+            if category:
+                meta["category"] = category
+            docs.append(AddDocItem(id=None, text=text, metadata=meta))
+        if not docs:
+            return AddDocsResponse(added_docs=0, added_vectors=0)
+        result = rag_service.add_documents([d.model_dump() for d in docs], user_id=user.user_id if user else None)
+        return AddDocsResponse(**result)
+    except Exception as e:
+        logger.error("/add_docs_files error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/reembed_all", response_model=RebuildResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_ADMIN", "10/minute"))
 async def reembed_all(request: Request, user_id: Optional[str] = None, _: AuthUser = Depends(require_admin)) -> RebuildResponse:
