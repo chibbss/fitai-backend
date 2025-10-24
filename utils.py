@@ -50,6 +50,11 @@ class AppConfig(BaseModel):
     profanity_filter_enabled: bool = True
     profanity_block_mode: str = "mask"  # mask | block
 
+    # Embedding provider
+    embedding_provider: str = "local"  # local | modal
+    remote_embed_url: Optional[str] = None
+    remote_embed_api_key: Optional[str] = None
+
 
 def load_env() -> None:
     # Load .env if present
@@ -82,6 +87,9 @@ def get_config() -> AppConfig:
         max_context_chars=int(os.getenv("MAX_CONTEXT_CHARS", "16000")),
         profanity_filter_enabled=os.getenv("PROFANITY_FILTER_ENABLED", "1") in ("1", "true", "True", "yes"),
         profanity_block_mode=os.getenv("PROFANITY_BLOCK_MODE", "mask"),
+        embedding_provider=os.getenv("EMBEDDING_PROVIDER", "local"),
+        remote_embed_url=os.getenv("REMOTE_EMBED_URL") or None,
+        remote_embed_api_key=os.getenv("REMOTE_EMBED_API_KEY") or None,
     )
 
 
