@@ -51,9 +51,11 @@ class AppConfig(BaseModel):
     profanity_block_mode: str = "mask"  # mask | block
 
     # Embedding provider
-    embedding_provider: str = "local"  # local | modal
+    embedding_provider: str = "local"  # local | modal | openai
     remote_embed_url: Optional[str] = None
     remote_embed_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    openai_embed_model: str = "text-embedding-3-large"
 
 
 def load_env() -> None:
@@ -90,6 +92,8 @@ def get_config() -> AppConfig:
         embedding_provider=os.getenv("EMBEDDING_PROVIDER", "local"),
         remote_embed_url=os.getenv("REMOTE_EMBED_URL") or None,
         remote_embed_api_key=os.getenv("REMOTE_EMBED_API_KEY") or None,
+        openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+        openai_embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-large"),
     )
 
 

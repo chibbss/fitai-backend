@@ -228,23 +228,39 @@ class RAGService:
                 normalize_embeddings=True,
             )
             return vectors.astype("float32")
-        # Remote embedding provider (Modal or compatible)
-        import json
-        import requests
-        if not self._remote_session:
-            self._remote_session = requests.Session()
-            if self.config.remote_embed_api_key:
-                self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
-        if not self.config.remote_embed_url:
-            raise RuntimeError("REMOTE_EMBED_URL not configured for remote embeddings")
-        resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
-        resp.raise_for_status()
-        data = resp.json()
-        vecs = data.get("embeddings") or data.get("data")
-        if not vecs:
-            raise RuntimeError("Remote embed response missing 'embeddings'")
-        arr = np.array(vecs, dtype="float32")
-        return arr
+        # Remote providers
+        if self.config.embedding_provider == "modal":
+            import requests
+            if not self._remote_session:
+                self._remote_session = requests.Session()
+                if self.config.remote_embed_api_key:
+                    self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
+            if not self.config.remote_embed_url:
+                raise RuntimeError("REMOTE_EMBED_URL not configured for remote embeddings")
+            resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
+            resp.raise_for_status()
+            data = resp.json()
+            vecs = data.get("embeddings") or data.get("data")
+            if not vecs:
+                raise RuntimeError("Remote embed response missing 'embeddings'")
+            return np.array(vecs, dtype="float32")
+        elif self.config.embedding_provider == "openai":
+            try:
+                from openai import OpenAI  # type: ignore
+            except Exception as e:
+                raise RuntimeError("OpenAI client not installed. pip install openai") from e
+            if not self.config.openai_api_key:
+                raise RuntimeError("OPENAI_API_KEY not set for OpenAI embeddings")
+            client = OpenAI(api_key=self.config.openai_api_key)
+            model = self.config.openai_embed_model
+            # OpenAI API accepts one input or a list in some SDKs; loop for simplicity
+            out: List[List[float]] = []
+            for t in texts:
+                resp = client.embeddings.create(model=model, input=t)
+                emb = resp.data[0].embedding  # type: ignore
+                out.append(emb)
+            return np.array(out, dtype="float32")
+        raise RuntimeError(f"Unknown embedding provider: {self.config.embedding_provider}")
 
     # ------------------------
     # Public operations
