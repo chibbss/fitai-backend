@@ -8,7 +8,8 @@ from pydantic import BaseModel
 # In Modal, load model once globally
 try:
     from sentence_transformers import SentenceTransformer
-    _model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
+    # Use 384-dim model to match DB schema by default
+    _model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 except Exception:
     _model = None
 
@@ -25,7 +26,7 @@ class EmbedResponse(BaseModel):
 
 @app.get("/embed_health")
 async def embed_health() -> Dict[str, Any]:
-    return {"ok": _model is not None, "model": "all-mpnet-base-v2"}
+    return {"ok": _model is not None, "model": "all-MiniLM-L6-v2"}
 
 
 @app.post("/embed", response_model=EmbedResponse)

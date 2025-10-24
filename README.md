@@ -172,6 +172,16 @@ See `.env.example` for all options:
   - `REMOTE_EMBED_URL=https://<your-embed>/embed`
   - `REMOTE_EMBED_API_KEY=<token>` (optional)
 
+- OpenAI embeddings:
+  - `EMBEDDING_PROVIDER=openai`
+  - `OPENAI_API_KEY=sk-...`
+  - `OPENAI_EMBED_MODEL=text-embedding-3-large` (default)
+
+Switching providers:
+- To use OpenAI: set `EMBEDDING_PROVIDER=openai` and provide `OPENAI_API_KEY`.
+- To use Modal GPU embed service: set `EMBEDDING_PROVIDER=modal` and point `REMOTE_EMBED_URL` to your deployed service.
+- To fall back to local embeddings: set `EMBEDDING_PROVIDER=local`.
+
 You can deploy the minimal embed service under `infra/embed_service_modal.py` to Modal/GPU; it exposes:
 - `GET /embed_health` – liveness
 - `POST /embed` – body: `{ "texts": ["..."] }` → `{ "embeddings": [[...], ...] }`
