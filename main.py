@@ -308,6 +308,7 @@ async def chat(
 @app.get("/search", response_model=SearchResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_SEARCH", "120/minute"))
 async def search(
+    request: Request,
     q: str = Query(..., description="Query string"),
     k: int = Query(5, ge=1, le=50, description="Top-k results to return"),
     user: AuthUser = Depends(get_current_user),
