@@ -670,9 +670,8 @@ class RAGService:
     def _rerank(self, query: str, items: List[RetrievedChunk], top_k: int) -> List[RetrievedChunk]:
         if not items:
             return []
-        if self.config.reranker_backend == "none":
-            return items[:top_k]
-        if self.config.reranker_backend == "remote":
+        # Enforce reranking as a required step; if misconfigured, fall back to distance order
+        if self.config.reranker_backend in ("remote", "auto"):
             if not self.config.reranker_remote_url:
                 self.logger.warning("RERANKER_REMOTE_URL not set; skipping rerank")
                 return items[:top_k]
@@ -691,7 +690,7 @@ class RAGService:
             except Exception as e:
                 self.logger.error("Remote rerank failed: %s", e)
                 return items[:top_k]
-        if self.config.reranker_backend == "local" and self._reranker_model is not None:
+        if self.config.reranker_backend in ("local", "auto") and self._reranker_model is not None:
             try:
                 pairs = [(query, it.text) for it in items]
                 scores = self._reranker_model.predict(pairs)  # type: ignore[attr-defined]
