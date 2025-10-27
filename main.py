@@ -4,6 +4,7 @@ import traceback
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request, Body
+from fastapi import Query
 from pydantic import BaseModel, Field
 
 from rag import RAGService
@@ -60,6 +61,20 @@ app.state.limiter = limiter
 # -------------------------------------------------
 class HealthResponse(BaseModel):
     status: str
+class SearchResponseItem(BaseModel):
+    doc_id: str
+    chunk_id: str
+    score: float
+    text: str
+    metadata: Dict[str, Any]
+    snippet: str
+    source: Optional[str] = None
+
+
+class SearchResponse(BaseModel):
+    results: List[SearchResponseItem]
+    citations: List[Dict[str, Any]]
+    count: int
 
 
 class ChatRequest(BaseModel):
@@ -84,6 +99,7 @@ class Reference(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     references: List[Reference]
+    citations: List[Dict[str, Any]] | None = None
 
 
 # NOTE: Transcribe endpoint now only returns the transcribed text.
@@ -280,9 +296,32 @@ async def chat(
             session_id=body.session_id,
         )
         refs = [Reference(**r) for r in result.get("references", [])]
-        return ChatResponse(answer=result.get("answer", ""), references=refs)
+        return ChatResponse(answer=result.get("answer", ""), references=refs, citations=result.get("citations") or [])
     except Exception as e:
         logger.error("/chat error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------------------------
+# Search Endpoint
+# -------------------------------------------------
+@app.get("/search", response_model=SearchResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_SEARCH", "120/minute"))
+async def search(
+    q: str = Query(..., description="Query string"),
+    k: int = Query(5, ge=1, le=50, description="Top-k results to return"),
+    user: AuthUser = Depends(get_current_user),
+) -> SearchResponse:
+    try:
+        # clamp query
+        query = q[: rag_service.config.max_query_chars]
+        res = rag_service.search(query=query, user_id=user.user_id, top_k=k)
+        items = [SearchResponseItem(**it) for it in res.get("results", [])]
+        return SearchResponse(results=items, citations=res.get("citations", []), count=res.get("count", len(items)))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/search error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

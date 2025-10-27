@@ -57,6 +57,7 @@ class RAGService:
         self.generator_tokenizer = None
         self.generator_pipe = None
         self._remote_session = None  # for remote generation
+        self._reranker_model = None  # Cross-encoder model when using local reranker
 
         # Database (SQLAlchemy)
         self.engine = create_engine(self.config.database_url, future=True, pool_pre_ping=True)
@@ -136,6 +137,30 @@ class RAGService:
                 pass
 
             self.generator_pipe = None
+
+        # Optional reranker initialization
+        try:
+            if self.config.reranker_backend == "local":
+                if CrossEncoder is None:
+                    self.logger.warning(
+                        "Reranker backend is 'local' but CrossEncoder not available; skipping reranker"
+                    )
+                    self._reranker_model = None
+                else:
+                    device_str = self._resolve_torch_device()
+                    self.logger.info(
+                        "Loading reranker model %s on %s",
+                        self.config.reranker_model_name,
+                        device_str,
+                    )
+                    # sentence-transformers CrossEncoder accepts device identifier; map 'cuda' to 0
+                    device_arg = 0 if (device_str == "cuda" and torch.cuda.is_available()) else device_str
+                    self._reranker_model = CrossEncoder(self.config.reranker_model_name, device=device_arg)  # type: ignore
+            else:
+                self._reranker_model = None
+        except Exception as e:
+            self.logger.error("Failed to initialize reranker: %s", e)
+            self._reranker_model = None
 
     def _resolve_torch_device(self) -> str:
         d = self.config.device.lower()
@@ -555,7 +580,7 @@ class RAGService:
             # Order by cosine distance ascending
             dist = ChunkModel.embedding.cosine_distance(query_vec)
             stmt = (
-                select(ChunkModel, DocumentModel)
+                select(ChunkModel, DocumentModel, dist.label("distance"))
                 .join(DocumentModel, ChunkModel.document_id == DocumentModel.id)
                 .where(or_(DocumentModel.user_id == user_id, DocumentModel.user_id.is_(None)))
                 .order_by(dist)
@@ -564,20 +589,20 @@ class RAGService:
             results = session.execute(stmt).all()
 
         out: List[RetrievedChunk] = []
-        rank = 0
-        for ch, doc in results:
-            # Distance to similarity: cosine_distance in [0,2]; convert to similarity ~ (1 - d/2)
-            # We cannot directly fetch the distance value here without another select; treat as ranked
+        for ch, doc, distance in results:
+            sim = 1.0 - 0.5 * float(distance if distance is not None else 0.0)
+            md = ch.meta_data or {}
+            if (not md.get("source")) and getattr(doc, "source", None):
+                md = {**md, "source": doc.source}
             out.append(
                 RetrievedChunk(
                     doc_id=ch.document_id,
                     chunk_id=ch.id,
                     text=ch.text,
-                    score=float(max(0.0, 1.0 - 0.5 * rank)),
-                    metadata=ch.meta_data or {},
+                    score=float(max(0.0, sim)),
+                    metadata=md,
                 )
             )
-            rank += 1
         return out
 
     # ------------------------
@@ -639,6 +664,92 @@ class RAGService:
             for r in rows
         ]
 
+    # ------------------------
+    # Reranking helpers
+    # ------------------------
+    def _rerank(self, query: str, items: List[RetrievedChunk], top_k: int) -> List[RetrievedChunk]:
+        if not items:
+            return []
+        if self.config.reranker_backend == "none":
+            return items[:top_k]
+        if self.config.reranker_backend == "remote":
+            if not self.config.reranker_remote_url:
+                self.logger.warning("RERANKER_REMOTE_URL not set; skipping rerank")
+                return items[:top_k]
+            try:
+                import requests
+                sess = self._remote_session or requests.Session()
+                payload = {"query": query, "texts": [it.text for it in items], "model": self.config.reranker_model_name}
+                resp = sess.post(self.config.reranker_remote_url, json=payload, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
+                scores = data.get("scores") or data.get("data")
+                if not isinstance(scores, list) or len(scores) != len(items):
+                    raise RuntimeError("Invalid reranker response")
+                ranked = sorted(zip(items, scores), key=lambda t: float(t[1]), reverse=True)
+                return [RetrievedChunk(doc_id=it.doc_id, chunk_id=it.chunk_id, text=it.text, score=float(sc), metadata=it.metadata) for it, sc in ranked[:top_k]]
+            except Exception as e:
+                self.logger.error("Remote rerank failed: %s", e)
+                return items[:top_k]
+        if self.config.reranker_backend == "local" and self._reranker_model is not None:
+            try:
+                pairs = [(query, it.text) for it in items]
+                scores = self._reranker_model.predict(pairs)  # type: ignore[attr-defined]
+                ranked = sorted(zip(items, scores), key=lambda t: float(t[1]), reverse=True)
+                return [RetrievedChunk(doc_id=it.doc_id, chunk_id=it.chunk_id, text=it.text, score=float(sc), metadata=it.metadata) for it, sc in ranked[:top_k]]
+            except Exception as e:
+                self.logger.error("Local rerank failed: %s", e)
+                return items[:top_k]
+        return items[:top_k]
+
+    def _highlight_snippet(self, text: str, query: str, max_len: int = 240) -> str:
+        q = (query or "").strip()
+        if not q:
+            return (text or "")[:max_len]
+        import re
+        terms = [t for t in re.findall(r"\w+", q.lower()) if len(t) >= 3]
+        seen = set()
+        uniq = []
+        for t in terms:
+            if t not in seen:
+                uniq.append(re.escape(t))
+                seen.add(t)
+            if len(uniq) >= 5:
+                break
+        if not uniq:
+            return (text or "")[:max_len]
+        pattern = re.compile("(" + "|".join(uniq) + ")", re.IGNORECASE)
+        m = pattern.search(text)
+        if not m:
+            s = (text or "")[:max_len]
+        else:
+            start = max(0, m.start() - max_len // 3)
+            end = min(len(text), m.end() + (max_len * 2) // 3)
+            s = text[start:end]
+        s = pattern.sub(lambda m: f"<em>{m.group(0)}</em>", s)
+        if len(s) > max_len:
+            s = s[:max_len]
+        return s
+
+    def search(self, query: str, user_id: Optional[str], top_k: int) -> Dict[str, Any]:
+        candidates_k = max(top_k, self.config.retriever_candidates)
+        base = self.retrieve(query, user_id=user_id, top_k=candidates_k)
+        reranked = self._rerank(query, base, top_k=top_k)
+        results: List[Dict[str, Any]] = []
+        for r in reranked:
+            source = r.metadata.get("source") if isinstance(r.metadata, dict) else None
+            results.append({
+                "doc_id": r.doc_id,
+                "chunk_id": r.chunk_id,
+                "score": float(r.score),
+                "text": r.text,
+                "metadata": r.metadata,
+                "snippet": self._highlight_snippet(r.text, query),
+                "source": source,
+            })
+        citations = [{"chunk_id": it["chunk_id"], "source": it.get("source")} for it in results]
+        return {"results": results, "citations": citations, "count": len(results)}
+
     def chat(
         self,
         query: str,
@@ -684,10 +795,12 @@ class RAGService:
 
         # Build prompt using chat template when available; fallback to instruction prompt
         system_text = (
-            "You are FitAI, a tough-love yet supportive fitness coach. "
-            "Use MEMORY (long-term user memory), STATIC (profile/goals), SESSION (recent messages), DYNAMIC (personal history), and KB (general docs). "
-            "If the info is insufficient, say you don't know. Respond in 2–4 concise sentences. "
-            "Do not include role tags or Q/A markers."
+            "You are FitAI. CRITICAL RULES:\n"
+            "1. Only answer using retrieved or user-provided sources.\n"
+            "2. If missing info: 'I don't have enough data to answer that.'\n"
+            "3. ALWAYS cite sources like [1], [2] that correspond to KB items below.\n"
+            "4. Never invent numbers or protocols.\n"
+            "5. Keep answers under 4 sentences."
         )
         context_text = (
             f"MEMORY:\n{memory_text}\n\n"
@@ -757,9 +870,13 @@ class RAGService:
                 }
                 for r in retrieved
             ]
+            citations = [
+                {"chunk_id": r.chunk_id, "source": (r.metadata.get("source") if isinstance(r.metadata, dict) else None)}
+                for r in retrieved
+            ]
             if user_id and ans:
                 self.append_session_message(user_id, session_id, role="assistant", content=ans)
-            return {"answer": ans, "references": references, "dynamic_refs": dyn[:5]}
+            return {"answer": ans, "references": references, "citations": citations, "dynamic_refs": dyn[:5]}
         else:
             if self.generator_tokenizer is None or self.generator_model is None:
                 raise RuntimeError("Generation model is not initialized")
@@ -847,6 +964,10 @@ class RAGService:
             }
             for r in retrieved
         ]
+        citations = [
+            {"chunk_id": r.chunk_id, "source": (r.metadata.get("source") if isinstance(r.metadata, dict) else None)}
+            for r in retrieved
+        ]
 
         # Append assistant reply to session buffer
         if user_id and ans:
@@ -855,6 +976,7 @@ class RAGService:
         return {
             "answer": ans,
             "references": references,
+            "citations": citations,
             "dynamic_refs": dyn[:5],
         }
 
