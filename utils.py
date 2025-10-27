@@ -57,6 +57,12 @@ class AppConfig(BaseModel):
     openai_api_key: Optional[str] = None
     openai_embed_model: str = "text-embedding-3-large"
 
+    # Reranker configuration
+    reranker_backend: str = "none"  # local | remote | none
+    reranker_model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    reranker_remote_url: Optional[str] = None
+    retriever_candidates: int = 10
+
 
 def load_env() -> None:
     # Load .env if present
@@ -94,6 +100,10 @@ def get_config() -> AppConfig:
         remote_embed_api_key=os.getenv("REMOTE_EMBED_API_KEY") or None,
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         openai_embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-large"),
+        reranker_backend=os.getenv("RERANKER_BACKEND", "none"),
+        reranker_model_name=os.getenv("RERANKER_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+        reranker_remote_url=os.getenv("RERANKER_REMOTE_URL") or None,
+        retriever_candidates=int(os.getenv("RETRIEVER_CANDIDATES", "10")),
     )
 
 

@@ -12,6 +12,10 @@ from collections import deque
 
 import torch
 from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import CrossEncoder  # type: ignore
+except Exception:  # pragma: no cover
+    CrossEncoder = None  # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, StoppingCriteria, StoppingCriteriaList
 
 from sqlalchemy import (
