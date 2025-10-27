@@ -78,16 +78,12 @@ def verify_supabase_jwt(token: str) -> dict:
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> AuthUser:
     if credentials is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing authentication token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise HTTPException(status_code=401, detail="Missing authentication token", headers={"WWW-Authenticate": "Bearer realm=\"fitai\""})
     token = credentials.credentials
     payload = verify_supabase_jwt(token)
     user_id = payload.get("sub")
     if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token: missing user ID")
+        raise HTTPException(status_code=401, detail="Invalid token: missing user ID", headers={"WWW-Authenticate": "error=\"invalid_token\""})
     email = payload.get("email", "")
     role = payload.get("role", "authenticated")
     user_metadata = payload.get("user_metadata", {})

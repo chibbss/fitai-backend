@@ -33,6 +33,8 @@ image = (
 
 app = modal.App("fitai-vllm")
 
+# NOTE: A separate Modal ASGI app for cross-encoder reranking is provided in infra/modal_reranker.py
+
 
 def get_model_max_length(model_name: str, hf_token: str | None) -> int:
     """

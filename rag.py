@@ -5,6 +5,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
+import re
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from collections import deque
@@ -12,6 +13,7 @@ from collections import deque
 import torch
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, StoppingCriteria, StoppingCriteriaList
+from sentence_transformers.cross_encoder import CrossEncoder
 
 from sqlalchemy import (
     create_engine,
@@ -52,6 +54,8 @@ class RAGService:
         self.generator_tokenizer = None
         self.generator_pipe = None
         self._remote_session = None  # for remote generation
+        self.reranker: Optional[CrossEncoder] = None
+        self._reranker_session = None  # for remote reranker
 
         # Database (SQLAlchemy)
         self.engine = create_engine(self.config.database_url, future=True, pool_pre_ping=True)
@@ -59,6 +63,64 @@ class RAGService:
 
         # Concurrency
         self._lock = threading.RLock()
+
+    # ------------------------
+    # Utils
+    # ------------------------
+    def _highlight_snippet(self, query: str, text: str, max_len: int = 300) -> str:
+        if not text:
+            return ""
+        tokens = [t for t in re.split(r"\W+", query.lower()) if len(t) >= 3]
+        lower_text = text.lower()
+        first_pos = -1
+        for t in tokens:
+            p = lower_text.find(t)
+            if p != -1 and (first_pos == -1 or p < first_pos):
+                first_pos = p
+        if first_pos == -1:
+            snippet = text[:max_len]
+            return snippet
+        start = max(0, first_pos - max_len // 3)
+        end = min(len(text), start + max_len)
+        snippet = text[start:end]
+        # Highlight tokens
+        def repl(m: re.Match) -> str:
+            return f"<em>{m.group(0)}</em>"
+        for t in sorted(set(tokens), key=len, reverse=True):
+            snippet = re.sub(rf"(?i)\b{re.escape(t)}\b", repl, snippet)
+        if start > 0:
+            snippet = "…" + snippet
+        if end < len(text):
+            snippet = snippet + "…"
+        return snippet
+
+    def _normalize_metadata(self, raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        meta: Dict[str, Any] = {}
+        if isinstance(raw, dict):
+            meta.update(raw)
+        # Normalize keys
+        if "meta_data" in meta and not isinstance(meta.get("meta_data"), dict):
+            meta.pop("meta_data", None)
+        # Standard fields
+        if "category" not in meta:
+            # map possible synonyms
+            for k in ["cat", "Category", "CATEGORY"]:
+                if k in meta and isinstance(meta[k], str):
+                    meta["category"] = meta[k]
+                    break
+        if "subcategory" not in meta:
+            for k in ["sub_category", "subCat", "Subcategory", "SUBCATEGORY"]:
+                if k in meta and isinstance(meta[k], str):
+                    meta["subcategory"] = meta[k]
+                    break
+        # Defaults
+        meta.setdefault("category", "unknown")
+        if "subcategory" not in meta:
+            meta["subcategory"] = None
+        # Ensure source preserved if present
+        if "source" in raw if isinstance(raw, dict) else False:
+            meta["source"] = raw.get("source")  # type: ignore
+        return meta
 
     # ------------------------
     # Initialization
@@ -124,6 +186,25 @@ class RAGService:
             except Exception:
                 pass
             self.generator_pipe = None
+
+        # Reranker backend
+        backend = (self.config.reranker_backend or "none").lower()
+        if backend == "local":
+            try:
+                device_str = self._resolve_torch_device()
+                device_arg = 0 if device_str == "cuda" and torch.cuda.is_available() else ("mps" if device_str == "mps" and torch.backends.mps.is_available() else "cpu")
+                self.logger.info("Loading reranker model %s on %s", self.config.reranker_model_name, device_arg)
+                self.reranker = CrossEncoder(self.config.reranker_model_name, device=device_arg)
+            except Exception as e:
+                self.logger.error("Failed to init local reranker: %s", e)
+                self.reranker = None
+        elif backend == "remote":
+            try:
+                import requests
+                self._reranker_session = requests.Session()
+            except Exception as e:
+                self.logger.error("Failed to init remote reranker session: %s", e)
+                self._reranker_session = None
 
     def _resolve_torch_device(self) -> str:
         d = self.config.device.lower()
@@ -247,7 +328,8 @@ class RAGService:
                 if not text:
                     continue
                 doc_id = d.get("id") or str(uuid.uuid4())
-                source = (d.get("metadata") or {}).get("source")
+                normalized_meta = self._normalize_metadata(d.get("meta_data") or d.get("metadata") or {})
+                source = normalized_meta.get("source")
                 document_records.append(DocumentModel(id=doc_id, user_id=user_id, source=source))
                 chunks = self._chunk_text(text)
                 for i, ch in enumerate(chunks):
@@ -257,7 +339,7 @@ class RAGService:
                         "document_id": doc_id,
                         "chunk_index": i,
                         "text": ch,
-                        "meta_data": d.get("meta_data") or d.get("metadata") or {},
+                        "meta_data": normalized_meta,
                     })
 
             if not chunk_records:
@@ -513,7 +595,9 @@ class RAGService:
     def retrieve(self, query: str, user_id: Optional[str], top_k: Optional[int] = None) -> List[RetrievedChunk]:
         if not query.strip():
             return []
-        k = max(1, top_k or self.config.top_k)
+        # retrieve more candidates for reranking
+        k_final = max(1, top_k or self.config.top_k)
+        k_candidates = max(k_final, getattr(self.config, "retriever_candidates", k_final))
         query_vec = self._embed([query])[0].tolist()
 
         with self.SessionLocal() as session:
@@ -524,26 +608,69 @@ class RAGService:
                 .join(DocumentModel, ChunkModel.document_id == DocumentModel.id)
                 .where(or_(DocumentModel.user_id == user_id, DocumentModel.user_id.is_(None)))
                 .order_by(dist)
-                .limit(k)
+                .limit(k_candidates)
             )
             results = session.execute(stmt).all()
 
         out: List[RetrievedChunk] = []
-        rank = 0
         for ch, doc in results:
-            # Distance to similarity: cosine_distance in [0,2]; convert to similarity ~ (1 - d/2)
-            # We cannot directly fetch the distance value here without another select; treat as ranked
             out.append(
                 RetrievedChunk(
                     doc_id=ch.document_id,
                     chunk_id=ch.id,
                     text=ch.text,
-                    score=float(max(0.0, 1.0 - 0.5 * rank)),
+                    score=0.0,
                     metadata=ch.meta_data or {},
                 )
             )
-            rank += 1
-        return out
+
+        # Rerank if configured
+        def _apply_rerank(chunks: List[RetrievedChunk], top_k: int) -> List[RetrievedChunk]:
+            if not chunks:
+                return []
+            backend = (self.config.reranker_backend or "none").lower()
+            if backend == "local" and self.reranker is not None:
+                pairs = [(query, c.text) for c in chunks]
+                try:
+                    scores = self.reranker.predict(pairs, batch_size=64, show_progress_bar=False)
+                except Exception as e:
+                    self.logger.warning("Local reranker failed: %s", e)
+                    scores = [0.0] * len(chunks)
+                for c, s in zip(chunks, scores):
+                    c.score = float(s)
+                chunks.sort(key=lambda x: x.score, reverse=True)
+                return chunks[:top_k]
+            if backend == "remote" and self._reranker_session and self.config.reranker_remote_url:
+                try:
+                    payload = {"query": query, "passages": [c.text for c in chunks], "top_k": top_k}
+                    resp = self._reranker_session.post(self.config.reranker_remote_url, json=payload, timeout=self.config.reranker_timeout_ms / 1000.0)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    # Expect [{index:int, score:float}] ordering or {scores:[...]} same length
+                    if isinstance(data, dict) and "scores" in data:
+                        scores = data["scores"]
+                        for c, s in zip(chunks, scores):
+                            c.score = float(s)
+                        chunks.sort(key=lambda x: x.score, reverse=True)
+                        return chunks[:top_k]
+                    if isinstance(data, list) and data and isinstance(data[0], dict) and "index" in data[0]:
+                        ranked = []
+                        for item in data[:top_k]:
+                            idx = int(item.get("index", 0))
+                            s = float(item.get("score", 0.0))
+                            if 0 <= idx < len(chunks):
+                                ch = chunks[idx]
+                                ch.score = s
+                                ranked.append(ch)
+                        return ranked
+                except Exception as e:
+                    self.logger.warning("Remote reranker failed: %s", e)
+            # Fallback: keep retrieval order
+            for i, c in enumerate(chunks):
+                c.score = float(max(0.0, 1.0 - 0.05 * i))
+            return chunks[:top_k]
+
+        return _apply_rerank(out, k_final)
 
     # ------------------------
     # Long-term memory retrieval
@@ -646,10 +773,13 @@ class RAGService:
 
         # Build prompt using chat template when available; fallback to instruction prompt
         system_text = (
-            "You are FitAI, a tough-love yet supportive fitness coach. "
-            "Use MEMORY (long-term user memory), STATIC (profile/goals), SESSION (recent messages), DYNAMIC (personal history), and KB (general docs). "
-            "If the info is insufficient, say you don't know. Respond in 2–4 concise sentences. "
-            "Do not include role tags or Q/A markers."
+            "You are FitAI, a tough-love personalized fitness coach.\n"
+            "CRITICAL RULES:\n"
+            "1. ONLY answer using info from KB, DYNAMIC, or STATIC sections below.\n"
+            "2. If info is missing, say 'I don't have enough data to answer that.'\n"
+            "3. ALWAYS cite sources like [KB 1], [Log 2] after each claim.\n"
+            "4. Do NOT make up numbers, dates, or exercise protocols.\n"
+            "5. Keep answers under 4 sentences.\n"
         )
         context_text = (
             f"MEMORY:\n{memory_text}\n\n"
@@ -802,10 +932,18 @@ class RAGService:
                 "chunk_id": r.chunk_id,
                 "score": r.score,
                 "metadata": r.metadata,
-                "snippet": r.text[:300],
+                "snippet": self._highlight_snippet(query, r.text, max_len=300),
             }
             for r in retrieved
         ]
+        # Generate simple per-claim citations mapping top references to numbered KB items in prompt
+        citations: List[Dict[str, Any]] = []
+        for i, r in enumerate(retrieved[: min(5, len(retrieved))]):
+            citations.append({
+                "claim": f"See KB {i+1}",
+                "source": r.metadata.get("source") if isinstance(r.metadata, dict) else None,
+                "chunk_id": r.chunk_id,
+            })
 
         # Append assistant reply to session buffer
         if user_id and ans:
@@ -815,6 +953,7 @@ class RAGService:
             "answer": ans,
             "references": references,
             "dynamic_refs": dyn[:5],
+            "citations": citations,
         }
 
 

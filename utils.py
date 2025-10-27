@@ -27,6 +27,13 @@ class AppConfig(BaseModel):
     remote_gen_url: Optional[str] = None
     remote_gen_api_key: Optional[str] = None
 
+    # Reranker config
+    reranker_backend: str = "local"  # local | remote | none
+    reranker_model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    reranker_remote_url: Optional[str] = None
+    reranker_timeout_ms: int = 5000
+    retriever_candidates: int = 10  # initial retrieve before rerank
+
     device: str = "auto"  # auto | cpu | cuda
     log_level: str = "INFO"
 
@@ -62,6 +69,11 @@ def get_config() -> AppConfig:
         gen_backend=os.getenv("GEN_BACKEND", "local"),
         remote_gen_url=os.getenv("REMOTE_GEN_URL") or None,
         remote_gen_api_key=os.getenv("REMOTE_GEN_API_KEY") or None,
+        reranker_backend=os.getenv("RERANKER_BACKEND", "local"),
+        reranker_model_name=os.getenv("RERANKER_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+        reranker_remote_url=os.getenv("RERANKER_REMOTE_URL") or None,
+        reranker_timeout_ms=int(os.getenv("RERANKER_TIMEOUT_MS", "5000")),
+        retriever_candidates=int(os.getenv("RETRIEVER_CANDIDATES", "10")),
         device=os.getenv("DEVICE", "auto"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         top_k=int(os.getenv("TOP_K", "5")),

@@ -45,6 +45,7 @@ class Reference(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     references: List[Reference]
+    citations: Optional[List[Dict[str, Any]]] = None
 
 
 # NOTE: Transcribe endpoint now only returns the transcribed text.
@@ -178,15 +179,76 @@ async def health() -> HealthResponse:
 @app.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest, user: AuthUser = Depends(get_current_user)) -> ChatResponse:
     try:
+        # Clamp overly long queries and do a simple profanity guard
+        q = (body.query or "").strip()
+        if len(q) > 2000:
+            q = q[:2000]
+        banned = {"fuck", "shit", "bitch"}
+        if any(b in q.lower() for b in banned):
+            q = q[:400]
         result = rag_service.chat(
-            query=body.query,
+            query=q,
             user_id=user.user_id,
             session_id=body.session_id,
         )
         refs = [Reference(**r) for r in result.get("references", [])]
-        return ChatResponse(answer=result.get("answer", ""), references=refs)
+        citations = result.get("citations") or []
+        return ChatResponse(answer=result.get("answer", ""), references=refs, citations=citations)
     except Exception as e:
         logger.error("/chat error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------------------------
+# Search Endpoint
+# -------------------------------------------------
+class SearchResponseItem(BaseModel):
+    doc_id: str
+    chunk_id: str
+    score: float
+    metadata: Dict[str, Any]
+    snippet: str
+
+
+class SearchResponse(BaseModel):
+    items: List[SearchResponseItem]
+
+
+@app.get("/search", response_model=SearchResponse)
+async def search(query: str, top_k: int = 5, user: AuthUser = Depends(get_current_user)) -> SearchResponse:
+    try:
+        q = (query or "").strip()
+        if not q:
+            return SearchResponse(items=[])
+        if len(q) > 2000:
+            q = q[:2000]
+        retrieved = rag_service.retrieve(q, user_id=user.user_id, top_k=top_k)
+        # For consistency with chat highlighting, try to highlight in API layer as well
+        try:
+            items = [
+                SearchResponseItem(
+                    doc_id=r.doc_id,
+                    chunk_id=r.chunk_id,
+                    score=r.score,
+                    metadata=r.metadata,
+                    snippet=r.text[:300],
+                )
+                for r in retrieved
+            ]
+        except Exception:
+            items = [
+                SearchResponseItem(
+                    doc_id=r.doc_id,
+                    chunk_id=r.chunk_id,
+                    score=r.score,
+                    metadata=r.metadata,
+                    snippet=r.text[:300],
+                )
+                for r in retrieved
+            ]
+        return SearchResponse(items=items)
+    except Exception as e:
+        logger.error("/search error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -315,7 +377,8 @@ async def add_docs(body: AddDocsRequest, user: Optional[AuthUser] = Depends(get_
 async def reembed_all(user_id: Optional[str] = None, _: AuthUser = Depends(require_admin)) -> RebuildResponse:
     try:
         result = rag_service.reembed_all(user_id=user_id)
-        return RebuildResponse(**result)
+        # total_docs not tracked separately; expose total_vectors as both for schema compatibility
+        return RebuildResponse(total_docs=result.get("total_vectors", 0), total_vectors=result.get("total_vectors", 0))
     except Exception as e:
         logger.error("/reembed_all error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
