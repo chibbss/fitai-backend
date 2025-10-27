@@ -1,3 +1,4 @@
+#rag.py
 from __future__ import annotations
 
 import numpy as np
@@ -75,12 +76,14 @@ class RAGService:
         device_str = self._resolve_torch_device()
         self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
         self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
+
         # Tokenizer for chunking
         try:
             from transformers import AutoTokenizer as HFTokenizer
-
-            self.embedding_tokenizer = HFTokenizer.from_pretrained(self.config.embedding_model_name, use_fast=True)
-        except Exception:  # pragma: no cover - fallback
+            self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                self.config.embedding_model_name, use_fast=True
+            )
+        except Exception:
             self.embedding_tokenizer = None
 
         # Generation backend
@@ -88,7 +91,6 @@ class RAGService:
             self.logger.info("Using REMOTE generation backend at %s", self.config.remote_gen_url)
             try:
                 import requests
-
                 self._remote_session = requests.Session()
                 if self.config.remote_gen_api_key:
                     self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_gen_api_key}"})
@@ -98,17 +100,21 @@ class RAGService:
         else:
             # Local transformers
             self.logger.info("Loading generation model %s", self.config.hf_model_id)
-            use_half = (device_str == "cuda" and torch.cuda.is_available()) or (device_str == "mps" and torch.backends.mps.is_available())
+            use_half = (
+                (device_str == "cuda" and torch.cuda.is_available())
+                or (device_str == "mps" and torch.backends.mps.is_available())
+            )
             dtype = torch.float16 if use_half else torch.float32
             model_kwargs = {"dtype": dtype, "trust_remote_code": True, "low_cpu_mem_usage": True}
             token = self.config.hf_token
-            self.generator_tokenizer = AutoTokenizer.from_pretrained(self.config.hf_model_id, token=token, trust_remote_code=True)
-            self.generator_model = AutoModelForCausalLM.from_pretrained(
-                self.config.hf_model_id,
-                token=token,
-                device_map=None,
-                **model_kwargs,
+
+            self.generator_tokenizer = AutoTokenizer.from_pretrained(
+                self.config.hf_model_id, token=token, trust_remote_code=True
             )
+            self.generator_model = AutoModelForCausalLM.from_pretrained(
+                self.config.hf_model_id, token=token, device_map=None, **model_kwargs
+            )
+
             # Move model to target device explicitly for small models (prototype)
             device_str = self._resolve_torch_device()
             if device_str == "cuda" and torch.cuda.is_available():
@@ -117,12 +123,14 @@ class RAGService:
                 self.generator_model.to("mps")
             else:
                 self.generator_model.to("cpu")
-            # Prefer eager attention on non-CUDA backends to avoid unsupported kernels
+
+            # Prefer eager attention on non-CUDA backends
             try:
                 if device_str != "cuda":
                     self.generator_model.config.attn_implementation = "eager"
             except Exception:
                 pass
+
             self.generator_pipe = None
 
     def _resolve_torch_device(self) -> str:
@@ -137,14 +145,12 @@ class RAGService:
     # Database models & setup
     # ------------------------
     def _init_db(self) -> None:
-        # Prefer migrations; only do runtime setup if configured
         if self.config.db_schema_management == "runtime":
             with self.engine.begin() as conn:
                 conn.execute(sql_text("CREATE EXTENSION IF NOT EXISTS vector"))
             Base.metadata.create_all(self.engine)
             try:
                 with self.engine.begin() as conn:
-                    # Safe column renames to align with meta_data convention
                     for tbl, col in [("chunks", "metadata"), ("users", "metadata"), ("training_logs", "metadata")]:
                         try:
                             conn.execute(sql_text(f"ALTER TABLE {tbl} RENAME COLUMN {col} TO meta_data"))
@@ -157,7 +163,6 @@ class RAGService:
                     conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_training_logs_time ON training_logs(occurred_at DESC)"))
                     conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_training_logs_tags_gin ON training_logs USING gin (tags)"))
                     conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_training_logs_metadata_gin ON training_logs USING gin (meta_data)"))
-                    # User memory indexes (if table exists in runtime mode)
                     try:
                         conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_user_memory_embedding_hnsw ON user_memory USING hnsw (embedding vector_cosine_ops);"))
                         conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_user_memory_user ON user_memory(user_id)"))
@@ -167,7 +172,7 @@ class RAGService:
             except Exception as e:
                 self.logger.warning("Runtime schema setup warning: %s", e)
         else:
-            # No runtime DDL in migrations mode. Optional DEV-only safeguard can be enabled explicitly.
+
             if os.getenv("ALLOW_SCHEMA_FALLBACK_DEV") in ("1", "true", "True"):
                 try:
                     with self.engine.begin() as conn:
@@ -188,7 +193,6 @@ class RAGService:
         if size <= 0:
             return [text]
         if self.embedding_tokenizer is None:
-            # Fallback rough split by characters if tokenizer unavailable
             char_size = max(200, size * 4)
             chunks: List[str] = []
             start = 0
@@ -228,7 +232,6 @@ class RAGService:
                 normalize_embeddings=True,
             )
             return vectors.astype("float32")
-        # Remote providers
         if self.config.embedding_provider == "modal":
             import requests
             if not self._remote_session:
@@ -253,7 +256,6 @@ class RAGService:
                 raise RuntimeError("OPENAI_API_KEY not set for OpenAI embeddings")
             client = OpenAI(api_key=self.config.openai_api_key)
             model = self.config.openai_embed_model
-            # OpenAI API accepts one input or a list in some SDKs; loop for simplicity
             out: List[List[float]] = []
             for t in texts:
                 resp = client.embeddings.create(model=model, input=t)
@@ -266,12 +268,10 @@ class RAGService:
     # Public operations
     # ------------------------
     def add_documents(self, docs: List[Dict[str, Any]], user_id: Optional[str]) -> Dict[str, Any]:
-        """Add documents for a user (or global if user_id is None)."""
         with self._lock:
             if not docs:
                 return {"added_docs": 0, "added_vectors": 0}
 
-            # Prepare chunks
             chunk_texts: List[str] = []
             chunk_records: List[Dict[str, Any]] = []
             document_records: List[DocumentModel] = []
@@ -297,19 +297,16 @@ class RAGService:
             if not chunk_records:
                 return {"added_docs": 0, "added_vectors": 0}
 
-            # Embed all chunks
+
             embeddings = self._embed(chunk_texts)
 
-            # Persist
+
             with self.SessionLocal() as session:
                 with session.begin():
-                    # Upsert-like naive insert (ignore conflicts) — rely on id uniqueness
                     for doc in document_records:
-                        # Try to add; ignore if exists
                         existing = session.get(DocumentModel, doc.id)
                         if existing is None:
                             session.add(doc)
-
                     for rec, emb in zip(chunk_records, embeddings):
                         ch = ChunkModel(
                             id=rec["id"],

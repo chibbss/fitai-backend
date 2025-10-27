@@ -44,7 +44,7 @@ class AuthUser(BaseModel):
 
     class Config:
         frozen = True
-
+        
 
 def verify_supabase_jwt(token: str) -> dict:
     if not SUPABASE_JWT_SECRET:
