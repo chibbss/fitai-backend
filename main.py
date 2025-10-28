@@ -16,6 +16,7 @@ from auth import AuthUser, get_current_user, get_optional_user, ensure_user_owns
 import os
 import io
 import asyncio
+from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from starlette.middleware.base import BaseHTTPMiddleware
 from asgi_correlation_id import CorrelationIdMiddleware
@@ -126,6 +127,12 @@ class UserUpsertRequest(BaseModel):
     profile: Optional[Dict[str, Any]] = None
     goals: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
+
+
+class DiscoveredDataRequest(BaseModel):
+    field: str
+    value: Any
+    context: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -603,6 +610,66 @@ async def upsert_user(user_id: str, body: UserUpsertRequest, user: AuthUser = De
         return UserResponse(**user)
     except Exception as e:
         logger.error("/users PUT error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/users/{user_id}/discover", response_model=UserResponse)
+async def discover_user_data(
+    user_id: str,
+    body: DiscoveredDataRequest,
+    user: AuthUser = Depends(get_current_user),
+) -> UserResponse:
+    """
+    Store data discovered through chat conversations.
+    This keeps track of what the user revealed naturally during interactions,
+    separate from explicit onboarding data.
+    
+    Example: User mentions weight in chat → stored as discovered.weight
+    """
+    try:
+        ensure_user_owns_resource(user_id, user)
+        
+        # Get current user data
+        user_data = rag_service.get_user(user_id)
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Initialize metadata and discovered dict if needed
+        metadata = user_data.get("metadata") or {}
+        discovered = metadata.get("discovered") or {}
+        
+        # Store the discovered field with timestamp and context
+        discovered[body.field] = {
+            "value": body.value,
+            "discovered_at": datetime.now(timezone.utc).isoformat(),
+            "context": body.context or "Chat conversation",
+        }
+        
+        metadata["discovered"] = discovered
+        
+        # Update user
+        updated_user = rag_service.upsert_user(
+            user_id=user_id,
+            name=user_data.get("name"),
+            email=user_data.get("email"),
+            profile=user_data.get("profile"),
+            goals=user_data.get("goals"),
+            metadata=metadata,
+        )
+        
+        logger.info(
+            "Discovered data for user %s: %s = %s (context: %s)",
+            user_id,
+            body.field,
+            body.value,
+            body.context or "Chat",
+        )
+        
+        return UserResponse(**updated_user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/users/%s/discover error: %s", user_id, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

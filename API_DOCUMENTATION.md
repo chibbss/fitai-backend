@@ -31,6 +31,10 @@ const token = session?.access_token
 
 1. [Health & Status](#health--status)
 2. [User Management](#user-management)
+   - [GET /users/{user_id}](#get-usersuser_id)
+   - [PUT /users/{user_id}](#put-usersuser_id)
+   - [PUT /users/{user_id}/discover](#put-usersuser_iddiscover) (NEW - Chat Discovery)
+   - [POST /onboarding_step](#post-onboarding_step) (Progressive Onboarding)
 3. [Workout Logging (V2 - Structured)](#workout-logging-v2---structured)
 4. [Workout Insights](#workout-insights)
 5. [Workout Calendar](#workout-calendar)
@@ -178,6 +182,217 @@ const profile = {
 
 await updateUserProfile(userId, profile, token)
 ```
+
+---
+
+### **PUT** `/users/{user_id}/discover`
+
+Store data discovered through chat conversations. This endpoint tracks what users naturally reveal during interactions, keeping it separate from explicit onboarding data.
+
+**Authentication:** Required
+
+**Use Cases:**
+- User mentions weight in chat: "I weigh about 75kg"
+- User reveals schedule constraints: "I can't train on Mondays"
+- User shares current routine: "I'm running PPL"
+- User mentions equipment: "I have dumbbells at home"
+
+**Request Body:**
+```json
+{
+  "field": "weight",
+  "value": "75kg",
+  "context": "User mentioned during workout discussion"
+}
+```
+
+**Parameters:**
+- `field` (string, required): The field name (e.g., "weight", "height", "constraints", "current_split", "equipment")
+- `value` (any, required): The discovered value
+- `context` (string, optional): Context of how it was discovered
+
+**Response:** Same as GET `/users/{user_id}`, with discovered data in `metadata.discovered`
+
+**Example Response:**
+```json
+{
+  "id": "user-123",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "profile": {
+    "age": 28,
+    "experience_level": "1-2 years",
+    "workout_preference": "Gym workouts"
+  },
+  "goals": {
+    "primary_goal": "Build muscle"
+  },
+  "metadata": {
+    "discovered": {
+      "weight": {
+        "value": "75kg",
+        "discovered_at": "2025-10-28T14:30:00Z",
+        "context": "User mentioned during workout discussion"
+      },
+      "constraints": {
+        "value": "Busy Mondays & Fridays",
+        "discovered_at": "2025-10-28T15:00:00Z",
+        "context": "Chat about weekly schedule"
+      }
+    }
+  }
+}
+```
+
+**Frontend Usage:**
+```javascript
+const discoverUserData = async (userId, field, value, context, token) => {
+  const response = await fetch(`http://localhost:8000/users/${userId}/discover`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ field, value, context })
+  })
+  return await response.json()
+}
+
+// Example: User mentions weight in chat
+await discoverUserData(
+  userId,
+  "weight",
+  "75kg",
+  "User mentioned during workout discussion",
+  token
+)
+
+// Example: User reveals schedule constraints
+await discoverUserData(
+  userId,
+  "constraints",
+  "Busy Mondays & Fridays",
+  "Chat about weekly schedule",
+  token
+)
+```
+
+**Common Discovered Fields:**
+- `weight`: User's current weight
+- `height`: User's height
+- `target_weight`: Goal weight
+- `constraints`: Schedule or training constraints
+- `current_split`: Current training split
+- `equipment`: Available equipment
+- `nutrition_preference`: Dietary approach
+
+**💡 Pro Tip:** This creates a distinction between:
+- **Onboarding data** (explicit, user-provided in forms) → stored in `profile` and `goals`
+- **Discovered data** (organic, revealed in conversation) → stored in `metadata.discovered`
+
+This helps fit.ai feel more natural and conversational!
+
+---
+
+### **POST** `/onboarding_step`
+
+Capture each onboarding step incrementally. This allows for progressive onboarding where users fill in information screen-by-screen.
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "user_id": "user-123",
+  "step": "goal",
+  "data": {
+    "primary_goal": "Build muscle"
+  }
+}
+```
+
+**Parameters:**
+- `user_id` (string, required): The user's ID
+- `step` (string, required): The onboarding step name (e.g., "goal", "experience", "preference", "details")
+- `data` (object, required): The data collected in this step
+
+**Response:**
+```json
+{
+  "user": {
+    "id": "user-123",
+    "name": null,
+    "email": "user@example.com",
+    "profile": {
+      "experience_level": "1-2 years"
+    },
+    "goals": {
+      "primary_goal": "Build muscle"
+    },
+    "metadata": {}
+  }
+}
+```
+
+**Frontend Usage:**
+```javascript
+const submitOnboardingStep = async (userId, step, data, token) => {
+  const response = await fetch('http://localhost:8000/onboarding_step', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ user_id: userId, step, data })
+  })
+  return await response.json()
+}
+
+// Example: Screen 1 - Primary Goal
+await submitOnboardingStep(
+  userId,
+  "goal",
+  { primary_goal: "Build muscle" },
+  token
+)
+
+// Example: Screen 2 - Experience Level
+await submitOnboardingStep(
+  userId,
+  "experience",
+  { experience_level: "1-2 years" },
+  token
+)
+
+// Example: Screen 3 - Workout Preference
+await submitOnboardingStep(
+  userId,
+  "preference",
+  { workout_preference: "Gym workouts" },
+  token
+)
+
+// Example: Screen 4 - Optional Details (only send filled fields!)
+await submitOnboardingStep(
+  userId,
+  "details",
+  {
+    age: 28,
+    name: "John",
+    injuries: "Previous knee injury - fully recovered",
+    schedule_preference: "Morning person"
+  },
+  token
+)
+```
+
+**How It Works:**
+- Steps named "goal", "goals", or "preferences" → updates `user.goals`
+- Steps named "basic" or "profile" → updates `user.profile`
+- Other steps → updates `user.profile` (default)
+- Each step is also logged as a training log entry for context
+
+**💡 For Full Onboarding Flow:** See `ONBOARDING_GUIDE.md` for detailed 3-screen onboarding implementation.
 
 ---
 

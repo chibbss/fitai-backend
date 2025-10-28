@@ -529,16 +529,44 @@ class RAGService:
         name = user.get("name") or ""
         profile = user.get("profile", {}) or {}
         goals = user.get("goals", {}) or {}
+        metadata = user.get("meta_data", {}) or {}
+        discovered = metadata.get("discovered", {}) or {}
+        
         parts: List[str] = []
+        
+        # Basic info
         if name:
             parts.append(f"Name: {name}")
-        for key in ["age", "height", "weight", "gender", "injuries", "restrictions", "motivation_notes"]:
-            if key in profile:
+        
+        # Profile fields (explicit onboarding data)
+        for key in ["age", "height", "weight", "gender", "experience_level", "workout_preference", "schedule_preference"]:
+            if key in profile and profile[key]:
                 parts.append(f"{key}: {profile[key]}")
-        for key in ["goal", "split", "nutrition", "target_weight", "timeline"]:
-            if key in goals:
+        
+        # Goals
+        for key in ["primary_goal", "goal", "split", "nutrition", "target_weight", "timeline"]:
+            if key in goals and goals[key]:
                 parts.append(f"{key}: {goals[key]}")
-        return "; ".join(parts) if parts else "(empty profile/goals)"
+        
+        # Discovered data (from chat conversations)
+        for field, data in discovered.items():
+            if isinstance(data, dict) and "value" in data:
+                parts.append(f"{field}: {data['value']} (discovered)")
+            elif data:  # Simple value
+                parts.append(f"{field}: {data} (discovered)")
+        
+        # Injury safety flag (CRITICAL - always surface prominently)
+        injuries = profile.get("injuries") or discovered.get("injuries", {}).get("value")
+        injury_prefix = ""
+        if injuries:
+            injury_prefix = f"⚠️  INJURY/SAFETY ALERT: {injuries}\n\n"
+        
+        restrictions = profile.get("restrictions")
+        if restrictions:
+            injury_prefix += f"⚠️  RESTRICTIONS: {restrictions}\n\n"
+        
+        user_summary = "; ".join(parts) if parts else "(empty profile/goals)"
+        return injury_prefix + user_summary
 
     # ------------------------
     # Dynamic memory (training logs)
@@ -1183,12 +1211,21 @@ class RAGService:
         mem_lines = [f"- {m['summary']}" for m in memories]
         memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
         system_text = (
-            "You are FitAI. CRITICAL RULES:\n"
-            "1. Only answer using retrieved or user-provided sources.\n"
-            "2. If missing info: 'I don't have enough data to answer that.'\n"
-            "3. ALWAYS cite sources like [1], [2] that correspond to KB items below.\n"
-            "4. Never invent numbers or protocols.\n"
-            "5. Keep answers under 4 sentences."
+            "You are FitAI, a warm and encouraging AI fitness coach.\n\n"
+            "PERSONALITY:\n"
+            "- Friendly & conversational (like a knowledgeable gym buddy, not a drill sergeant)\n"
+            "- Encouraging progress over perfection - celebrate wins, normalize setbacks\n"
+            "- Use emojis sparingly but meaningfully (💪, 🔥, 🎯 for achievements; 🤝, 💬 for support)\n"
+            "- Intelligent but humble: 'Based on your history...' not 'You must...'\n"
+            "- When users struggle or skip workouts, be understanding: 'Life gets busy, I get it.'\n\n"
+            "CRITICAL RULES:\n"
+            "1. Only answer using retrieved context (MEMORY, STATIC, SESSION, DYNAMIC, KB) below\n"
+            "2. If missing info, ASK warmly: 'I'd love to help! Can you tell me your...?'\n"
+            "3. ALWAYS cite sources like [KB 1], [Log 2] that correspond to context items\n"
+            "4. Never invent numbers, protocols, or exercises not in context\n"
+            "5. Keep answers conversational and concise (2-4 sentences)\n"
+            "6. SAFETY FIRST: If user profile shows injuries/restrictions, acknowledge them in advice\n"
+            "7. When you learn new info about the user (weight, schedule, constraints), acknowledge naturally\n"
         )
         context_text = (
             f"MEMORY:\n{memory_text}\n\n"
