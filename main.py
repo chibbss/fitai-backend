@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request, Body
 from fastapi import Query
 from pydantic import BaseModel, Field
+from fastapi.responses import StreamingResponse
 
 from rag import RAGService
 from memory import refresh_user_memory, refresh_all_users_memories
@@ -100,6 +101,7 @@ class ChatResponse(BaseModel):
     answer: str
     references: List[Reference]
     citations: List[Dict[str, Any]] | None = None
+    claims: List[Dict[str, Any]] | None = None
 
 
 # NOTE: Transcribe endpoint now only returns the transcribed text.

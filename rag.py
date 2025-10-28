@@ -68,6 +68,7 @@ class RAGService:
 
         # Redis (optional)
         self._redis = None
+        self._metrics: Dict[str, int] = {"rerank_total": 0, "rerank_changed": 0}
 
     # ------------------------
     # Initialization
@@ -235,6 +236,8 @@ class RAGService:
     # Chunking
     # ------------------------
     def _chunk_text(self, text: str) -> List[str]:
+        if self.config.chunking_mode == "token_paragraph":
+            return self._chunk_text_recursive(text)
         size = self.config.chunk_size_tokens
         overlap = self.config.chunk_overlap_tokens
         if size <= 0:
@@ -264,6 +267,55 @@ class RAGService:
             if start < 0:
                 start = 0
         return chunks
+
+    def _chunk_text_recursive(self, text: str) -> List[str]:
+        size = self.config.chunk_size_tokens
+        overlap = self.config.chunk_overlap_tokens
+        if size <= 0 or not text.strip():
+            return [text]
+        seps = ["\n\n", "\n", ". ", " "]
+        def length_in_tokens(s: str) -> int:
+            if self.embedding_tokenizer is None:
+                return max(1, len(s) // 4)
+            return len(self.embedding_tokenizer.encode(s, add_special_tokens=False))
+        def split_recursive(s: str, sep_index: int) -> List[str]:
+            if length_in_tokens(s) <= size or sep_index >= len(seps):
+                return [s]
+            parts = s.split(seps[sep_index])
+            out: List[str] = []
+            buf = ""
+            for i, part in enumerate(parts):
+                piece = (buf + (seps[sep_index] if buf else "") + part).strip()
+                if length_in_tokens(piece) > size and buf:
+                    out.extend(split_recursive(buf.strip(), sep_index + 1))
+                    buf = part
+                else:
+                    buf = piece
+            if buf:
+                out.extend(split_recursive(buf.strip(), sep_index + 1))
+            # add overlap by merging borders
+            if overlap > 0 and len(out) > 1:
+                with_overlap: List[str] = []
+                prev_tail = ""
+                for idx, ch in enumerate(out):
+                    if idx > 0 and prev_tail:
+                        merged = (prev_tail + " " + ch).strip()
+                        # trim to size
+                        while length_in_tokens(merged) > size and " " in merged:
+                            merged = merged.split(" ", 1)[1]
+                        with_overlap.append(merged)
+                    else:
+                        with_overlap.append(ch)
+                    # compute tail for next overlap approx by last N tokens
+                    if self.embedding_tokenizer is None:
+                        prev_tail = ch[-overlap*4:]
+                    else:
+                        toks = self.embedding_tokenizer.encode(ch, add_special_tokens=False)
+                        tail = toks[-overlap:]
+                        prev_tail = self.embedding_tokenizer.decode(tail, skip_special_tokens=True)
+                out = with_overlap
+            return out
+        return [c for c in split_recursive(text, 0) if c.strip()]
 
     # ------------------------
     # Embedding helpers
@@ -750,10 +802,17 @@ class RAGService:
         if not items:
             return []
         # Enforce reranking as a required step; if misconfigured, fall back to distance order
+        pre_ids = [it.chunk_id for it in items[:top_k]]
         if self.config.reranker_backend in ("remote", "auto"):
             if not self.config.reranker_remote_url:
                 self.logger.warning("RERANKER_REMOTE_URL not set; skipping rerank")
-                return items[:top_k]
+                res = items[:top_k]
+                post_ids = [it.chunk_id for it in res]
+                self._metrics["rerank_total"] += 1
+                if post_ids != pre_ids:
+                    self._metrics["rerank_changed"] += 1
+                    self.logger.info("rerank(remote) changed order: pre=%s post=%s", pre_ids, post_ids)
+                return res
             try:
                 import requests
                 sess = self._remote_session or requests.Session()
@@ -777,8 +836,80 @@ class RAGService:
                 return [RetrievedChunk(doc_id=it.doc_id, chunk_id=it.chunk_id, text=it.text, score=float(sc), metadata=it.metadata) for it, sc in ranked[:top_k]]
             except Exception as e:
                 self.logger.error("Local rerank failed: %s", e)
-                return items[:top_k]
-        return items[:top_k]
+                res = items[:top_k]
+                post_ids = [it.chunk_id for it in res]
+                self._metrics["rerank_total"] += 1
+                if post_ids != pre_ids:
+                    self._metrics["rerank_changed"] += 1
+                    self.logger.info("rerank(local) changed order: pre=%s post=%s", pre_ids, post_ids)
+                return res
+        res = items[:top_k]
+        post_ids = [it.chunk_id for it in res]
+        self._metrics["rerank_total"] += 1
+        if post_ids != pre_ids:
+            self._metrics["rerank_changed"] += 1
+            self.logger.info("rerank(none) changed order: pre=%s post=%s", pre_ids, post_ids)
+        return res
+
+    def get_metrics(self) -> Dict[str, int]:
+        return dict(self._metrics)
+
+    # ------------------------
+    # Prompt preparation for streaming/structured modes
+    # ------------------------
+    def _prepare_prompt(self, query: str, user_id: Optional[str], session_id: Optional[str]) -> Dict[str, Any]:
+        if len(query) > self.config.max_query_chars:
+            query = query[: self.config.max_query_chars]
+        retrieved = self.retrieve(query, user_id=user_id, top_k=None)
+        dyn = []
+        if user_id:
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, self.config.top_k))
+        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+        session_msgs = self.get_session_messages(user_id or "anonymous", session_id) if user_id else []
+        session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
+        session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
+        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved)]
+        kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
+        dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
+        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
+        mem_lines = [f"- {m['summary']}" for m in memories]
+        memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
+        system_text = (
+            "You are FitAI. CRITICAL RULES:\n"
+            "1. Only answer using retrieved or user-provided sources.\n"
+            "2. If missing info: 'I don't have enough data to answer that.'\n"
+            "3. ALWAYS cite sources like [1], [2] that correspond to KB items below.\n"
+            "4. Never invent numbers or protocols.\n"
+            "5. Keep answers under 4 sentences."
+        )
+        context_text = (
+            f"MEMORY:\n{memory_text}\n\n"
+            f"STATIC:\n{static_summary}\n\n"
+            f"SESSION:\n{session_context}\n\n"
+            f"DYNAMIC:\n{dyn_text}\n\n"
+            f"KB:\n{kb_text}\n\n"
+        )
+        if len(context_text) > self.config.max_context_chars:
+            context_text = context_text[: self.config.max_context_chars]
+        prompt = None
+        try:
+            if hasattr(self.generator_tokenizer, "apply_chat_template") and getattr(self.generator_tokenizer, "chat_template", None):
+                messages = [
+                    {"role": "system", "content": system_text},
+                    {"role": "user", "content": context_text + f"User message: {query}"},
+                ]
+                prompt = self.generator_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        except Exception:
+            prompt = None
+        if not prompt:
+            prompt = system_text + "\n\n" + context_text + f"User message: {query}\nAssistant: "
+        citations = [{"chunk_id": r.chunk_id, "source": (r.metadata.get("source") if isinstance(r.metadata, dict) else None)} for r in retrieved]
+        references = [
+            {"doc_id": r.doc_id, "chunk_id": r.chunk_id, "score": r.score, "metadata": r.metadata, "snippet": r.text[:300]}
+            for r in retrieved
+        ]
+        return {"prompt": prompt, "retrieved": retrieved, "references": references, "citations": citations}
 
     def _highlight_snippet(self, text: str, query: str, max_len: int = 240) -> str:
         q = (query or "").strip()
@@ -836,6 +967,7 @@ class RAGService:
         top_k: Optional[int] = None,
         max_new_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
+        mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         # Clamp input length
         if len(query) > self.config.max_query_chars:
@@ -871,7 +1003,7 @@ class RAGService:
         mem_lines = [f"- {m['summary']}" for m in memories]
         memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
 
-        # Build prompt using chat template when available; fallback to instruction prompt
+        # Build prompt with optional structured mode
         system_text = (
             "You are FitAI. CRITICAL RULES:\n"
             "1. Only answer using retrieved or user-provided sources.\n"
@@ -880,6 +1012,11 @@ class RAGService:
             "4. Never invent numbers or protocols.\n"
             "5. Keep answers under 4 sentences."
         )
+        if mode == "structured":
+            system_text += (
+                "\nRespond STRICTLY in JSON with keys: 'answer' (string) and 'claims' (array of {text, source_index}). "
+                "source_index must map to the [KB i] items below (1-indexed)."
+            )
         context_text = (
             f"MEMORY:\n{memory_text}\n\n"
             f"STATIC:\n{static_summary}\n\n"
@@ -952,9 +1089,19 @@ class RAGService:
                 {"chunk_id": r.chunk_id, "source": (r.metadata.get("source") if isinstance(r.metadata, dict) else None)}
                 for r in retrieved
             ]
+            claims: List[Dict[str, Any]] = []
+            if mode == "structured":
+                try:
+                    import json as _json
+                    parsed = _json.loads(ans)
+                    if isinstance(parsed, dict) and "answer" in parsed:
+                        claims = parsed.get("claims") or []
+                        ans = str(parsed.get("answer") or "").strip()
+                except Exception:
+                    pass
             if user_id and ans:
                 self.append_session_message(user_id, session_id, role="assistant", content=ans)
-            return {"answer": ans, "references": references, "citations": citations, "dynamic_refs": dyn[:5]}
+            return {"answer": ans, "references": references, "citations": citations, "claims": claims, "dynamic_refs": dyn[:5]}
         else:
             if self.generator_tokenizer is None or self.generator_model is None:
                 raise RuntimeError("Generation model is not initialized")
@@ -1046,6 +1193,16 @@ class RAGService:
             {"chunk_id": r.chunk_id, "source": (r.metadata.get("source") if isinstance(r.metadata, dict) else None)}
             for r in retrieved
         ]
+        claims: List[Dict[str, Any]] = []
+        if mode == "structured":
+            try:
+                import json as _json
+                parsed = _json.loads(ans)
+                if isinstance(parsed, dict) and "answer" in parsed:
+                    claims = parsed.get("claims") or []
+                    ans = str(parsed.get("answer") or "").strip()
+            except Exception:
+                pass
 
         # Append assistant reply to session buffer
         if user_id and ans:
@@ -1055,6 +1212,7 @@ class RAGService:
             "answer": ans,
             "references": references,
             "citations": citations,
+            "claims": claims,
             "dynamic_refs": dyn[:5],
         }
 
