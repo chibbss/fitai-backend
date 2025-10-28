@@ -63,6 +63,20 @@ class AppConfig(BaseModel):
     reranker_remote_url: Optional[str] = None
     retriever_candidates: int = 10
 
+    # Redis (optional) for caching and session persistence
+    redis_url: Optional[str] = None
+    redis_prefix: str = "fitai"
+    redis_ttl_embeddings_sec: int = 3600
+    redis_ttl_session_sec: int = 3600
+
+    # Retrieval filters (optional)
+    filter_min_credibility: Optional[int] = None
+    filter_category: Optional[str] = None
+    filter_min_year: Optional[int] = None
+
+    # Chunking strategy
+    chunking_mode: str = "token"  # token | token_paragraph
+
 
 def load_env() -> None:
     # Load .env if present
@@ -104,6 +118,14 @@ def get_config() -> AppConfig:
         reranker_model_name=os.getenv("RERANKER_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
         reranker_remote_url=os.getenv("RERANKER_REMOTE_URL") or None,
         retriever_candidates=int(os.getenv("RETRIEVER_CANDIDATES", "10")),
+        redis_url=os.getenv("REDIS_URL") or None,
+        redis_prefix=os.getenv("REDIS_PREFIX", "fitai"),
+        redis_ttl_embeddings_sec=int(os.getenv("REDIS_TTL_EMBEDDINGS_SEC", "3600")),
+        redis_ttl_session_sec=int(os.getenv("REDIS_TTL_SESSION_SEC", "3600")),
+        filter_min_credibility=int(os.getenv("FILTER_MIN_CREDIBILITY", "0")) if os.getenv("FILTER_MIN_CREDIBILITY") else None,
+        filter_category=os.getenv("FILTER_CATEGORY") or None,
+        filter_min_year=int(os.getenv("FILTER_MIN_YEAR", "0")) if os.getenv("FILTER_MIN_YEAR") else None,
+        chunking_mode=os.getenv("CHUNKING_MODE", "token"),
     )
 
 

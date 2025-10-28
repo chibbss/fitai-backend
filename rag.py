@@ -66,6 +66,9 @@ class RAGService:
         # Concurrency
         self._lock = threading.RLock()
 
+        # Redis (optional)
+        self._redis = None
+
     # ------------------------
     # Initialization
     # ------------------------
@@ -74,6 +77,7 @@ class RAGService:
             self.logger.info("Starting up RAG service")
             self._init_db()
             self._init_models()
+            self._init_redis()
             self.logger.info("Startup complete: database and models initialized")
 
     def _init_models(self) -> None:
@@ -161,6 +165,20 @@ class RAGService:
         except Exception as e:
             self.logger.error("Failed to initialize reranker: %s", e)
             self._reranker_model = None
+
+    def _init_redis(self) -> None:
+        if not self.config.redis_url:
+            self._redis = None
+            return
+        try:
+            import redis  # type: ignore
+            self._redis = redis.Redis.from_url(self.config.redis_url, socket_timeout=1.0)
+            # ping to validate
+            self._redis.ping()
+            self.logger.info("Connected to Redis at %s", self.config.redis_url)
+        except Exception as e:
+            self.logger.warning("Redis unavailable: %s", e)
+            self._redis = None
 
     def _resolve_torch_device(self) -> str:
         d = self.config.device.lower()
@@ -251,6 +269,21 @@ class RAGService:
     # Embedding helpers
     # ------------------------
     def _embed(self, texts: List[str]) -> np.ndarray:
+        # Redis caching for identical batch requests (simple key)
+        if self._redis is not None:
+            try:
+                import hashlib
+                key_src = ("||").join([t.strip() for t in texts])
+                cache_key = f"{self.config.redis_prefix}:embed:{hashlib.md5(key_src.encode('utf-8')).hexdigest()}"
+                cached = self._redis.get(cache_key)
+                if cached:
+                    arr = np.frombuffer(cached, dtype="float32")
+                    # reshape if single vector vs multiple unknown; fall back to compute if mismatch
+                    if arr.size % 384 == 0:  # default MiniLM dim
+                        arr2 = arr.reshape((-1, 384))
+                        return arr2
+            except Exception:
+                pass
         if self.config.embedding_provider == "local":
             assert self.embedding_model is not None
             vectors = self.embedding_model.encode(
@@ -260,7 +293,17 @@ class RAGService:
                 convert_to_numpy=True,
                 normalize_embeddings=True,
             )
-            return vectors.astype("float32")
+            out = vectors.astype("float32")
+            if self._redis is not None:
+                try:
+                    self._redis.setex(
+                        f"{self.config.redis_prefix}:embed:{hashlib.md5(('||'.join([t.strip() for t in texts])).encode('utf-8')).hexdigest()}",
+                        self.config.redis_ttl_embeddings_sec,
+                        out.tobytes(),
+                    )
+                except Exception:
+                    pass
+            return out
         if self.config.embedding_provider == "modal":
             import requests
             if not self._remote_session:
@@ -557,16 +600,42 @@ class RAGService:
 
     def append_session_message(self, user_id: str, session_id: Optional[str], role: str, content: str) -> None:
         key = self._get_session_key(user_id, session_id)
+        if self._redis is not None:
+            try:
+                import json
+                rkey = f"{self.config.redis_prefix}:session:{key}"
+                self._redis.rpush(rkey, json.dumps({"role": role, "content": content, "ts": time.time()}))
+                self._redis.expire(rkey, self.config.redis_ttl_session_sec)
+                return
+            except Exception:
+                pass
         dq = self._ensure_session(key)
         dq.append({"role": role, "content": content, "ts": time.time()})
 
     def get_session_messages(self, user_id: str, session_id: Optional[str], max_messages: int = 8) -> List[Dict[str, Any]]:
         key = self._get_session_key(user_id, session_id)
+        if self._redis is not None:
+            try:
+                import json
+                rkey = f"{self.config.redis_prefix}:session:{key}"
+                # lrange end is inclusive; -1 means all, slice in Python
+                data = self._redis.lrange(rkey, 0, -1)
+                msgs = [json.loads(x) for x in data[-max_messages:]]
+                return msgs
+            except Exception:
+                pass
         dq = self._ensure_session(key)
         return list(dq)[-max_messages:]
 
     def clear_session(self, user_id: str, session_id: Optional[str]) -> None:
         key = self._get_session_key(user_id, session_id)
+        if self._redis is not None:
+            try:
+                rkey = f"{self.config.redis_prefix}:session:{key}"
+                self._redis.delete(rkey)
+                return
+            except Exception:
+                pass
         if hasattr(self, "_session_memory") and key in self._session_memory:
             del self._session_memory[key]
 
@@ -583,9 +652,19 @@ class RAGService:
                 select(ChunkModel, DocumentModel, dist.label("distance"))
                 .join(DocumentModel, ChunkModel.document_id == DocumentModel.id)
                 .where(or_(DocumentModel.user_id == user_id, DocumentModel.user_id.is_(None)))
-                .order_by(dist)
-                .limit(k)
             )
+            # Optional KB filters
+            try:
+                from sqlalchemy import and_  # type: ignore
+                if self.config.filter_min_credibility is not None:
+                    stmt = stmt.where((ChunkModel.meta_data["credibility_score"].as_integer() >= self.config.filter_min_credibility))
+                if self.config.filter_category:
+                    stmt = stmt.where((ChunkModel.meta_data["category"].as_string() == self.config.filter_category))
+                if self.config.filter_min_year is not None:
+                    stmt = stmt.where((ChunkModel.meta_data["publication_year"].as_integer() >= self.config.filter_min_year))
+            except Exception:
+                pass
+            stmt = stmt.order_by(dist).limit(k)
             results = session.execute(stmt).all()
 
         out: List[RetrievedChunk] = []
