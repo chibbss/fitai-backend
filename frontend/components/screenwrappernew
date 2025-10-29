@@ -1,0 +1,58 @@
+import { Dimensions, Platform, StatusBar, StyleSheet, View } from 'react-native';
+import React from 'react';
+import { VideoView, useVideoPlayer } from 'expo-video';
+import { ScreenWrapperProps } from '@/types';
+import { colors } from '@/constants/theme';
+
+const { height } = Dimensions.get('window');
+
+const ScreenWrapper = ({
+    style,
+    children,
+    showPattern = false,
+    isModal = false,
+    bgOpacity = 1,
+}: ScreenWrapperProps) => {
+    const player = useVideoPlayer(require('../assets/images/videos/day_animated.mp4'), (player) => {
+        player.loop = true;
+        player.play();
+        player.muted = true;
+    });
+
+    let paddingTop = Platform.OS === 'ios' ? height * 0.06 : 40;
+    let paddingBottom = 0;
+
+    if (isModal) {
+        paddingTop = Platform.OS === 'ios' ? height * 0.02 : 45;
+        paddingBottom = height * 0.02;
+    }
+
+    return (
+        <View style={{ flex: 1, backgroundColor: colors.neutral900 }}>
+            {/* ✅ Background looping video */}
+            {showPattern && (
+                <VideoView
+                    player={player}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"   // replaces ResizeMode.COVER
+                />
+            )}
+
+            {/* ✅ Dark overlay for opacity control */}
+            <View
+                style={[
+                    StyleSheet.absoluteFill,
+                    { backgroundColor: colors.neutral900, opacity: showPattern ? 1 - bgOpacity : 1 },
+                ]}
+            />
+
+            {/* ✅ Foreground content */}
+            <View style={[{ paddingTop, paddingBottom, flex: 1 }, style]}>
+                <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+                {children}
+            </View>
+        </View>
+    );
+};
+
+export default ScreenWrapper;
