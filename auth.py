@@ -64,16 +64,40 @@ def verify_supabase_jwt(token: str) -> dict:
         return payload
     except jwt.ExpiredSignatureError:
         logger.warning("Expired JWT token")
-        raise HTTPException(status_code=401, detail="Token expired - please log in again")
+        raise HTTPException(
+            status_code=401,
+            detail="Token expired - please log in again",
+            headers={
+                "WWW-Authenticate": 'Bearer error="invalid_token", error_description="The access token expired"'
+            },
+        )
     except jwt.InvalidAudienceError:
         logger.warning("Invalid JWT audience")
-        raise HTTPException(status_code=401, detail="Invalid token audience")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token audience",
+            headers={
+                "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Invalid token audience"'
+            },
+        )
     except jwt.InvalidTokenError as e:
         logger.warning(f"Invalid JWT token: {e}")
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication token",
+            headers={
+                "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Invalid authentication token"'
+            },
+        )
     except Exception as e:
         logger.error(f"JWT verification error: {e}")
-        raise HTTPException(status_code=401, detail="Authentication failed")
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication failed",
+            headers={
+                "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Authentication failed"'
+            },
+        )
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> AuthUser:

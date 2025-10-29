@@ -4,7 +4,9 @@ import traceback
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request, Body
+from fastapi import Query
 from pydantic import BaseModel, Field
+from fastapi.responses import StreamingResponse
 
 from rag import RAGService
 from memory import refresh_user_memory, refresh_all_users_memories
@@ -14,6 +16,7 @@ from auth import AuthUser, get_current_user, get_optional_user, ensure_user_owns
 import os
 import io
 import asyncio
+from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from starlette.middleware.base import BaseHTTPMiddleware
 from asgi_correlation_id import CorrelationIdMiddleware
@@ -60,6 +63,20 @@ app.state.limiter = limiter
 # -------------------------------------------------
 class HealthResponse(BaseModel):
     status: str
+class SearchResponseItem(BaseModel):
+    doc_id: str
+    chunk_id: str
+    score: float
+    text: str
+    metadata: Dict[str, Any]
+    snippet: str
+    source: Optional[str] = None
+
+
+class SearchResponse(BaseModel):
+    results: List[SearchResponseItem]
+    citations: List[Dict[str, Any]]
+    count: int
 
 
 class ChatRequest(BaseModel):
@@ -84,6 +101,8 @@ class Reference(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     references: List[Reference]
+    citations: List[Dict[str, Any]] | None = None
+    claims: List[Dict[str, Any]] | None = None
 
 
 # NOTE: Transcribe endpoint now only returns the transcribed text.
@@ -108,6 +127,12 @@ class UserUpsertRequest(BaseModel):
     profile: Optional[Dict[str, Any]] = None
     goals: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
+
+
+class DiscoveredDataRequest(BaseModel):
+    field: str
+    value: Any
+    context: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -265,6 +290,9 @@ async def chat(
     user: AuthUser = Depends(get_current_user),
 ) -> ChatResponse:
     try:
+        import time
+        start_time = time.time()
+        
         # Simple profanity/guardrail filter (mask or block)
         q = body.query or ""
         if rag_service.config.profanity_filter_enabled:
@@ -274,15 +302,86 @@ async def chat(
                 if rag_service.config.profanity_block_mode == "block":
                     raise HTTPException(status_code=400, detail="Inappropriate language detected")
                 q = bad.sub("[CENSORED]", q)
+        
         result = rag_service.chat(
             query=q,
             user_id=user.user_id,
             session_id=body.session_id,
         )
+        
+        # Log RAGAS metrics
+        if os.getenv("RAGAS_LOGGING_ENABLED", "1") in ("1", "true", "True"):
+            try:
+                import asyncio
+                loop = asyncio.get_running_loop()
+                
+                async def log_metrics():
+                    # Run in executor to avoid blocking
+                    def _log():
+                        try:
+                            retrieved = result.get("references", [])
+                            # Convert references back to RetrievedChunk objects for logging
+                            from rag import RetrievedChunk
+                            chunks = [
+                                RetrievedChunk(
+                                    doc_id=r.get("doc_id", ""),
+                                    chunk_id=r.get("chunk_id", ""),
+                                    text=r.get("snippet", ""),
+                                    score=r.get("score", 0.0),
+                                    metadata=r.get("metadata", {}),
+                                )
+                                for r in retrieved
+                            ]
+                            
+                            rag_service.log_ragas_metrics(
+                                user_id=user.user_id,
+                                session_id=body.session_id,
+                                query=q,
+                                answer=result.get("answer", ""),
+                                retrieved_chunks=chunks,
+                                dynamic_refs=result.get("dynamic_refs", []),
+                                memories=[],
+                                citations=result.get("citations", []),
+                                total_time_ms=(time.time() - start_time) * 1000,
+                            )
+                        except Exception as e:
+                            logger.warning("RAGAS logging failed: %s", e)
+                    
+                    await loop.run_in_executor(None, _log)
+                
+                # Fire and forget - don't wait for logging
+                asyncio.create_task(log_metrics())
+            except Exception as e:
+                logger.warning("RAGAS logging setup failed: %s", e)
+        
         refs = [Reference(**r) for r in result.get("references", [])]
-        return ChatResponse(answer=result.get("answer", ""), references=refs)
+        return ChatResponse(answer=result.get("answer", ""), references=refs, citations=result.get("citations") or [])
     except Exception as e:
         logger.error("/chat error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------------------------
+# Search Endpoint
+# -------------------------------------------------
+@app.get("/search", response_model=SearchResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_SEARCH", "120/minute"))
+async def search(
+    request: Request,
+    q: str = Query(..., description="Query string"),
+    k: int = Query(5, ge=1, le=50, description="Top-k results to return"),
+    user: AuthUser = Depends(get_current_user),
+) -> SearchResponse:
+    try:
+        # clamp query
+        query = q[: rag_service.config.max_query_chars]
+        res = rag_service.search(query=query, user_id=user.user_id, top_k=k)
+        items = [SearchResponseItem(**it) for it in res.get("results", [])]
+        return SearchResponse(results=items, citations=res.get("citations", []), count=res.get("count", len(items)))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/search error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -514,6 +613,66 @@ async def upsert_user(user_id: str, body: UserUpsertRequest, user: AuthUser = De
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.put("/users/{user_id}/discover", response_model=UserResponse)
+async def discover_user_data(
+    user_id: str,
+    body: DiscoveredDataRequest,
+    user: AuthUser = Depends(get_current_user),
+) -> UserResponse:
+    """
+    Store data discovered through chat conversations.
+    This keeps track of what the user revealed naturally during interactions,
+    separate from explicit onboarding data.
+    
+    Example: User mentions weight in chat → stored as discovered.weight
+    """
+    try:
+        ensure_user_owns_resource(user_id, user)
+        
+        # Get current user data
+        user_data = rag_service.get_user(user_id)
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Initialize metadata and discovered dict if needed
+        metadata = user_data.get("metadata") or {}
+        discovered = metadata.get("discovered") or {}
+        
+        # Store the discovered field with timestamp and context
+        discovered[body.field] = {
+            "value": body.value,
+            "discovered_at": datetime.now(timezone.utc).isoformat(),
+            "context": body.context or "Chat conversation",
+        }
+        
+        metadata["discovered"] = discovered
+        
+        # Update user
+        updated_user = rag_service.upsert_user(
+            user_id=user_id,
+            name=user_data.get("name"),
+            email=user_data.get("email"),
+            profile=user_data.get("profile"),
+            goals=user_data.get("goals"),
+            metadata=metadata,
+        )
+        
+        logger.info(
+            "Discovered data for user %s: %s = %s (context: %s)",
+            user_id,
+            body.field,
+            body.value,
+            body.context or "Chat",
+        )
+        
+        return UserResponse(**updated_user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/users/%s/discover error: %s", user_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/add_training_log", response_model=TrainingLogResponse)
 @limiter.limit(os.getenv("RATE_LIMIT_LOGS", "120/minute"))
 async def add_training_log(request: Request, body: TrainingLogRequest, user: AuthUser = Depends(get_current_user)) -> TrainingLogResponse:
@@ -637,6 +796,248 @@ async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse
         return OnboardingStepResponse(user=UserResponse(**updated))
     except Exception as e:
         logger.error("/onboarding_step error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------------------------
+# Workout Logging Endpoints (V2 - Structured)
+# -------------------------------------------------
+class ExerciseLogItem(BaseModel):
+    exercise_name: str
+    exercise_category: Optional[str] = None
+    sets: Optional[int] = None
+    reps: Optional[List[int]] = None
+    weights: Optional[List[str]] = None  # e.g., ["45kg", "50kg", "50kg"]
+    duration_seconds: Optional[int] = None
+    distance_meters: Optional[float] = None
+    notes: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class LogWorkoutRequest(BaseModel):
+    session_name: Optional[str] = None  # e.g., "Push Day", "Morning Run"
+    session_type: Optional[str] = None  # e.g., "strength", "cardio"
+    occurred_at: Optional[str] = None  # ISO timestamp
+    duration_minutes: Optional[int] = None
+    notes: Optional[str] = None
+    exercises: List[ExerciseLogItem]
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class LogWorkoutResponse(BaseModel):
+    session_id: str
+    exercise_count: int
+    inserted: bool
+
+
+@app.post("/log/workout", response_model=LogWorkoutResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_LOGS", "120/minute"))
+async def log_workout(
+    request: Request,
+    body: LogWorkoutRequest,
+    user: AuthUser = Depends(get_current_user),
+) -> LogWorkoutResponse:
+    """
+    Log a complete structured workout session with exercises.
+    This replaces the old /add_training_log for workout data.
+    
+    Example:
+    {
+      "session_name": "Push Day",
+      "session_type": "strength",
+      "occurred_at": "2025-10-28T10:00:00Z",
+      "duration_minutes": 75,
+      "notes": "Felt strong today",
+      "exercises": [
+        {
+          "exercise_name": "Bench Press",
+          "exercise_category": "chest",
+          "sets": 3,
+          "reps": [8, 8, 6],
+          "weights": ["80kg", "80kg", "85kg"]
+        }
+      ]
+    }
+    """
+    try:
+        from datetime import datetime
+        occurred = None
+        if body.occurred_at:
+            try:
+                occurred = datetime.fromisoformat(body.occurred_at.replace("Z", "+00:00"))
+            except Exception:
+                occurred = None
+        
+        exercises = [ex.model_dump() for ex in body.exercises]
+        
+        result = rag_service.log_workout_session(
+            user_id=user.user_id,
+            session_name=body.session_name,
+            session_type=body.session_type,
+            exercises=exercises,
+            occurred_at=occurred,
+            duration_minutes=body.duration_minutes,
+            notes=body.notes,
+            metadata=body.metadata,
+        )
+        
+        return LogWorkoutResponse(**result)
+    except Exception as e:
+        logger.error("/log/workout error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class WorkoutCalendarItem(BaseModel):
+    session_id: str
+    session_name: Optional[str] = None
+    session_type: Optional[str] = None
+    occurred_at: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    notes: Optional[str] = None
+    metadata: Dict[str, Any]
+
+
+class WorkoutCalendarResponse(BaseModel):
+    items: List[WorkoutCalendarItem]
+
+
+@app.get("/workouts/calendar", response_model=WorkoutCalendarResponse)
+async def get_workout_calendar(
+    user: AuthUser = Depends(get_current_user),
+    start_date: Optional[str] = Query(None, description="ISO timestamp for start date"),
+    end_date: Optional[str] = Query(None, description="ISO timestamp for end date"),
+    limit: int = Query(100, ge=1, le=500),
+) -> WorkoutCalendarResponse:
+    """
+    Retrieve workout sessions for calendar display.
+    Returns simplified session data without full exercise details.
+    """
+    try:
+        from datetime import datetime
+        start_dt = None
+        end_dt = None
+        if start_date:
+            try:
+                start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            except Exception:
+                pass
+        if end_date:
+            try:
+                end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            except Exception:
+                pass
+        
+        items = rag_service.get_workout_calendar(
+            user_id=user.user_id,
+            start_date=start_dt,
+            end_date=end_dt,
+            limit=limit,
+        )
+        return WorkoutCalendarResponse(items=[WorkoutCalendarItem(**it) for it in items])
+    except Exception as e:
+        logger.error("/workouts/calendar error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class WorkoutInsightItem(BaseModel):
+    exercise: str
+    status: str  # new | progress | regression | maintained | pr
+    message: str
+    delta_pct: Optional[float] = None
+    weight_increase: Optional[float] = None
+
+
+class WorkoutInsightsResponse(BaseModel):
+    session_id: str
+    insights: List[WorkoutInsightItem]
+    overall_message: str
+    avg_volume_change_pct: float
+    exercise_count: int
+
+
+@app.get("/insights/{session_id}", response_model=WorkoutInsightsResponse)
+async def get_workout_insights(
+    session_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> WorkoutInsightsResponse:
+    """
+    Get instant insights for a workout session.
+    Compares current session against historical performance.
+    
+    Returns WOW moments like:
+    - "💪 Squat: +5 lbs vs last session"
+    - "📈 Volume is up 10%"
+    - "✅ Progressing perfectly — try +2.5 kg next time"
+    """
+    try:
+        result = rag_service.get_workout_insights(user_id=user.user_id, session_id=session_id)
+        
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        
+        insights_items = [WorkoutInsightItem(**ins) for ins in result.get("insights", [])]
+        return WorkoutInsightsResponse(
+            session_id=result["session_id"],
+            insights=insights_items,
+            overall_message=result.get("overall_message", ""),
+            avg_volume_change_pct=result.get("avg_volume_change_pct", 0.0),
+            exercise_count=result.get("exercise_count", 0),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/insights error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------------------------
+# Streaming Chat Endpoint (SSE)
+# -------------------------------------------------
+@app.post("/chat_stream")
+@limiter.limit(os.getenv("RATE_LIMIT_CHAT", "60/minute"))
+async def chat_stream(
+    request: Request,
+    body: ChatRequest = Body(...),
+    user: AuthUser = Depends(get_current_user),
+):
+    """
+    Streaming chat endpoint using Server-Sent Events (SSE).
+    
+    Returns a stream of events:
+    - metadata: references and citations
+    - token: individual generated tokens
+    - done: final answer and timing info
+    """
+    try:
+        from sse_starlette.sse import EventSourceResponse
+        import json
+        
+        q = body.query or ""
+        if rag_service.config.profanity_filter_enabled:
+            import re
+            bad = re.compile(r"\b(fuck|shit|bitch|asshole|bastard)\b", re.IGNORECASE)
+            if bad.search(q):
+                if rag_service.config.profanity_block_mode == "block":
+                    raise HTTPException(status_code=400, detail="Inappropriate language detected")
+                q = bad.sub("[CENSORED]", q)
+        
+        async def event_generator():
+            for chunk in rag_service.chat_stream(
+                query=q,
+                user_id=user.user_id,
+                session_id=body.session_id,
+            ):
+                yield {
+                    "event": chunk["type"],
+                    "data": json.dumps(chunk["content"]),
+                }
+        
+        return EventSourceResponse(event_generator())
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/chat_stream error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -4,20 +4,40 @@ from __future__ import annotations
 import os
 from typing import List, Dict
 
-# Minimal placeholder harness; integrate ragas when desired
-# pip install ragas datasets
+"""
+Minimal RAGAS evaluation stub.
+
+Usage:
+  pip install ragas datasets
+  python scripts/ragas_eval.py
+
+This stub builds a tiny QA set and prints it. Extend by calling your
+running API (e.g., http://localhost:8000/chat) and computing RAGAS metrics.
+"""
 
 def build_eval_set() -> List[Dict[str, str]]:
     return [
-        {"question": "What are benefits of HIIT?", "answer": "HIIT improves cardiovascular fitness.", "context": "HIIT benefits include cardiac output, VO2 max."},
-        {"question": "Basics of progressive overload?", "answer": "Increase volume or intensity over time.", "context": "Progressive overload: volume, intensity, frequency."},
+        {
+            "question": "What are the benefits of HIIT?",
+            "answer": "HIIT improves cardiovascular fitness and VO2 max.",
+            "context": "HIIT benefits include improved cardiac output and VO2 max per ACSM guidelines.",
+        },
+        {
+            "question": "Basics of progressive overload?",
+            "answer": "Increase volume, intensity, or frequency over time.",
+            "context": "Progressive overload involves gradually increasing volume, intensity, or frequency.",
+        },
     ]
 
 
 def main() -> None:
     eval_set = build_eval_set()
     print(f"Eval items: {len(eval_set)}")
-    # TODO: call your /chat and compute ragas metrics once added
+    for i, ex in enumerate(eval_set, 1):
+        print(f"[{i}] Q: {ex['question']}")
+        print(f"    A: {ex['answer']}")
+        print(f"    C: {ex['context']}")
+    # TODO: integrate ragas once endpoints are reachable.
 
 
 if __name__ == "__main__":

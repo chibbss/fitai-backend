@@ -137,6 +137,32 @@ def serve():
     async def health():
         return {"status": "ok", "model": MODEL}
 
+    # Optional reranker hosted alongside vLLM (simple CrossEncoder API)
+    try:
+        from sentence_transformers import CrossEncoder  # type: ignore
+        _reranker = None
+
+        def _ensure_reranker(name: str):
+            nonlocal _reranker
+            if _reranker is None or getattr(_reranker, "model_name", None) != name:
+                _reranker = CrossEncoder(name)  # type: ignore
+                setattr(_reranker, "model_name", name)
+            return _reranker
+
+        @app.post("/rerank")
+        async def rerank(req: dict):
+            query = req.get("query") or ""
+            texts = req.get("texts") or []
+            model = req.get("model") or "cross-encoder/ms-marco-MiniLM-L-6-v2"
+            if not texts:
+                return {"scores": [], "model": model}
+            m = _ensure_reranker(model)
+            pairs = [(query, t) for t in texts]
+            scores = m.predict(pairs)  # type: ignore
+            return {"scores": [float(s) for s in scores], "model": getattr(m, "model_name", model)}
+    except Exception:
+        pass
+
     async def proxy(request: Request) -> Response:
         target_url = f"http://{VLLM_HOST}:{VLLM_PORT}{request.url.path}"
         if request.url.query:
