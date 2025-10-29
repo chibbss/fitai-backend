@@ -1,51 +1,56 @@
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 import React from 'react'
 import ScreenWrapper from '@/components/ScreenWrapper'
 import Typo from '@/components/Typo'
 import { colors, spacingX, spacingY } from '@/constants/theme'
 import { verticalScale } from '@/utils/styling'
-import Animated, { FadeIn } from 'react-native-reanimated'
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import Button from '@/components/Button'
 import { useRouter } from 'expo-router'
 
-
 const Welcome = () => {
     const router = useRouter();
+
     return (
-        <ScreenWrapper showPattern={true} bgOpacity={0.5}>
+        <ScreenWrapper showPattern={false} bgOpacity={0.5}>
             <View style={styles.container}>
-                <View style={{ alignItems: 'center' }}>
-                    <Typo color={colors.white} size={43} fontWeight={'900'}>
-                        Fit.ai
-                    </Typo>
-                </View>
-
-                <Animated.Image
-                    entering={FadeIn.duration(700).springify()}
-                    source={require('../../assets/images/images/welcome.png')}
-                    style={styles.welcomeImage}
-                    resizeMode={'contain'}
-                />
-
-                <View>
-                    <Typo color={colors.white} size={33} fontWeight={'800'}>
-                        Lorem Ipsum
-                    </Typo>
-                    <Typo color={colors.white} size={33} fontWeight={'800'}>
-                        consectetur adipisi
-                    </Typo>
-                    <Typo color={colors.white} size={33} fontWeight={'800'}>
-                        sit amet
-                    </Typo>
-                </View>
+                {/* --- Image Section --- */}
 
                 
 
-                <Button  style={{backgroundColor: colors.white}}
-                onPress={() => router.push('/(auth)/register')}>
-                    <Typo size={23} fontWeight={'bold'}>Get Started</Typo>
-                </Button>
+                {/* --- Text Section --- */}
+                <View style={styles.textSection}>
+                    <View style={styles.headlineContainer}>
+                        <Typo color={colors.white} size={36} fontWeight="800" >
+                            Transform Your Body.
+                        </Typo>
+                        <Typo color={colors.white} size={36} fontWeight="800" >
+                            Boost Your Mind.
+                        </Typo>
+                        <Typo color={colors.white} size={36} fontWeight="800">
+                            Welcome to
+                        </Typo>
+                    </View>
 
+                    <Animated.Text
+                        entering={FadeInDown.duration(700).springify().damping(20).stiffness(80)}
+                        style={styles.logoText}
+                    >
+                        <Typo color={colors.white} size={68}>
+                            Fit.Ai
+                        </Typo>
+                    </Animated.Text>
+                </View>
+
+                {/* --- Button Section --- */}
+                <View style={styles.buttonContainer}>
+                    <Button
+                        style={styles.button}
+                        onPress={() => router.push('/(auth)/register')}
+                    >
+                        <Typo size={23} fontWeight="bold">Get Started</Typo>
+                    </Button>
+                </View>
 
             </View>
         </ScreenWrapper>
@@ -57,19 +62,45 @@ export default Welcome
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        justifyContent: 'space-around',
-        paddingHorizontal: spacingX._20,
-        paddingVertical: spacingY._10
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: spacingX._10,
+        paddingVertical: spacingY._15, // reduced to bring text up
     },
 
-    background: {
+    textSection: {
         flex: 1,
-        backgroundColor: colors.neutral900,
+        justifyContent: 'flex-start',
+        alignItems: 'center',
+        marginTop: verticalScale(40),
     },
 
-    welcomeImage: {
-        height: verticalScale(350),
-        aspectRatio: 1,
-        alignSelf: 'center'
-    }
+    headlineContainer: {
+        marginBottom: spacingY._20,
+        alignItems: 'center',
+        gap: verticalScale(4),
+    },
+
+    logoText: {
+        fontFamily: 'Pacifico',
+        color: colors.white,
+        letterSpacing: 1.5,
+        textShadowColor: 'rgba(255, 255, 255, 0.25)',
+        textShadowOffset: { width: 0, height: 3 },
+        textShadowRadius: 10,
+    },
+
+    buttonContainer: {
+        width: '100%',
+        alignItems: 'center',
+        marginBottom: spacingY._30,
+    },
+
+    button: {
+        width: '80%',
+        backgroundColor: colors.primary,
+        borderRadius: 14,
+        paddingVertical: spacingY._12,
+    },
+    
 })

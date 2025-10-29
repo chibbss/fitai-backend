@@ -15,7 +15,7 @@ const ScreenWrapper = ({
   bgOpacity = 1,
 }: ScreenWrapperProps) => {
   // ✅ Load video player
-  const player = useVideoPlayer(require('../assets/images/videos/night_animated.mp4'), (player) => {
+  const player = useVideoPlayer(require('../assets/images/videos/day_animated.mp4'), (player) => {
     player.loop = true;
     player.play();
     player.muted = true;

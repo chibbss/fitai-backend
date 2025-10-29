@@ -1,11 +1,17 @@
-import {  StatusBar, StyleSheet, Text, View } from 'react-native'
+import { StatusBar, StyleSheet, Text, View } from 'react-native'
 import React, { useEffect } from 'react'
-import { colors } from '@/constants/theme'
+import { colors, spacingX } from '@/constants/theme'
+import { useFonts } from 'expo-font';
 
 import Animated, { FadeInDown } from 'react-native-reanimated'
 import { useRouter } from 'expo-router'
 
 const SplashScreen = () => {
+    const [fontsLoaded] = useFonts({
+        Pacifico: require('../assets/fonts/Pacifico-Regular.ttf'),
+    });
+
+    
     const router = useRouter();
     useEffect(() => {
         setTimeout(() => {
@@ -16,14 +22,17 @@ const SplashScreen = () => {
 
     return (
         <View style={styles.container}>
-            
+
             <StatusBar barStyle={'light-content'} backgroundColor={colors.neutral900} />
-            <Animated.Image
-                source={require('../assets/images/splash.png')}
-                entering={FadeInDown.duration(700).springify()}
-                style={styles.logo}
-                resizeMode='contain'
-            />
+            <Animated.Text
+
+                entering={FadeInDown.duration(700).springify().damping(20).stiffness(80)}
+
+                style={styles.logoText}
+
+            >
+                Fit.Ai
+            </Animated.Text>
         </View>
     )
 }
@@ -37,8 +46,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: colors.neutral900
     },
-    logo: {
-        height: '103%',
-        aspectRatio: 1,
+    logoText: {
+        fontFamily: 'Pacifico',
+        color: 'white',
+        fontSize: 104,
+        letterSpacing: 1.5,
+        marginBottom: spacingX._40,
+        textShadowColor: 'rgba(255, 255, 255, 0.25)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 10,
     }
 })

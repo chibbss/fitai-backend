@@ -9,6 +9,8 @@ import * as Icons from 'phosphor-react-native'
 import { verticalScale } from '@/utils/styling'
 import { useRouter } from 'expo-router'
 import Button from '@/components/Button'
+import Loading from '@/components/Loading'
+import { supabase } from '@/utils/supabase'
 
 
 const Register = () => {
@@ -17,22 +19,123 @@ const Register = () => {
     const emailRef = useRef('');
     const passwordRef = useRef('');
     const [isLoading, setIsLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState('');
     const router = useRouter();
 
-    const handleSubmit = async () => {
-        if (!emailRef.current || !passwordRef.current || !nameRef.current) {
-            Alert.alert('Sign Up', 'Please fill all fields');
-            return
-        }
-        router.push("/(main)/onboarding")
+    const validateEmail = (email: string): boolean => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
     };
+
+    const handleSubmit = async () => {
+        //Validation
+        if (!nameRef.current?.trim() || !emailRef.current?.trim() || !passwordRef.current) {
+            Alert.alert('Sign Up', 'Please fill in all fields');
+            return;
+        }
+
+        if (!validateEmail(emailRef.current)) {
+            Alert.alert('Invalid Email', 'Please enter a valid email address');
+            return;
+        }
+
+        if (passwordRef.current.length < 6) {
+            Alert.alert('Weak Password', 'Password must be at least 6 characters long');
+            return;
+        }
+        setIsLoading(true);
+        setLoadingMessage('Creating your account...');
+
+        try {
+            // 1. Sign up with Supabase (with email confirmation)
+            const { data, error } = await supabase.auth.signUp({
+                email: emailRef.current.trim(),
+                password: passwordRef.current,
+                options: {
+                    data: {
+                        name: nameRef
+                    },
+                    emailRedirectTo: undefined
+                }
+            });
+
+            if (error) {
+                // Handle specific Supabase errors
+                if (error.message.includes('already registered')) {
+                    Alert.alert('Sign Up Error', 'This email is already registered. Please log in instead.');
+                }
+                else {
+                    Alert.alert('Sign Up Error', error.message);
+                }
+                setIsLoading(false);
+                return;
+            }
+
+            if (!data.user) {
+                Alert.alert('Sign Up Error', 'Account creation failed. Please try again.');
+                setIsLoading(false);
+                return;
+            }
+
+            setLoadingMessage('Sending verification email...');
+
+            // Small delay for UX
+            await new Promise(resolve => setTimeout(resolve, 800));
+            setIsLoading(false);
+
+            // Navigate to Verify Email screen
+            router.push({
+                pathname: '/(auth)/verify-email',
+                params: { email: emailRef.current.trim() }
+            })
+        }
+
+        catch (error: any) {
+            setIsLoading(false)
+            //network errors
+            if (error.message?.includes('fetch')) {
+                Alert.alert(
+                    'Network Error',
+                    'Unable to connect to the server. Please check your internet connection and try again.'
+                );
+            }
+
+            else {
+                Alert.alert('Error', error.message || 'Something went wrong. Please try again.');
+            }
+
+            console.error('Registration Error:', error);
+        }
+    };
+
+    const handleGoogleSignIn = () => {
+        Alert.alert('Coming Soon', 'Google Sign-In will be available in future updates!');
+    };
+
+    const handleAppleSignIn = () => {
+        Alert.alert('Coming Soon', 'Apple Sign-In will be available in future updates!');
+    };
+
+    //Show full screen loading while processing
+    if (isLoading) {
+        return (
+            <ScreenWrapper showPattern={false}>
+                <View style={styles.loadingContainer}>
+                    <Typo size={18} color={colors.white}
+                        style={{ marginTop: spacingY._20, textAlign: 'center' }}>
+                            {loadingMessage}
+                    </Typo>
+                </View>
+            </ScreenWrapper>
+        )
+    }
 
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
             behavior={Platform.OS == 'ios' ? 'padding' : 'height'}
         >
-            <ScreenWrapper showPattern={true}>
+            <ScreenWrapper showPattern={false}>
                 <View style={styles.container}>
                     <View style={styles.header}>
                         <BackButton iconSize={38} />
@@ -43,6 +146,7 @@ const Register = () => {
                         <ScrollView
                             contentContainerStyle={styles.form}
                             showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
                         >
                             <View style={{ gap: spacingY._10, marginBottom: spacingY._15 }}>
                                 <Typo size={28} fontWeight={'600'}>
@@ -64,6 +168,9 @@ const Register = () => {
 
                                 <Input placeholder='Enter your Email'
                                     onChangeText={(value: string) => emailRef.current = value}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
                                     icon={
                                         <Icons.PasswordIcon size={verticalScale(26)}
                                             color={colors.neutral600}
@@ -97,33 +204,33 @@ const Register = () => {
 
                                 </View>
 
-                                
+
                             </View>
                             <View style={styles.dividerContainer}>
-                                    <View style={styles.line} />
-                                    <Typo color={colors.neutral500}>or</Typo>
-                                    <View style={styles.line} />
-                                </View>
+                                <View style={styles.line} />
+                                <Typo color={colors.neutral500}>or</Typo>
+                                <View style={styles.line} />
+                            </View>
 
-                                <Button style={styles.googleButton}>
-                                    <Image
-                                        source={require('../../assets/images/images/google.png')}
-                                        style={styles.googleIcon}
-                                    />
-                                    <Typo fontWeight={'bold'} color={colors.black}>
-                                        Continue with Google
-                                    </Typo>
-                                </Button>
+                            <Button style={styles.googleButton} onPress={handleGoogleSignIn}>
+                                <Image
+                                    source={require('../../assets/images/images/google.png')}
+                                    style={styles.googleIcon}
+                                />
+                                <Typo fontWeight={'bold'} color={colors.black}>
+                                    Continue with Google
+                                </Typo>
+                            </Button>
 
-                                <Button style={styles.googleButton}>
-                                    <Image
-                                        source={require('../../assets/images/images/apple.png')}
-                                        style={styles.googleIcon}
-                                    />
-                                    <Typo fontWeight={'bold'} color={colors.black}>
-                                        Continue with Apple
-                                    </Typo>
-                                </Button>
+                            <Button style={styles.googleButton} onPress={handleAppleSignIn}>
+                                <Image
+                                    source={require('../../assets/images/images/apple.png')}
+                                    style={styles.googleIcon}
+                                />
+                                <Typo fontWeight={'bold'} color={colors.black}>
+                                    Continue with Apple
+                                </Typo>
+                            </Button>
                         </ScrollView>
                     </View>
                 </View>
@@ -143,6 +250,12 @@ const styles = StyleSheet.create({
         //gap: spacingY._30,
         // marginHorizontal: spacingX._20,
         justifyContent: 'space-between',
+    },
+
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 
     header: {
