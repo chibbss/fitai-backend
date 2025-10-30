@@ -18,9 +18,23 @@ if [ ! -f "rag.py" ]; then
     exit 1
 fi
 
+# Detect Python command (prefer venv if available)
+if [ -f "venv/bin/python" ]; then
+    PYTHON="venv/bin/python"
+elif command -v python3 &> /dev/null; then
+    PYTHON="python3"
+elif command -v python &> /dev/null; then
+    PYTHON="python"
+else
+    echo -e "${RED}❌ Error: Python not found${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}Using Python: $PYTHON${NC}"
+
 # Verify new config
 echo -e "${YELLOW}📋 Checking chunking configuration...${NC}"
-python -c "import os; from dotenv import load_dotenv; load_dotenv(); print(f'CHUNKING_MODE: {os.getenv(\"CHUNKING_MODE\", \"NOT SET\")}'); print(f'CHUNK_SIZE_TOKENS: {os.getenv(\"CHUNK_SIZE_TOKENS\", \"NOT SET\")}'); print(f'CHUNK_OVERLAP_TOKENS: {os.getenv(\"CHUNK_OVERLAP_TOKENS\", \"NOT SET\")}')" || {
+$PYTHON -c "import os; from dotenv import load_dotenv; load_dotenv(); print(f'CHUNKING_MODE: {os.getenv(\"CHUNKING_MODE\", \"NOT SET\")}'); print(f'CHUNK_SIZE_TOKENS: {os.getenv(\"CHUNK_SIZE_TOKENS\", \"NOT SET\")}'); print(f'CHUNK_OVERLAP_TOKENS: {os.getenv(\"CHUNK_OVERLAP_TOKENS\", \"NOT SET\")}')" || {
     echo -e "${RED}❌ Failed to load config${NC}"
     exit 1
 }
@@ -36,7 +50,7 @@ echo ""
 echo -e "${YELLOW}🗑️  Deleting existing chunks and documents...${NC}"
 
 # Delete all chunks and documents from database
-python -c "
+$PYTHON -c "
 import os
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
@@ -78,57 +92,64 @@ echo ""
 
 # Re-ingest all documents with proper URLs
 
-echo -e "${YELLOW}📄 1/8 - Nutrition for Nurses (NCBI)...${NC}"
-python scripts/ingest_local_docs.py \
+echo -e "${YELLOW}📄 1/9 - Nutrition for Nurses (NCBI)...${NC}"
+$PYTHON scripts/ingest_local_docs.py \
     "data/pdfs/Nutrition_for_Nurses-WEB.pdf" \
     --category kb \
     --url "https://www.ncbi.nlm.nih.gov/" && echo -e "${GREEN}✅ Done${NC}" || echo -e "${RED}❌ Failed${NC}"
 
 echo ""
-echo -e "${YELLOW}📄 2/8 - Physical Activity Guidelines (HHS)...${NC}"
-python scripts/ingest_local_docs.py \
+echo -e "${YELLOW}📄 2/9 - Physical Activity Guidelines (HHS)...${NC}"
+$PYTHON scripts/ingest_local_docs.py \
     "data/pdfs/Physical_Activity_Guidelines_2nd_edition.pdf" \
     --category kb \
     --url "https://health.gov/paguidelines/second-edition/" && echo -e "${GREEN}✅ Done${NC}" || echo -e "${RED}❌ Failed${NC}"
 
 echo ""
-echo -e "${YELLOW}📄 3/8 - WHO Physical Activity Recommendations...${NC}"
-python scripts/ingest_local_docs.py \
+echo -e "${YELLOW}📄 3/9 - WHO Physical Activity Recommendations...${NC}"
+$PYTHON scripts/ingest_local_docs.py \
     "data/pdfs/WHO_Global_recommendation_physical_acivity.pdf" \
     --category kb \
     --url "https://www.who.int/publications/" && echo -e "${GREEN}✅ Done${NC}" || echo -e "${RED}❌ Failed${NC}"
 
 echo ""
-echo -e "${YELLOW}📄 4/8 - Self-Determination Theory (SDT)...${NC}"
-python scripts/ingest_local_docs.py \
+echo -e "${YELLOW}📄 4/9 - Self-Determination Theory (SDT)...${NC}"
+$PYTHON scripts/ingest_local_docs.py \
     "data/pdfs/2000_RyanDeci_Self_Determination_Theory.pdf" \
     --category kb \
     --url "https://selfdeterminationtheory.org/" && echo -e "${GREEN}✅ Done${NC}" || echo -e "${RED}❌ Failed${NC}"
 
 echo ""
-echo -e "${YELLOW}📄 5/8 - ACSM Resistance Training...${NC}"
-python scripts/ingest_local_docs.py \
+echo -e "${YELLOW}📄 5/9 - ACSM Resistance Training...${NC}"
+$PYTHON scripts/ingest_local_docs.py \
     "data/pdfs/resistance-training-ACSM.pdf" \
     --category kb \
     --url "https://www.acsm.org/education-resources/books/position-stands" && echo -e "${GREEN}✅ Done${NC}" || echo -e "${RED}❌ Failed${NC}"
 
 echo ""
-echo -e "${YELLOW}📄 6/8 - Clemson Fitness Handbook...${NC}"
-python scripts/ingest_local_docs.py \
+echo -e "${YELLOW}📄 6/9 - USDA Dietary Guidelines...${NC}"
+$PYTHON scripts/ingest_local_docs.py \
+    "data/pdfs/dietary guidelines for americans 2020-2025.pdf" \
+    --category kb \
+    --url "https://www.dietaryguidelines.gov/" && echo -e "${GREEN}✅ Done${NC}" || echo -e "${RED}❌ Failed${NC}"
+
+echo ""
+echo -e "${YELLOW}📄 7/9 - Clemson Fitness Handbook...${NC}"
+$PYTHON scripts/ingest_local_docs.py \
     "data/pdfs/fitness-handbook.pdf" \
     --category kb \
     --url "https://www.clemson.edu/business/academics/army-rotc/documents/fitness-handbook.pdf" && echo -e "${GREEN}✅ Done${NC}" || echo -e "${RED}❌ Failed${NC}"
 
 echo ""
-echo -e "${YELLOW}📄 7/8 - Concepts of Fitness and Wellness...${NC}"
-python scripts/ingest_local_docs.py \
+echo -e "${YELLOW}📄 8/9 - Concepts of Fitness and Wellness...${NC}"
+$PYTHON scripts/ingest_local_docs.py \
     "data/pdfs/10 Concepts of fitness and wellness 2nd education.pdf" \
     --category kb \
     --url "https://www.tnteu.ac.in/pdf/library/10%20Concepts%20of%20fitness%20and%20wellness%202nd%20education.pdf" && echo -e "${GREEN}✅ Done${NC}" || echo -e "${RED}❌ Failed${NC}"
 
 echo ""
-echo -e "${YELLOW}📄 8/8 - Growing Stronger (CDC/Tufts)...${NC}"
-python scripts/ingest_local_docs.py \
+echo -e "${YELLOW}📄 9/9 - Growing Stronger (CDC/Tufts)...${NC}"
+$PYTHON scripts/ingest_local_docs.py \
     "data/pdfs/strengh training for older adults.pdf" \
     --category kb \
     --url "https://www.cdc.gov/physicalactivity/downloads/growing_stronger.pdf" && echo -e "${GREEN}✅ Done${NC}" || echo -e "${RED}❌ Failed${NC}"
