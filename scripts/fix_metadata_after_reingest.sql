@@ -53,11 +53,6 @@ UPDATE chunks
 SET meta_data = jsonb_set(meta_data, '{source}', '"NCBI"')
 WHERE meta_data->>'title' ILIKE '%Nutrition%Nurses%';
 
--- 9. Update USDA Dietary Guidelines
-UPDATE chunks
-SET meta_data = jsonb_set(meta_data, '{source}', '"USDA-HHS"')
-WHERE meta_data->>'title' ILIKE '%Dietary Guidelines%Americans%';
-
 -- Verification queries
 \echo ''
 \echo '=========================================='
