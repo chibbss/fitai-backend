@@ -269,53 +269,154 @@ class RAGService:
         return chunks
 
     def _chunk_text_recursive(self, text: str) -> List[str]:
+        """Recursive chunking that respects natural boundaries with improved sentence detection."""
+        import re
         size = self.config.chunk_size_tokens
         overlap = self.config.chunk_overlap_tokens
         if size <= 0 or not text.strip():
             return [text]
-        seps = ["\n\n", "\n", ". ", " "]
+        
         def length_in_tokens(s: str) -> int:
             if self.embedding_tokenizer is None:
                 return max(1, len(s) // 4)
             return len(self.embedding_tokenizer.encode(s, add_special_tokens=False))
-        def split_recursive(s: str, sep_index: int) -> List[str]:
-            if length_in_tokens(s) <= size or sep_index >= len(seps):
+        
+        # Enhanced sentence boundary detection (handles PDF extraction quirks)
+        # Match: period/question/exclamation + space + capital letter (or number)
+        # Excludes: "Dr.", "U.S.", "etc.", abbreviations
+        sentence_end_pattern = re.compile(r'([.!?])\s+([A-Z0-9#•\-\[])')
+        
+        def split_on_sentences(s: str) -> List[str]:
+            """Split text on sentence boundaries using regex."""
+            parts = []
+            last_end = 0
+            for match in sentence_end_pattern.finditer(s):
+                # Include the punctuation, space, and next char
+                end_pos = match.end()
+                parts.append(s[last_end:end_pos].strip())
+                last_end = end_pos - 1  # Back up one char to include the capital
+            if last_end < len(s):
+                parts.append(s[last_end:].strip())
+            return [p for p in parts if p]
+        
+        def split_recursive(s: str, level: int = 0) -> List[str]:
+            """Recursively split text with fallback strategies."""
+            s = s.strip()
+            if not s:
+                return []
+            
+            token_len = length_in_tokens(s)
+            if token_len <= size:
                 return [s]
-            parts = s.split(seps[sep_index])
-            out: List[str] = []
+            
+            # Level 0: Try paragraph breaks (double newline)
+            if level == 0:
+                if "\n\n" in s:
+                    parts = s.split("\n\n")
+                    chunks = []
+                    for part in parts:
+                        part = part.strip()
+                        if part:
+                            chunks.extend(split_recursive(part, level + 1))
+                    return chunks
+            
+            # Level 1: Try single newline
+            if level == 1:
+                if "\n" in s:
+                    parts = [p.strip() for p in s.split("\n") if p.strip()]
+                    if len(parts) > 1:
+                        chunks = []
+                        for part in parts:
+                            chunks.extend(split_recursive(part, level + 1))
+                        return chunks
+            
+            # Level 2: Try sentence boundaries (regex-based)
+            if level == 2:
+                sentence_parts = split_on_sentences(s)
+                if len(sentence_parts) > 1:
+                    chunks = []
+                    buf = ""
+                    for sent in sentence_parts:
+                        candidate = (buf + " " + sent).strip() if buf else sent
+                        if length_in_tokens(candidate) <= size:
+                            buf = candidate
+                        else:
+                            if buf:
+                                chunks.append(buf)
+                            # If single sentence is too large, force split it
+                            if length_in_tokens(sent) > size:
+                                chunks.extend(split_recursive(sent, level + 1))
+                            else:
+                                buf = sent
+                    if buf:
+                        chunks.append(buf)
+                    if chunks:
+                        return chunks
+            
+            # Level 3+: Force split on spaces (last resort)
+            # But try to preserve sentence-like boundaries where possible
+            words = s.split()
+            chunks = []
             buf = ""
-            for i, part in enumerate(parts):
-                piece = (buf + (seps[sep_index] if buf else "") + part).strip()
-                if length_in_tokens(piece) > size and buf:
-                    out.extend(split_recursive(buf.strip(), sep_index + 1))
-                    buf = part
+            for word in words:
+                candidate = (buf + " " + word).strip() if buf else word
+                if length_in_tokens(candidate) <= size:
+                    buf = candidate
                 else:
-                    buf = piece
+                    if buf:
+                        chunks.append(buf)
+                    buf = word
             if buf:
-                out.extend(split_recursive(buf.strip(), sep_index + 1))
-            # add overlap by merging borders
-            if overlap > 0 and len(out) > 1:
-                with_overlap: List[str] = []
-                prev_tail = ""
-                for idx, ch in enumerate(out):
-                    if idx > 0 and prev_tail:
-                        merged = (prev_tail + " " + ch).strip()
-                        # trim to size
-                        while length_in_tokens(merged) > size and " " in merged:
-                            merged = merged.split(" ", 1)[1]
-                        with_overlap.append(merged)
+                chunks.append(buf)
+            
+            # Safety: if any chunk is still too large, force split it
+            final_chunks = []
+            for chunk in chunks:
+                if length_in_tokens(chunk) > size:
+                    # Force split at midpoint
+                    mid = len(chunk) // 2
+                    # Try to find a space near midpoint
+                    space_pos = chunk.find(" ", mid)
+                    if space_pos > mid * 0.5 and space_pos < mid * 1.5:
+                        final_chunks.append(chunk[:space_pos].strip())
+                        final_chunks.append(chunk[space_pos:].strip())
                     else:
-                        with_overlap.append(ch)
-                    # compute tail for next overlap approx by last N tokens
-                    if self.embedding_tokenizer is None:
-                        prev_tail = ch[-overlap*4:]
-                    else:
-                        toks = self.embedding_tokenizer.encode(ch, add_special_tokens=False)
-                        tail = toks[-overlap:]
-                        prev_tail = self.embedding_tokenizer.decode(tail, skip_special_tokens=True)
-                out = with_overlap
-            return out
-        return [c for c in split_recursive(text, 0) if c.strip()]
+                        # Hard split at midpoint
+                        final_chunks.append(chunk[:mid].strip())
+                        final_chunks.append(chunk[mid:].strip())
+                else:
+                    final_chunks.append(chunk)
+            
+            return [c for c in final_chunks if c.strip()]
+        
+        # Initial split
+        chunks = split_recursive(text, 0)
+        
+        # Add overlap between chunks
+        if overlap > 0 and len(chunks) > 1:
+            final_chunks = []
+            prev_tail = ""
+            for idx, chunk in enumerate(chunks):
+                if idx > 0 and prev_tail:
+                    merged = (prev_tail + " " + chunk).strip()
+                    # Trim to size if needed
+                    while length_in_tokens(merged) > size and " " in merged:
+                        merged = merged.split(" ", 1)[1]
+                    final_chunks.append(merged)
+                else:
+                    final_chunks.append(chunk)
+                
+                # Compute tail for next overlap
+                if self.embedding_tokenizer is None:
+                    prev_tail = chunk[-overlap*4:] if len(chunk) > overlap*4 else chunk
+                else:
+                    toks = self.embedding_tokenizer.encode(chunk, add_special_tokens=False)
+                    tail = toks[-overlap:] if len(toks) > overlap else toks
+                    prev_tail = self.embedding_tokenizer.decode(tail, skip_special_tokens=True)
+            
+            chunks = final_chunks
+        
+        return [c for c in chunks if c.strip()]
 
     # ------------------------
     # Embedding helpers
