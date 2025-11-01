@@ -1,4 +1,4 @@
-# FitAI API Documentation for Frontend Developers
+`# FitAI API Documentation for Frontend Developers
 
 **Last Updated:** October 28, 2025  
 **Base URL:** `http://localhost:8000` (local) or `https://your-domain.com` (production)  
