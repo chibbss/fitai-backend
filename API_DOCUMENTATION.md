@@ -35,6 +35,7 @@ const token = session?.access_token
    - [PUT /users/{user_id}](#put-usersuser_id)
    - [PUT /users/{user_id}/discover](#put-usersuser_iddiscover) (NEW - Chat Discovery)
    - [POST /onboarding_step](#post-onboarding_step) (Progressive Onboarding)
+   - [GET /onboarding/completion_message/{user_id}](#get-onboardingcompletion_messageuser_id) (Chat Handoff)
 3. [Workout Logging (V2 - Structured)](#workout-logging-v2---structured)
 4. [Workout Insights](#workout-insights)
 5. [Workout Calendar](#workout-calendar)
@@ -344,6 +345,56 @@ Capture each onboarding step incrementally. This allows for progressive onboardi
 }
 ```
 
+**Request Examples:**
+
+**Screen 1 - "Your Why" (Required):**
+```json
+{
+  "user_id": "user-123",
+  "step": "why",
+  "data": {
+    "primary_goal": "build muscle"
+  }
+}
+```
+*Alternative values:* `"lose fat"`, `"get consistent"`, `"feel healthier"`, `"train for performance"`
+
+**Screen 2 - "Your Experience" (Required):**
+```json
+{
+  "user_id": "user-123",
+  "step": "experience",
+  "data": {
+    "experience_level": "beginner"
+  }
+}
+```
+*Alternative values:* `"intermediate"`, `"advanced"`
+
+**Screen 3 - "How You Train" (Required):**
+```json
+{
+  "user_id": "user-123",
+  "step": "training_style",
+  "data": {
+    "workout_preference": "strength training"
+  }
+}
+```
+*Alternative values:* `"cardio"`, `"home workouts"`, `"sports & athletic"`, `"mix"`
+
+**Screen 4 - "Anything I Should Know?" (Optional):**
+```json
+{
+  "user_id": "user-123",
+  "step": "notes",
+  "data": {
+    "constraints": "shoulder injury, gym 3x/week, prefer short workouts"
+  }
+}
+```
+*Note:* This screen is optional. If user skips, don't call the endpoint for this step.
+
 **Frontend Usage:**
 ```javascript
 const submitOnboardingStep = async (userId, step, data, token) => {
@@ -358,11 +409,11 @@ const submitOnboardingStep = async (userId, step, data, token) => {
   return await response.json()
 }
 
-// Example: Screen 1 - Primary Goal
+// Example: Screen 1 - Primary Goal (Your Why)
 await submitOnboardingStep(
   userId,
-  "goal",
-  { primary_goal: "Build muscle" },
+  "why",
+  { primary_goal: "build muscle" },
   token
 )
 
@@ -370,28 +421,23 @@ await submitOnboardingStep(
 await submitOnboardingStep(
   userId,
   "experience",
-  { experience_level: "1-2 years" },
+  { experience_level: "beginner" },
   token
 )
 
-// Example: Screen 3 - Workout Preference
+// Example: Screen 3 - Training Style (How You Train)
 await submitOnboardingStep(
   userId,
-  "preference",
-  { workout_preference: "Gym workouts" },
+  "training_style",
+  { workout_preference: "strength training" },
   token
 )
 
-// Example: Screen 4 - Optional Details (only send filled fields!)
+// Example: Screen 4 - Optional Notes/Constraints
 await submitOnboardingStep(
   userId,
-  "details",
-  {
-    age: 28,
-    name: "John",
-    injuries: "Previous knee injury - fully recovered",
-    schedule_preference: "Morning person"
-  },
+  "notes",
+  { constraints: "shoulder injury, gym 3x/week" },
   token
 )
 ```
