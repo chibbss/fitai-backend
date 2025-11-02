@@ -770,15 +770,43 @@ class OnboardingStepResponse(BaseModel):
 
 @app.post("/onboarding_step", response_model=OnboardingStepResponse)
 async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse:
+    """
+    Capture onboarding step data. Supports new step names:
+    - "why" → stores in goals.primary_goal
+    - "experience" → stores in profile.experience_level
+    - "training_style" → stores in profile.workout_preference
+    - "notes" → stores in profile.constraints
+    Also supports legacy names: "basic", "profile", "goals", "preferences"
+    """
     try:
         user = rag_service.get_user(body.user_id) or {"id": body.user_id, "profile": {}, "goals": {}, "metadata": {}}
         profile = user.get("profile", {})
         goals = user.get("goals", {})
-        if body.step in {"basic", "profile"}:
+        metadata = user.get("metadata", {}) or {}
+        
+        # Map new step names to proper storage locations
+        if body.step == "why":
+            # Store in goals
+            goals.update({"primary_goal": body.data.get("primary_goal") or list(body.data.values())[0] if body.data else None})
+        elif body.step == "experience":
+            # Store in profile
+            profile.update({"experience_level": body.data.get("experience_level") or list(body.data.values())[0] if body.data else None})
+        elif body.step == "training_style":
+            # Store in profile
+            profile.update({"workout_preference": body.data.get("workout_preference") or list(body.data.values())[0] if body.data else None})
+        elif body.step == "notes":
+            # Store constraints/notes in profile
+            constraints = body.data.get("constraints") or body.data.get("notes") or list(body.data.values())[0] if body.data else None
+            if constraints:
+                profile.update({"constraints": constraints})
+        elif body.step in {"basic", "profile", "experience", "training_style", "notes"}:
+            # Legacy: allow direct profile updates
             profile.update(body.data)
-        elif body.step in {"goals", "preferences"}:
+        elif body.step in {"goals", "preferences", "why"}:
+            # Legacy: allow direct goals updates
             goals.update(body.data)
         else:
+            # Default: update profile
             profile.update(body.data)
 
         updated = rag_service.upsert_user(
@@ -787,7 +815,7 @@ async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse
             email=user.get("email"),
             profile=profile,
             goals=goals,
-            metadata=user.get("metadata"),
+            metadata=metadata,
         )
 
         summary_text = f"Onboarding step '{body.step}': {body.data}"
@@ -796,6 +824,51 @@ async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse
         return OnboardingStepResponse(user=UserResponse(**updated))
     except Exception as e:
         logger.error("/onboarding_step error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/onboarding/completion_message/{user_id}")
+async def get_onboarding_completion_message(
+    user_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Generate personalized welcome message after onboarding completion.
+    Frontend can use this for the chat handoff after onboarding.
+    """
+    try:
+        ensure_user_owns_resource(user_id, user)
+        
+        user_data = rag_service.get_user(user_id)
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        profile = user_data.get("profile", {}) or {}
+        goals = user_data.get("goals", {}) or {}
+        
+        goal = goals.get("primary_goal") or goals.get("goal") or "your goals"
+        experience = profile.get("experience_level") or "your level"
+        preference = profile.get("workout_preference") or "your style"
+        constraints = profile.get("constraints") or profile.get("restrictions")
+        
+        # Build personalized message
+        message_parts = [f"Hey there 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
+        
+        if constraints:
+            message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
+        
+        message_parts.append("Want me to help plan your next session or log your last one?")
+        
+        return {
+            "message": " ".join(message_parts),
+            "user_id": user_id,
+            "profile": profile,
+            "goals": goals
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/onboarding/completion_message error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -300,11 +300,21 @@ Capture each onboarding step incrementally. This allows for progressive onboardi
 
 **Authentication:** Required
 
+**Supported Step Names:**
+- `"why"` → Stores in `goals.primary_goal` (e.g., "build muscle", "lose fat")
+- `"experience"` → Stores in `profile.experience_level` (e.g., "beginner", "intermediate", "advanced")
+- `"training_style"` → Stores in `profile.workout_preference` (e.g., "strength training", "cardio", "home workouts")
+- `"notes"` → Stores in `profile.constraints` (optional: e.g., "shoulder injury, gym 3x/week")
+
+**Legacy Step Names (still supported):**
+- `"basic"`, `"profile"` → Updates profile directly
+- `"goals"`, `"preferences"` → Updates goals directly
+
 **Request Body:**
 ```json
 {
   "user_id": "user-123",
-  "step": "goal",
+  "step": "why",
   "data": {
     "primary_goal": "Build muscle"
   }
@@ -313,7 +323,7 @@ Capture each onboarding step incrementally. This allows for progressive onboardi
 
 **Parameters:**
 - `user_id` (string, required): The user's ID
-- `step` (string, required): The onboarding step name (e.g., "goal", "experience", "preference", "details")
+- `step` (string, required): The onboarding step name (see supported step names above)
 - `data` (object, required): The data collected in this step
 
 **Response:**
@@ -387,12 +397,55 @@ await submitOnboardingStep(
 ```
 
 **How It Works:**
-- Steps named "goal", "goals", or "preferences" → updates `user.goals`
-- Steps named "basic" or "profile" → updates `user.profile`
-- Other steps → updates `user.profile` (default)
+- New step names: `"why"` → `goals.primary_goal`, `"experience"` → `profile.experience_level`, `"training_style"` → `profile.workout_preference`, `"notes"` → `profile.constraints`
+- Legacy step names: `"goal"`, `"goals"`, `"preferences"` → updates `user.goals`; `"basic"`, `"profile"` → updates `user.profile`
 - Each step is also logged as a training log entry for context
 
 **💡 For Full Onboarding Flow:** See `ONBOARDING_GUIDE.md` for detailed 3-screen onboarding implementation.
+
+---
+
+### **GET** `/onboarding/completion_message/{user_id}`
+
+Generate a personalized welcome message after onboarding completion. Use this for the chat handoff after users complete onboarding.
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "message": "Hey there 👋 I remember what you told me — your goal is **build muscle**, you've got **beginner** experience, and you enjoy **strength training**. Want me to help plan your next session or log your last one?",
+  "user_id": "user-123",
+  "profile": {
+    "experience_level": "beginner",
+    "workout_preference": "strength training",
+    "constraints": "shoulder injury, gym 3x/week"
+  },
+  "goals": {
+    "primary_goal": "build muscle"
+  }
+}
+```
+
+**Frontend Usage:**
+```javascript
+const getCompletionMessage = async (userId, token) => {
+  const response = await fetch(`http://localhost:8000/onboarding/completion_message/${userId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  })
+  return await response.json()
+}
+
+// After onboarding completes, fetch personalized message
+const completion = await getCompletionMessage(userId, token)
+// Display completion.message in chat UI as FitAI's first message
+```
+
+**Note:** The message automatically includes constraints/injuries if they were provided during onboarding.
 
 ---
 

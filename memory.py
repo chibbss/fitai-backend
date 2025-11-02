@@ -72,6 +72,7 @@ def summarize_texts(rag_service: RAGService, texts: List[str]) -> str:
 
 
 def refresh_user_memory(rag_service: RAGService, user_id: str, n: int = DEFAULT_SUMMARY_COUNT) -> Dict[str, Any]:
+    """Accumulate historical memory summaries instead of overwriting (deep memory)."""
     with rag_service.SessionLocal() as session:
         # Fetch last n logs
         stmt = (
@@ -85,34 +86,33 @@ def refresh_user_memory(rag_service: RAGService, user_id: str, n: int = DEFAULT_
         if not texts:
             return {"user_id": user_id, "updated": False, "reason": "no logs"}
 
+        # Get date range of logs being summarized
+        first_log_date = rows[-1].occurred_at.isoformat() if rows[-1].occurred_at else None
+        last_log_date = rows[0].occurred_at.isoformat() if rows[0].occurred_at else None
+
         summary = summarize_texts(rag_service, texts)
         summary = redact_pii(summary)
         emb = rag_service._embed([summary])[0].tolist()
 
-        # Upsert memory
+        # Always create NEW summary (accumulate history instead of overwriting)
         with session.begin():
-            existing = (
-                session.query(UserMemoryModel)
-                .filter(UserMemoryModel.user_id == user_id, UserMemoryModel.source == "auto_summary")
-                .first()
+            mem = UserMemoryModel(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                summary=summary,
+                embedding=emb,
+                source="auto_summary",
+                meta_data={
+                    "redacted": True,
+                    "window_size": n,  # Number of logs summarized
+                    "log_count": len(texts),
+                    "date_range_start": first_log_date,
+                    "date_range_end": last_log_date,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                },
             )
-            if existing:
-                existing.summary = summary
-                existing.embedding = emb
-                existing.updated_at = datetime.now(timezone.utc).isoformat()
-                session.add(existing)
-                mem_id = existing.id
-            else:
-                mem = UserMemoryModel(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    summary=summary,
-                    embedding=emb,
-                    source="auto_summary",
-                    meta_data={"redacted": True},
-                )
-                session.add(mem)
-                mem_id = mem.id
+            session.add(mem)
+            mem_id = mem.id
     return {"user_id": user_id, "updated": True, "memory_id": mem_id, "summary": summary}
 
 

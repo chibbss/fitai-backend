@@ -7,7 +7,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import deque
 
 import torch
@@ -215,6 +215,26 @@ class RAGService:
                         conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_user_memory_embedding_hnsw ON user_memory USING hnsw (embedding vector_cosine_ops);"))
                         conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_user_memory_user ON user_memory(user_id)"))
                         conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_user_memory_meta_gin ON user_memory USING gin (meta_data)"))
+                    except Exception:
+                        pass
+                    # Chat messages table for persistent conversation history
+                    try:
+                        conn.execute(sql_text("""
+                            CREATE TABLE IF NOT EXISTS chat_messages (
+                                id VARCHAR PRIMARY KEY,
+                                user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                session_id VARCHAR NOT NULL,
+                                role VARCHAR NOT NULL,
+                                content TEXT NOT NULL,
+                                created_at TIMESTAMP NOT NULL,
+                                meta_data JSONB,
+                                CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                            );
+                        """))
+                        conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id);"))
+                        conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);"))
+                        conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at);"))
+                        conn.execute(sql_text("CREATE INDEX IF NOT EXISTS idx_chat_messages_user_session ON chat_messages(user_id, session_id);"))
                     except Exception:
                         pass
             except Exception as e:
@@ -561,7 +581,8 @@ class RAGService:
         if injuries:
             injury_prefix = f"⚠️  INJURY/SAFETY ALERT: {injuries}\n\n"
         
-        restrictions = profile.get("restrictions")
+        # Handle both "restrictions" and "constraints" fields (from onboarding step "notes")
+        restrictions = profile.get("restrictions") or profile.get("constraints")
         if restrictions:
             injury_prefix += f"⚠️  RESTRICTIONS: {restrictions}\n\n"
         
@@ -924,31 +945,83 @@ class RAGService:
         return self._session_memory[key]
 
     def append_session_message(self, user_id: str, session_id: Optional[str], role: str, content: str) -> None:
+        """Persist conversation messages to database for deep memory."""
         key = self._get_session_key(user_id, session_id)
+        session_id_str = session_id or f"default_{user_id}"
+        created_at = datetime.now(timezone.utc)
+        
+        # Always persist to database first (deep memory requirement)
+        try:
+            with self.SessionLocal() as session:
+                with session.begin():
+                    msg = ChatMessageModel(
+                        id=str(uuid.uuid4()),
+                        user_id=user_id,
+                        session_id=session_id_str,
+                        role=role,
+                        content=content,
+                        created_at=created_at,
+                        meta_data={}
+                    )
+                    session.add(msg)
+        except Exception as e:
+            self.logger.warning("Failed to persist chat message to database: %s", e)
+        
+        # Also cache in Redis for fast retrieval (optional optimization)
         if self._redis is not None:
             try:
                 import json
                 rkey = f"{self.config.redis_prefix}:session:{key}"
                 self._redis.rpush(rkey, json.dumps({"role": role, "content": content, "ts": time.time()}))
                 self._redis.expire(rkey, self.config.redis_ttl_session_sec)
-                return
             except Exception:
                 pass
+        
+        # Keep in-memory as fallback (but database is source of truth)
         dq = self._ensure_session(key)
         dq.append({"role": role, "content": content, "ts": time.time()})
 
-    def get_session_messages(self, user_id: str, session_id: Optional[str], max_messages: int = 8) -> List[Dict[str, Any]]:
+    def get_session_messages(self, user_id: str, session_id: Optional[str], max_messages: int = 100) -> List[Dict[str, Any]]:
+        """Retrieve full conversation history from database for deep memory context."""
         key = self._get_session_key(user_id, session_id)
+        session_id_str = session_id or f"default_{user_id}"
+        
+        # Always retrieve from database first (deep memory - full history)
+        try:
+            with self.SessionLocal() as session:
+                stmt = (
+                    select(ChatMessageModel)
+                    .where(ChatMessageModel.user_id == user_id)
+                    .where(ChatMessageModel.session_id == session_id_str)
+                    .order_by(ChatMessageModel.created_at.asc())
+                    .limit(max_messages)
+                )
+                rows = session.execute(stmt).scalars().all()
+                if rows:
+                    messages = [
+                        {
+                            "role": row.role,
+                            "content": row.content,
+                            "ts": row.created_at.timestamp() if isinstance(row.created_at, datetime) else None
+                        }
+                        for row in rows
+                    ]
+                    return messages[-max_messages:]  # Return most recent N if we have more
+        except Exception as e:
+            self.logger.warning("Failed to retrieve chat messages from database: %s", e)
+        
+        # Fallback to Redis cache (if available)
         if self._redis is not None:
             try:
                 import json
                 rkey = f"{self.config.redis_prefix}:session:{key}"
-                # lrange end is inclusive; -1 means all, slice in Python
                 data = self._redis.lrange(rkey, 0, -1)
                 msgs = [json.loads(x) for x in data[-max_messages:]]
                 return msgs
             except Exception:
                 pass
+        
+        # Final fallback to in-memory (limited)
         dq = self._ensure_session(key)
         return list(dq)[-max_messages:]
 
@@ -1200,14 +1273,14 @@ class RAGService:
         if user_id:
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, self.config.top_k))
         static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
-        session_msgs = self.get_session_messages(user_id or "anonymous", session_id) if user_id else []
+        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=100) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
         kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved)]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
         dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
-        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
+        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
         mem_lines = [f"- {m['summary']}" for m in memories]
         memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
         system_text = (
@@ -1329,8 +1402,8 @@ class RAGService:
         # Static summary
         static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
 
-        # Session recap
-        session_msgs = self.get_session_messages(user_id or "anonymous", session_id) if user_id else []
+        # Session recap - retrieve full conversation history (deep memory)
+        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=100) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
 
@@ -1342,8 +1415,8 @@ class RAGService:
         ]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
 
-        # Long-term memory context
-        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
+        # Long-term memory context - retrieve top summaries (deep memory)
+        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
         mem_lines = [f"- {m['summary']}" for m in memories]
         memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
 
@@ -1592,7 +1665,7 @@ class RAGService:
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k)))
         
         static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
-        session_msgs = self.get_session_messages(user_id or "anonymous", session_id) if user_id else []
+        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=100) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
         
@@ -1602,7 +1675,7 @@ class RAGService:
         dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
         
-        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
+        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
         mem_lines = [f"- {m['summary']}" for m in memories]
         memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
         
@@ -1929,6 +2002,19 @@ class ExerciseLogModel(Base):
     created_at: Mapped[Optional[str]] = mapped_column(server_default=sql_text("now()"))
 
     session: Mapped[WorkoutSessionModel] = relationship(back_populates="exercises")
+
+
+class ChatMessageModel(Base):
+    """Store persistent conversation messages for deep memory context."""
+    __tablename__ = "chat_messages"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    session_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String, nullable=False)  # "user" or "assistant"
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, index=True)
+    meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
 
 
 class RagasMetricsModel(Base):
