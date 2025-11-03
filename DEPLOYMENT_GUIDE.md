@@ -147,6 +147,91 @@ psql $DATABASE_URL -c "SELECT COUNT(*) FROM ragas_metrics;"
 
 ---
 
+## ☁️ Modal vLLM Setup (Remote Generation)
+
+### 1. Configure Modal app
+
+- Ensure your HF token is stored in Modal secrets:
+```bash
+python -m modal secret create hf-token HF_TOKEN=hf_XXXXXXXXXXXXXXXXXXXX
+```
+
+- Deploy vLLM app:
+```bash
+python -m modal deploy infra/modal_vllm.py
+```
+
+The app uses:
+- GPU: A10G (sufficient for Llama 3.1 8B Instruct)
+- DType: float16
+- Max model len: auto-detected from model config
+
+### 2. Set backend env
+
+Add these to your `.env`:
+```bash
+GEN_BACKEND=remote
+REMOTE_GEN_URL=https://<your-modal-app>.modal.run/v1/completions
+HF_MODEL_ID=meta-llama/Meta-Llama-3.1-8B-Instruct
+```
+
+### 3. Warm and test
+```bash
+curl -s https://<your-modal-app>.modal.run/health
+
+curl -s -X POST https://<your-modal-app>.modal.run/v1/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"meta-llama/Meta-Llama-3.1-8B-Instruct", "prompt":"Hello", "max_tokens":64}'
+```
+
+Then test FitAI chat:
+```bash
+curl -s -X POST http://localhost:8000/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"Plan a leg day for me."}'
+```
+
+---
+
+## 🔪 Chunking Configuration & QA
+
+### 1. Recommended settings
+In `.env`:
+```bash
+CHUNKING_MODE=token
+CHUNK_SIZE_TOKENS=512
+CHUNK_OVERLAP_TOKENS=64
+```
+
+### 2. Re-ingest documents (per file)
+```bash
+source venv/bin/activate
+python scripts/ingest_local_docs.py "data/pdfs/fitness-handbook.pdf" --category kb --url "https://source-url"
+```
+
+### 3. QA checks (SQL)
+
+- Clean starts (% of chunks starting with caps/markers):
+```sql
+SELECT 
+  COUNT(*) FILTER (WHERE text ~ '^[A-Z0-9#•\\-\\*\\[]') AS clean_starts,
+  COUNT(*) AS total,
+  ROUND(COUNT(*) FILTER (WHERE text ~ '^[A-Z0-9#•\\-\\*\\[]') * 100.0 / COUNT(*), 1) AS pct
+FROM chunks WHERE document_id = '<doc_id>';
+```
+
+- Random sample (start/end):
+```sql
+SELECT LEFT(text, 120) AS start, RIGHT(text, 120) AS end
+FROM chunks WHERE document_id = '<doc_id>'
+ORDER BY RANDOM() LIMIT 10;
+```
+
+If pct < 70%, re-ingest with higher overlap (e.g., `CHUNK_OVERLAP_TOKENS=96`).
+
+---
+
 ## 🔧 Configuration
 
 ### Required Environment Variables
