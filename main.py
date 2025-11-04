@@ -41,6 +41,16 @@ limiter = Limiter(key_func=get_remote_address)
 MAX_BODY_BYTES = int(os.getenv("MAX_BODY_BYTES", "10485760"))  # 10MB default
 
 
+# -------------------------------
+# Helper: Sanitize Error Messages
+# -------------------------------
+def sanitize_error_message(error: Exception, default_message: str = "An error occurred processing your request") -> str:
+    """Sanitize error messages to prevent PII exposure in production."""
+    if os.getenv("ENVIRONMENT", "development") in ("production", "prod"):
+        return default_message
+    return str(error)
+
+
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         cl = request.headers.get("content-length")
@@ -57,6 +67,58 @@ app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.state.limiter = limiter
+
+
+# -------------------------------
+# Middleware: TLS Enforcement
+# -------------------------------
+class TLSEnforcementMiddleware(BaseHTTPMiddleware):
+    """Enforce HTTPS in production environments."""
+    async def dispatch(self, request: Request, call_next):
+        # Only enforce in production
+        if os.getenv("ENVIRONMENT", "development") in ("production", "prod"):
+            # Check X-Forwarded-Proto header (set by reverse proxy/load balancer)
+            forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+            # Also check if request is HTTP directly (shouldn't happen behind proxy)
+            if forwarded_proto == "http" or (not forwarded_proto and request.url.scheme == "http"):
+                from fastapi.responses import RedirectResponse
+                # Redirect to HTTPS
+                https_url = str(request.url).replace("http://", "https://", 1)
+                return RedirectResponse(url=https_url, status_code=301)
+        return await call_next(request)
+
+
+# -------------------------------
+# Middleware: Security Headers
+# -------------------------------
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        
+        # HSTS (HTTP Strict Transport Security) - only in production with HTTPS
+        if os.getenv("ENVIRONMENT", "development") in ("production", "prod"):
+            forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+            if forwarded_proto == "https" or request.url.scheme == "https":
+                hsts_max_age = int(os.getenv("HSTS_MAX_AGE", "31536000"))  # 1 year default
+                response.headers["Strict-Transport-Security"] = f"max-age={hsts_max_age}; includeSubDomains"
+        
+        # Content Security Policy (CSP) - restrictive by default
+        csp = os.getenv("CSP_HEADER", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';")
+        if csp != "none":  # Allow disabling CSP if needed
+            response.headers["Content-Security-Policy"] = csp
+        
+        return response
+
+
+app.add_middleware(TLSEnforcementMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # -------------------------------------------------
 # Response Models
@@ -358,7 +420,7 @@ async def chat(
         return ChatResponse(answer=result.get("answer", ""), references=refs, citations=result.get("citations") or [])
     except Exception as e:
         logger.error("/chat error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------
@@ -382,7 +444,7 @@ async def search(
         raise
     except Exception as e:
         logger.error("/search error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------
@@ -504,7 +566,7 @@ async def add_docs(request: Request, body: AddDocsRequest, user: Optional[AuthUs
         return AddDocsResponse(**result)
     except Exception as e:
         logger.error("/add_docs error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.post("/add_docs_files", response_model=AddDocsResponse)
@@ -558,7 +620,7 @@ async def add_docs_files(
         return AddDocsResponse(**result)
     except Exception as e:
         logger.error("/add_docs_files error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.post("/reembed_all", response_model=RebuildResponse)
@@ -569,7 +631,7 @@ async def reembed_all(request: Request, user_id: Optional[str] = None, _: AuthUs
         return RebuildResponse(**result)
     except Exception as e:
         logger.error("/reembed_all error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------- User management --------
@@ -585,7 +647,7 @@ async def get_user(user_id: str, user: AuthUser = Depends(get_current_user)) -> 
         raise
     except Exception as e:
         logger.error("/users GET error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.put("/users/{user_id}", response_model=UserResponse)
@@ -610,7 +672,7 @@ async def upsert_user(user_id: str, body: UserUpsertRequest, user: AuthUser = De
         return UserResponse(**user)
     except Exception as e:
         logger.error("/users PUT error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.put("/users/{user_id}/discover", response_model=UserResponse)
@@ -670,7 +732,7 @@ async def discover_user_data(
         raise
     except Exception as e:
         logger.error("/users/%s/discover error: %s", user_id, e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.post("/add_training_log", response_model=TrainingLogResponse)
@@ -691,7 +753,7 @@ async def add_training_log(request: Request, body: TrainingLogRequest, user: Aut
         return TrainingLogResponse(**res)
     except Exception as e:
         logger.error("/add_training_log error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.get("/history", response_model=HistoryResponse)
@@ -703,7 +765,7 @@ async def history(user_id: str, limit: int = 100, since: Optional[str] = None, u
         return HistoryResponse(items=[HistoryItem(**r) for r in rows])
     except Exception as e:
         logger.error("/history error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------- Memories --------
@@ -715,7 +777,7 @@ async def memories_me(request: Request, user: AuthUser = Depends(get_current_use
         return MemoriesResponse(items=[MemoryItem(**m) for m in items])
     except Exception as e:
         logger.error("/memories/me error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 class MemoryRefreshRequest(BaseModel):
@@ -745,7 +807,7 @@ async def memories_refresh(body: MemoryRefreshRequest, user: AuthUser = Depends(
         )
     except Exception as e:
         logger.error("/memories/refresh error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.get("/memories/{user_id}", response_model=MemoriesResponse)
@@ -755,7 +817,7 @@ async def memories_for_user(user_id: str, _: AuthUser = Depends(require_admin)) 
         return MemoriesResponse(items=[MemoryItem(**m) for m in items])
     except Exception as e:
         logger.error("/memories/{user_id} error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 class OnboardingStepRequest(BaseModel):
@@ -824,7 +886,7 @@ async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse
         return OnboardingStepResponse(user=UserResponse(**updated))
     except Exception as e:
         logger.error("/onboarding_step error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.get("/onboarding/completion_message/{user_id}")
@@ -869,7 +931,7 @@ async def get_onboarding_completion_message(
         raise
     except Exception as e:
         logger.error("/onboarding/completion_message error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------
@@ -957,7 +1019,7 @@ async def log_workout(
         return LogWorkoutResponse(**result)
     except Exception as e:
         logger.error("/log/workout error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 class WorkoutCalendarItem(BaseModel):
@@ -1009,7 +1071,7 @@ async def get_workout_calendar(
         return WorkoutCalendarResponse(items=[WorkoutCalendarItem(**it) for it in items])
     except Exception as e:
         logger.error("/workouts/calendar error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 class WorkoutInsightItem(BaseModel):
@@ -1077,7 +1139,7 @@ async def get_workout_insights(
         raise
     except Exception as e:
         logger.error("/insights error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------
@@ -1128,7 +1190,7 @@ async def chat_stream(
         raise
     except Exception as e:
         logger.error("/chat_stream error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------

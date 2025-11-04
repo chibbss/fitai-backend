@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -134,11 +135,43 @@ def get_config() -> AppConfig:
 # --------------------
 _logger_init_lock = threading.Lock()
 
+# PII patterns for log redaction (expanded from memory.py for broader use)
+PII_PATTERNS = [
+    re.compile(r"[\w\.-]+@[\w\.-]+\.[A-Za-z]{2,}", re.IGNORECASE),  # emails
+    re.compile(r"\+?\d[\d\s\-()]{7,}\d"),  # phone-like numbers
+    re.compile(r"\b\d{3}-?\d{2}-?\d{4}\b"),  # SSN-like
+    re.compile(r"\buser[-_]?id['\"]?\s*[:=]\s*['\"]?([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}|[a-zA-Z0-9_-]{20,})", re.IGNORECASE),  # user_id patterns
+]
+
+
+def redact_pii_from_log(text: str) -> str:
+    """Redact PII from log messages to prevent data leakage."""
+    if not text:
+        return text
+    redacted = str(text)
+    for pat in PII_PATTERNS:
+        redacted = pat.sub("[REDACTED]", redacted)
+    return redacted
+
+
+class PIIAwareFormatter(logging.Formatter):
+    """Logging formatter that redacts PII before writing logs."""
+    
+    def format(self, record: logging.LogRecord) -> str:
+        # Redact PII from the message
+        if hasattr(record, "msg") and record.msg:
+            record.msg = redact_pii_from_log(str(record.msg))
+        # Also redact any args that might contain PII
+        if hasattr(record, "args") and record.args:
+            record.args = tuple(redact_pii_from_log(str(arg)) for arg in record.args)
+        return super().format(record)
+
 
 def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
-    """Return a configured logger.
+    """Return a configured logger with PII redaction.
 
     Uses a global init lock to avoid duplicate handler registration under uvicorn reload.
+    All logs are automatically redacted for PII (emails, phone numbers, user_ids).
     """
     logger = logging.getLogger(name)
     if level is None:
@@ -148,10 +181,18 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
     with _logger_init_lock:
         if not logger.handlers:
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                fmt="%(asctime)s %(levelname)s %(name)s - %(message)s",
-                datefmt="%Y-%m-%dT%H:%M:%S%z",
-            )
+            # Use PII-aware formatter
+            pii_redaction_enabled = os.getenv("LOG_PII_REDACTION_ENABLED", "1") in ("1", "true", "True")
+            if pii_redaction_enabled:
+                formatter = PIIAwareFormatter(
+                    fmt="%(asctime)s %(levelname)s %(name)s - %(message)s",
+                    datefmt="%Y-%m-%dT%H:%M:%S%z",
+                )
+            else:
+                formatter = logging.Formatter(
+                    fmt="%(asctime)s %(levelname)s %(name)s - %(message)s",
+                    datefmt="%Y-%m-%dT%H:%M:%S%z",
+                )
             handler.setFormatter(formatter)
             logger.addHandler(handler)
             logger.propagate = False
