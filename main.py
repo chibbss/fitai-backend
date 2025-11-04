@@ -297,7 +297,7 @@ async def chat(
         q = body.query or ""
         if rag_service.config.profanity_filter_enabled:
             import re
-            bad = re.compile(r"\b(fuck|shit|bitch|asshole|bastard)\b", re.IGNORECASE)
+            bad = re.compile(r"\b(fuck|shit|bitch|asshole|bastard|pussy)\b", re.IGNORECASE)
             if bad.search(q):
                 if rag_service.config.profanity_block_mode == "block":
                     raise HTTPException(status_code=400, detail="Inappropriate language detected")
@@ -1020,12 +1020,21 @@ class WorkoutInsightItem(BaseModel):
     weight_increase: Optional[float] = None
 
 
+class SessionInsightItem(BaseModel):
+    """Session-level insights that create connection moments."""
+    type: str  # consistency | recovery | pr_context
+    message: str
+    priority: int = 0  # Higher priority shown first
+
+
 class WorkoutInsightsResponse(BaseModel):
     session_id: str
-    insights: List[WorkoutInsightItem]
+    insights: List[WorkoutInsightItem]  # Exercise-level insights
+    session_insights: List[SessionInsightItem] = []  # NEW: Connection layer insights
     overall_message: str
     avg_volume_change_pct: float
     exercise_count: int
+    conversation_hooks: List[str] = []  # NEW: Hooks for chatbot to reference
 
 
 @app.get("/insights/{session_id}", response_model=WorkoutInsightsResponse)
@@ -1049,12 +1058,20 @@ async def get_workout_insights(
             raise HTTPException(status_code=404, detail=result["error"])
         
         insights_items = [WorkoutInsightItem(**ins) for ins in result.get("insights", [])]
+        session_insights_items = [
+            SessionInsightItem(**ins) for ins in result.get("session_insights", [])
+        ]
+        # Sort by priority (higher first)
+        session_insights_items.sort(key=lambda x: x.priority, reverse=True)
+        
         return WorkoutInsightsResponse(
             session_id=result["session_id"],
             insights=insights_items,
+            session_insights=session_insights_items,
             overall_message=result.get("overall_message", ""),
             avg_volume_change_pct=result.get("avg_volume_change_pct", 0.0),
             exercise_count=result.get("exercise_count", 0),
+            conversation_hooks=result.get("conversation_hooks", []),
         )
     except HTTPException:
         raise

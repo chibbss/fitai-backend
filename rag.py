@@ -7,7 +7,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from collections import deque
 
 import torch
@@ -808,12 +808,17 @@ class RAGService:
         return result
 
     def get_workout_insights(self, user_id: str, session_id: str) -> Dict[str, Any]:
-        """Compare current workout session against historical data for instant insights."""
+        """
+        Compare current workout session against historical data for instant insights.
+        Enhanced with connection-focused insights: consistency patterns, enhanced PRs, and recovery intelligence.
+        """
         with self.SessionLocal() as session:
             # Get current session
             current = session.get(WorkoutSessionModel, session_id)
             if not current or current.user_id != user_id:
                 return {"error": "Session not found"}
+            
+            current_date = current.occurred_at if current.occurred_at else datetime.utcnow()
             
             # Get exercises from current session
             current_exercises = session.execute(
@@ -821,8 +826,143 @@ class RAGService:
             ).scalars().all()
             
             insights = []
+            session_insights = []
+            conversation_hooks = []
             total_volume_delta = 0.0
             
+            # ============================================
+            # PHASE 1: Consistency Patterns (Connection Layer)
+            # ============================================
+            try:
+                # Count workouts in last 7 days
+                seven_days_ago = current_date - timedelta(days=7)
+                workouts_last_7 = session.execute(
+                    select(WorkoutSessionModel)
+                    .where(WorkoutSessionModel.user_id == user_id)
+                    .where(WorkoutSessionModel.occurred_at >= seven_days_ago)
+                    .where(WorkoutSessionModel.occurred_at <= current_date)
+                ).scalars().all()
+                workout_count_7d = len(workouts_last_7)
+                
+                # Count workouts in last 30 days
+                thirty_days_ago = current_date - timedelta(days=30)
+                workouts_last_30 = session.execute(
+                    select(WorkoutSessionModel)
+                    .where(WorkoutSessionModel.user_id == user_id)
+                    .where(WorkoutSessionModel.occurred_at >= thirty_days_ago)
+                    .where(WorkoutSessionModel.occurred_at <= current_date)
+                ).scalars().all()
+                workout_count_30d = len(workouts_last_30)
+                
+                # Total workout count (all-time)
+                total_workouts = session.execute(
+                    select(WorkoutSessionModel)
+                    .where(WorkoutSessionModel.user_id == user_id)
+                ).scalars().all()
+                total_count = len(total_workouts)
+                
+                # Consistency frequency insights
+                if workout_count_7d >= 4:
+                    session_insights.append({
+                        "type": "consistency",
+                        "message": f"🔥 You've been consistent this week - {workout_count_7d} workouts in 7 days! That's how habits stick.",
+                        "priority": 3,
+                    })
+                    conversation_hooks.append(f"consistent this week - {workout_count_7d} workouts")
+                elif workout_count_7d >= 3:
+                    session_insights.append({
+                        "type": "consistency",
+                        "message": f"💪 {workout_count_7d} workouts this week - you're building momentum!",
+                        "priority": 2,
+                    })
+                
+                # Milestone celebrations
+                if total_count == 10:
+                    session_insights.append({
+                        "type": "consistency",
+                        "message": "🎉 10 workouts logged! You're building a real habit.",
+                        "priority": 5,
+                    })
+                    conversation_hooks.append("10-workout milestone")
+                elif total_count == 25:
+                    session_insights.append({
+                        "type": "consistency",
+                        "message": "🏆 25 workouts - you're past the hard part. This is your routine now.",
+                        "priority": 5,
+                    })
+                    conversation_hooks.append("25-workout milestone")
+                elif total_count == 50:
+                    session_insights.append({
+                        "type": "consistency",
+                        "message": "🌟 50 workouts! You've built something real. Keep going!",
+                        "priority": 5,
+                    })
+                    conversation_hooks.append("50-workout milestone")
+                
+                # Streak detection (consecutive days)
+                if len(workouts_last_7) >= 2:
+                    workout_dates = sorted([w.occurred_at.date() for w in workouts_last_7 if w.occurred_at], reverse=True)
+                    consecutive_days = 1
+                    for i in range(len(workout_dates) - 1):
+                        days_diff = (workout_dates[i] - workout_dates[i + 1]).days
+                        if days_diff == 1:
+                            consecutive_days += 1
+                        else:
+                            break
+                    
+                    if consecutive_days >= 3:
+                        session_insights.append({
+                            "type": "consistency",
+                            "message": f"💪 {consecutive_days}-day streak! You're building momentum.",
+                            "priority": 4,
+                        })
+                        conversation_hooks.append(f"{consecutive_days}-day streak")
+            except Exception as e:
+                self.logger.warning("Consistency pattern detection failed: %s", e)
+            
+            # ============================================
+            # PHASE 2: Recovery Intelligence (Caring Layer)
+            # ============================================
+            try:
+                # Days since last workout
+                last_workout = session.execute(
+                    select(WorkoutSessionModel)
+                    .where(WorkoutSessionModel.user_id == user_id)
+                    .where(WorkoutSessionModel.id != session_id)
+                    .order_by(WorkoutSessionModel.occurred_at.desc())
+                    .limit(1)
+                ).scalars().first()
+                
+                if last_workout and last_workout.occurred_at:
+                    days_since_last = (current_date - last_workout.occurred_at).days
+                    
+                    if days_since_last == 0:
+                        session_insights.append({
+                            "type": "recovery",
+                            "message": "💪 Back at it the next day - you're dedicated!",
+                            "priority": 1,
+                        })
+                    elif days_since_last >= 3:
+                        session_insights.append({
+                            "type": "recovery",
+                            "message": f"👋 Been {days_since_last} days since your last workout - welcome back! Take it easy today.",
+                            "priority": 3,
+                        })
+                        conversation_hooks.append(f"welcome back after {days_since_last} days")
+                
+                # Overtraining signal
+                if workout_count_7d >= 6:
+                    session_insights.append({
+                        "type": "recovery",
+                        "message": "⚠️ You've trained 6 days this week - that's intense! Make sure you're sleeping and eating enough.",
+                        "priority": 2,
+                    })
+            except Exception as e:
+                self.logger.warning("Recovery intelligence detection failed: %s", e)
+            
+            # ============================================
+            # Exercise-level insights (existing logic)
+            # ============================================
             for ex in current_exercises:
                 exercise_name = ex.exercise_name
                 
@@ -898,20 +1038,89 @@ class RAGService:
                             "delta_pct": delta,
                         })
                 
-                # Weight progression check
+                # ============================================
+                # Enhanced PR Detection with Historical Context
+                # ============================================
                 if ex.weights and prev_ex.weights:
                     try:
+                        import re
                         curr_max = max([float(re.search(r"[\d.]+", str(w)).group()) for w in ex.weights if re.search(r"[\d.]+", str(w))])
                         prev_max = max([float(re.search(r"[\d.]+", str(w)).group()) for w in prev_ex.weights if re.search(r"[\d.]+", str(w))])
+                        
                         if curr_max > prev_max:
-                            insights.append({
-                                "exercise": exercise_name,
-                                "status": "pr",
-                                "message": f"🏆 {exercise_name}: New weight PR! +{curr_max - prev_max:.1f}",
-                                "weight_increase": curr_max - prev_max,
-                            })
-                    except Exception:
-                        pass
+                            # Find all-time max for this exercise (optimized query)
+                            all_time_exercises = session.execute(
+                                select(ExerciseLogModel, WorkoutSessionModel)
+                                .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
+                                .where(
+                                    ExerciseLogModel.user_id == user_id,
+                                    ExerciseLogModel.exercise_name == exercise_name,
+                                    ExerciseLogModel.session_id != session_id,
+                                )
+                                .order_by(WorkoutSessionModel.occurred_at.desc())
+                                .limit(100)  # Limit to recent 100 for performance
+                            ).all()
+                            
+                            all_time_max = prev_max  # Start with previous max
+                            last_pr_date = None
+                            prs_this_month = 0
+                            month_start = current_date - timedelta(days=30)
+                            
+                            for hist_ex, hist_session in all_time_exercises:
+                                if hist_ex.weights:
+                                    try:
+                                        hist_max = max([float(re.search(r"[\d.]+", str(w)).group()) for w in hist_ex.weights if re.search(r"[\d.]+", str(w))])
+                                        if hist_max > all_time_max:
+                                            all_time_max = hist_max
+                                            if hist_session and hist_session.occurred_at:
+                                                last_pr_date = hist_session.occurred_at
+                                        
+                                        # Count PRs this month (any weight >= previous max)
+                                        if hist_session and hist_session.occurred_at and hist_session.occurred_at >= month_start:
+                                            if hist_max >= prev_max:
+                                                prs_this_month += 1
+                                    except Exception:
+                                        continue
+                            
+                            # Check if this is an all-time PR
+                            if curr_max > all_time_max:
+                                # Days since last PR
+                                days_since_last_pr = None
+                                if last_pr_date:
+                                    days_since_last_pr = (current_date - last_pr_date).days
+                                
+                                # Enhanced PR message with context
+                                if days_since_last_pr and days_since_last_pr > 30:
+                                    pr_message = f"🏆 {exercise_name}: New all-time PR! You haven't hit a PR in {days_since_last_pr} days - this is a big win! +{curr_max - prev_max:.1f}"
+                                    conversation_hooks.append(f"all-time PR for {exercise_name} after {days_since_last_pr} days")
+                                elif prs_this_month >= 2:
+                                    pr_message = f"🔥 {exercise_name}: Another PR! You're on fire - that's {prs_this_month + 1} PRs this month! +{curr_max - prev_max:.1f}"
+                                    conversation_hooks.append(f"{prs_this_month + 1} PRs this month")
+                                else:
+                                    pr_message = f"🏆 {exercise_name}: New weight PR! +{curr_max - prev_max:.1f}"
+                                    conversation_hooks.append(f"PR for {exercise_name}")
+                                
+                                # Check session notes for form confidence
+                                if current.notes and any(word in current.notes.lower() for word in ["felt strong", "felt good", "easy", "smooth"]):
+                                    pr_message += " And you felt strong doing it - that's the best kind of PR!"
+                                
+                                insights.append({
+                                    "exercise": exercise_name,
+                                    "status": "pr",
+                                    "message": pr_message,
+                                    "weight_increase": curr_max - prev_max,
+                                })
+                            else:
+                                # Regular PR (not all-time)
+                                insights.append({
+                                    "exercise": exercise_name,
+                                    "status": "pr",
+                                    "message": f"🏆 {exercise_name}: New weight PR! +{curr_max - prev_max:.1f}",
+                                    "weight_increase": curr_max - prev_max,
+                                })
+                                conversation_hooks.append(f"PR for {exercise_name}")
+                    except Exception as e:
+                        self.logger.warning("Enhanced PR detection failed for %s: %s", exercise_name, e)
             
             # Overall session insight
             avg_delta = total_volume_delta / len(current_exercises) if current_exercises else 0
@@ -923,12 +1132,17 @@ class RAGService:
             elif avg_delta < -10:
                 overall_message = "💤 Lower volume today - prioritize recovery and nutrition"
             
+            # Remove duplicate conversation hooks
+            conversation_hooks = list(dict.fromkeys(conversation_hooks))  # Preserves order
+            
             return {
                 "session_id": session_id,
                 "insights": insights,
+                "session_insights": session_insights,
                 "overall_message": overall_message,
                 "avg_volume_change_pct": avg_delta,
                 "exercise_count": len(current_exercises),
+                "conversation_hooks": conversation_hooks,
             }
 
     # ------------------------
