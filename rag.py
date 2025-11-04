@@ -116,7 +116,14 @@ class RAGService:
             )
             dtype = torch.float16 if use_half else torch.float32
             model_kwargs = {"dtype": dtype, "trust_remote_code": True, "low_cpu_mem_usage": True}
+            # Use token from .env, or fall back to HuggingFace cache
             token = self.config.hf_token
+            if not token:
+                try:
+                    from huggingface_hub import HfFolder
+                    token = HfFolder.get_token()
+                except Exception:
+                    token = None
 
             # Phi-3 models may require authentication
             try:
@@ -839,10 +846,143 @@ class RAGService:
             self.logger.warning("Failed to get recent workout insights hooks: %s", e)
             return []
 
+    def _generate_insight_message(self, insight_type: str, context: Dict[str, Any]) -> str:
+        """
+        Generate an AI-powered insight message using the LLM.
+        Gives context about what happened but lets the model generate the actual message with personality.
+        """
+        try:
+            # Build context prompt based on insight type
+            if insight_type == "consistency":
+                prompt_context = f"""Context: User has been consistent with workouts.
+- Workouts this week: {context.get('workout_count_7d', 0)}
+- Total workouts: {context.get('total_count', 0)}
+- Streak: {context.get('consecutive_days', 0)} days
+- Milestone: {context.get('milestone', 'none')}
+
+Generate a warm, quirky, encouraging message celebrating their consistency. Be enthusiastic but authentic. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+            
+            elif insight_type == "recovery":
+                prompt_context = f"""Context: Recovery-related insight.
+- Days since last workout: {context.get('days_since_last', 0)}
+- Workouts this week: {context.get('workout_count_7d', 0)}
+- Situation: {context.get('situation', 'normal')}
+
+Generate a caring, observant message about recovery. Be warm but not preachy. If they're overtraining, gently call it out. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+            
+            elif insight_type == "pr_context":
+                situation = context.get('situation', 'regular_pr')
+                felt_strong = context.get('felt_strong', False)
+                is_all_time = context.get('is_all_time', False)
+                
+                situation_desc = {
+                    "long_break_pr": f"First PR in {context.get('days_since_last_pr', 0)} days - this is a big comeback!",
+                    "hot_streak": f"Another PR! That's {context.get('prs_this_month', 0)} PRs this month - you're on fire!",
+                    "regular_pr": "New personal record!"
+                }.get(situation, "New personal record!")
+                
+                strength_note = " And they felt strong doing it - that's the best kind of PR!" if felt_strong else ""
+                all_time_note = " This is an all-time PR!" if is_all_time else ""
+                
+                prompt_context = f"""Context: Personal record achievement.
+- Exercise: {context.get('exercise_name', 'unknown')}
+- Weight increase: {context.get('weight_increase', 0)}kg
+- Situation: {situation_desc}{all_time_note}{strength_note}
+
+Generate an enthusiastic, celebratory message about their PR. Get excited! Match the energy of the situation. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+            
+            elif insight_type == "exercise":
+                prompt_context = f"""Context: Exercise performance insight.
+- Exercise: {context.get('exercise_name', 'unknown')}
+- Status: {context.get('status', 'unknown')} (progress/regression/maintained/pr/new)
+- Volume change: {context.get('delta_pct', 0)}%
+- Weight increase: {context.get('weight_increase', None)}
+
+Generate a helpful, encouraging message about this exercise. Be supportive but honest. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+            
+            else:
+                prompt_context = f"""Context: {context}
+
+Generate a warm, encouraging message with personality. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+            
+            # Create system message with FitAI personality
+            system_msg = "You are FitAI, a quirky and warm AI fitness coach. You have opinions, talk back (gently), celebrate wins enthusiastically, and care about progress. Be conversational, not robotic."
+            
+            # Generate the message
+            messages = [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt_context}
+            ]
+            
+            # Use local generation if available
+            if self.config.gen_backend == "local" and self.generator_model and self.generator_tokenizer:
+                # Apply chat template if available
+                if hasattr(self.generator_tokenizer, "apply_chat_template") and getattr(self.generator_tokenizer, "chat_template", None):
+                    prompt = self.generator_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                else:
+                    prompt = f"{system_msg}\n\n{prompt_context}\n\nMessage:"
+                
+                inputs = self.generator_tokenizer(prompt, return_tensors="pt")
+                device_str = self._resolve_torch_device()
+                if device_str == "cuda" and torch.cuda.is_available():
+                    inputs = {k: v.to(0) if hasattr(v, "to") else v for k, v in inputs.items()}
+                elif device_str == "mps" and torch.backends.mps.is_available():
+                    inputs = {k: v.to("mps") if hasattr(v, "to") else v for k, v in inputs.items()}
+                
+                with torch.no_grad():
+                    outputs = self.generator_model.generate(
+                        **inputs,
+                        max_new_tokens=60,  # Short messages
+                        temperature=0.7,  # Slightly more creative
+                        do_sample=True,
+                        pad_token_id=self.generator_tokenizer.pad_token_id or self.generator_tokenizer.eos_token_id,
+                    )
+                
+                generated_text = self.generator_tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip()
+                return generated_text.split("\n")[0].strip()  # Take first line only
+            
+            # Fallback to remote if configured
+            elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
+                prompt = f"{system_msg}\n\n{prompt_context}\n\nMessage:"
+                payload = {
+                    "model": self.config.hf_model_id,
+                    "prompt": prompt,
+                    "max_tokens": 60,
+                    "temperature": 0.7,
+                }
+                resp = self._remote_session.post(self.config.remote_gen_url, json=payload, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, dict) and data.get("choices"):
+                    choice = data["choices"][0]
+                    if "text" in choice:
+                        return str(choice["text"]).strip().split("\n")[0]
+                    if "message" in choice and "content" in choice["message"]:
+                        return str(choice["message"]["content"]).strip().split("\n")[0]
+            
+            # Fallback to simple template
+            return f"Great work on {insight_type}!"
+        
+        except Exception as e:
+            self.logger.warning("Failed to generate AI insight message: %s", e)
+            # Fallback to simple template based on type
+            if insight_type == "consistency":
+                return f"🔥 You've been consistent this week - {context.get('workout_count_7d', 0)} workouts!"
+            elif insight_type == "recovery":
+                if context.get('days_since_last', 0) == 0:
+                    return "💪 Back at it the next day - you're dedicated!"
+                elif context.get('workout_count_7d', 0) >= 6:
+                    return "⚠️ You've trained 6 days this week - make sure you're recovering!"
+                else:
+                    return f"👋 Welcome back after {context.get('days_since_last', 0)} days!"
+            else:
+                return "Great work! 💪"
+
     def get_workout_insights(self, user_id: str, session_id: str) -> Dict[str, Any]:
         """
         Compare current workout session against historical data for instant insights.
         Enhanced with connection-focused insights: consistency patterns, enhanced PRs, and recovery intelligence.
+        Uses AI to generate dynamic, personalized insight messages.
         """
         with self.SessionLocal() as session:
             # Get current session
@@ -895,38 +1035,68 @@ class RAGService:
                 
                 # Consistency frequency insights
                 if workout_count_7d >= 4:
+                    message = self._generate_insight_message("consistency", {
+                        "workout_count_7d": workout_count_7d,
+                        "total_count": total_count,
+                        "consecutive_days": 0,
+                        "milestone": "none"
+                    })
                     session_insights.append({
                         "type": "consistency",
-                        "message": f"🔥 You've been consistent this week - {workout_count_7d} workouts in 7 days! That's how habits stick.",
+                        "message": message,
                         "priority": 3,
                     })
                     conversation_hooks.append(f"consistent this week - {workout_count_7d} workouts")
                 elif workout_count_7d >= 3:
+                    message = self._generate_insight_message("consistency", {
+                        "workout_count_7d": workout_count_7d,
+                        "total_count": total_count,
+                        "consecutive_days": 0,
+                        "milestone": "none"
+                    })
                     session_insights.append({
                         "type": "consistency",
-                        "message": f"💪 {workout_count_7d} workouts this week - you're building momentum!",
+                        "message": message,
                         "priority": 2,
                     })
                 
                 # Milestone celebrations
                 if total_count == 10:
+                    message = self._generate_insight_message("consistency", {
+                        "workout_count_7d": workout_count_7d,
+                        "total_count": total_count,
+                        "consecutive_days": 0,
+                        "milestone": "10"
+                    })
                     session_insights.append({
                         "type": "consistency",
-                        "message": "🎉 10 workouts logged! You're building a real habit.",
+                        "message": message,
                         "priority": 5,
                     })
                     conversation_hooks.append("10-workout milestone")
                 elif total_count == 25:
+                    message = self._generate_insight_message("consistency", {
+                        "workout_count_7d": workout_count_7d,
+                        "total_count": total_count,
+                        "consecutive_days": 0,
+                        "milestone": "25"
+                    })
                     session_insights.append({
                         "type": "consistency",
-                        "message": "🏆 25 workouts - you're past the hard part. This is your routine now.",
+                        "message": message,
                         "priority": 5,
                     })
                     conversation_hooks.append("25-workout milestone")
                 elif total_count == 50:
+                    message = self._generate_insight_message("consistency", {
+                        "workout_count_7d": workout_count_7d,
+                        "total_count": total_count,
+                        "consecutive_days": 0,
+                        "milestone": "50"
+                    })
                     session_insights.append({
                         "type": "consistency",
-                        "message": "🌟 50 workouts! You've built something real. Keep going!",
+                        "message": message,
                         "priority": 5,
                     })
                     conversation_hooks.append("50-workout milestone")
@@ -943,9 +1113,15 @@ class RAGService:
                             break
                     
                     if consecutive_days >= 3:
+                        message = self._generate_insight_message("consistency", {
+                            "workout_count_7d": workout_count_7d,
+                            "total_count": total_count,
+                            "consecutive_days": consecutive_days,
+                            "milestone": "streak"
+                        })
                         session_insights.append({
                             "type": "consistency",
-                            "message": f"💪 {consecutive_days}-day streak! You're building momentum.",
+                            "message": message,
                             "priority": 4,
                         })
                         conversation_hooks.append(f"{consecutive_days}-day streak")
@@ -969,24 +1145,39 @@ class RAGService:
                     days_since_last = (current_date - last_workout.occurred_at).days
                     
                     if days_since_last == 0:
+                        message = self._generate_insight_message("recovery", {
+                            "days_since_last": days_since_last,
+                            "workout_count_7d": workout_count_7d,
+                            "situation": "back_next_day"
+                        })
                         session_insights.append({
                             "type": "recovery",
-                            "message": "💪 Back at it the next day - you're dedicated!",
+                            "message": message,
                             "priority": 1,
                         })
                     elif days_since_last >= 3:
+                        message = self._generate_insight_message("recovery", {
+                            "days_since_last": days_since_last,
+                            "workout_count_7d": workout_count_7d,
+                            "situation": "welcome_back"
+                        })
                         session_insights.append({
                             "type": "recovery",
-                            "message": f"👋 Been {days_since_last} days since your last workout - welcome back! Take it easy today.",
+                            "message": message,
                             "priority": 3,
                         })
                         conversation_hooks.append(f"welcome back after {days_since_last} days")
                 
                 # Overtraining signal
                 if workout_count_7d >= 6:
+                    message = self._generate_insight_message("recovery", {
+                        "days_since_last": 0,
+                        "workout_count_7d": workout_count_7d,
+                        "situation": "overtraining"
+                    })
                     session_insights.append({
                         "type": "recovery",
-                        "message": "⚠️ You've trained 6 days this week - that's intense! Make sure you're sleeping and eating enough.",
+                        "message": message,
                         "priority": 2,
                     })
             except Exception as e:
@@ -1013,10 +1204,16 @@ class RAGService:
                 prev_ex = session.execute(stmt).scalars().first()
                 
                 if not prev_ex:
+                    message = self._generate_insight_message("exercise", {
+                        "exercise_name": exercise_name,
+                        "status": "new",
+                        "delta_pct": 0,
+                        "weight_increase": None
+                    })
                     insights.append({
                         "exercise": exercise_name,
                         "status": "new",
-                        "message": f"🎉 First time logging {exercise_name}!",
+                        "message": message,
                     })
                     continue
                 
@@ -1049,24 +1246,42 @@ class RAGService:
                     total_volume_delta += delta
                     
                     if delta > 5:
+                        message = self._generate_insight_message("exercise", {
+                            "exercise_name": exercise_name,
+                            "status": "progress",
+                            "delta_pct": delta,
+                            "weight_increase": None
+                        })
                         insights.append({
                             "exercise": exercise_name,
                             "status": "progress",
-                            "message": f"💪 {exercise_name}: Volume up {delta:.1f}% vs last session",
+                            "message": message,
                             "delta_pct": delta,
                         })
                     elif delta < -5:
+                        message = self._generate_insight_message("exercise", {
+                            "exercise_name": exercise_name,
+                            "status": "regression",
+                            "delta_pct": delta,
+                            "weight_increase": None
+                        })
                         insights.append({
                             "exercise": exercise_name,
                             "status": "regression",
-                            "message": f"📉 {exercise_name}: Volume down {abs(delta):.1f}% - consider recovery",
+                            "message": message,
                             "delta_pct": delta,
                         })
                     else:
+                        message = self._generate_insight_message("exercise", {
+                            "exercise_name": exercise_name,
+                            "status": "maintained",
+                            "delta_pct": delta,
+                            "weight_increase": None
+                        })
                         insights.append({
                             "exercise": exercise_name,
                             "status": "maintained",
-                            "message": f"✅ {exercise_name}: Consistent performance",
+                            "message": message,
                             "delta_pct": delta,
                         })
                 
@@ -1121,48 +1336,75 @@ class RAGService:
                                 if last_pr_date:
                                     days_since_last_pr = (current_date - last_pr_date).days
                                 
-                                # Enhanced PR message with context
+                                # Enhanced PR message with context - use AI generation
+                                weight_increase = curr_max - prev_max
+                                pr_context = {
+                                    "exercise_name": exercise_name,
+                                    "weight_increase": weight_increase,
+                                    "days_since_last_pr": days_since_last_pr if days_since_last_pr else 0,
+                                    "prs_this_month": prs_this_month + 1,
+                                    "is_all_time": True,
+                                    "felt_strong": current.notes and any(word in current.notes.lower() for word in ["felt strong", "felt good", "easy", "smooth"])
+                                }
+                                
                                 if days_since_last_pr and days_since_last_pr > 30:
-                                    pr_message = f"🏆 {exercise_name}: New all-time PR! You haven't hit a PR in {days_since_last_pr} days - this is a big win! +{curr_max - prev_max:.1f}"
+                                    pr_context["situation"] = "long_break_pr"
                                     conversation_hooks.append(f"all-time PR for {exercise_name} after {days_since_last_pr} days")
                                 elif prs_this_month >= 2:
-                                    pr_message = f"🔥 {exercise_name}: Another PR! You're on fire - that's {prs_this_month + 1} PRs this month! +{curr_max - prev_max:.1f}"
+                                    pr_context["situation"] = "hot_streak"
                                     conversation_hooks.append(f"{prs_this_month + 1} PRs this month")
                                 else:
-                                    pr_message = f"🏆 {exercise_name}: New weight PR! +{curr_max - prev_max:.1f}"
+                                    pr_context["situation"] = "regular_pr"
                                     conversation_hooks.append(f"PR for {exercise_name}")
                                 
-                                # Check session notes for form confidence
-                                if current.notes and any(word in current.notes.lower() for word in ["felt strong", "felt good", "easy", "smooth"]):
-                                    pr_message += " And you felt strong doing it - that's the best kind of PR!"
+                                pr_message = self._generate_insight_message("pr_context", pr_context)
                                 
                                 insights.append({
                                     "exercise": exercise_name,
                                     "status": "pr",
                                     "message": pr_message,
-                                    "weight_increase": curr_max - prev_max,
+                                    "weight_increase": weight_increase,
                                 })
                             else:
-                                # Regular PR (not all-time)
+                                # Regular PR (not all-time) - use AI generation
+                                weight_increase = curr_max - prev_max
+                                pr_message = self._generate_insight_message("pr_context", {
+                                    "exercise_name": exercise_name,
+                                    "weight_increase": weight_increase,
+                                    "days_since_last_pr": 0,
+                                    "prs_this_month": 0,
+                                    "is_all_time": False,
+                                    "situation": "regular_pr"
+                                })
                                 insights.append({
                                     "exercise": exercise_name,
                                     "status": "pr",
-                                    "message": f"🏆 {exercise_name}: New weight PR! +{curr_max - prev_max:.1f}",
-                                    "weight_increase": curr_max - prev_max,
+                                    "message": pr_message,
+                                    "weight_increase": weight_increase,
                                 })
                                 conversation_hooks.append(f"PR for {exercise_name}")
                     except Exception as e:
                         self.logger.warning("Enhanced PR detection failed for %s: %s", exercise_name, e)
             
-            # Overall session insight
+            # Overall session insight - use AI generation
             avg_delta = total_volume_delta / len(current_exercises) if current_exercises else 0
-            overall_message = "Great session! Keep it up! 💪"
-            if avg_delta > 10:
-                overall_message = "🔥 Outstanding progress! Volume significantly increased!"
-            elif avg_delta > 0:
-                overall_message = "📈 Solid progression - you're moving forward!"
-            elif avg_delta < -10:
-                overall_message = "💤 Lower volume today - prioritize recovery and nutrition"
+            overall_message = self._generate_insight_message("exercise", {
+                "exercise_name": "Overall session",
+                "status": "maintained" if -5 <= avg_delta <= 5 else ("progress" if avg_delta > 5 else "regression"),
+                "delta_pct": avg_delta,
+                "weight_increase": None
+            })
+            
+            # Fallback if generation fails
+            if not overall_message or overall_message == "Great work on exercise!":
+                if avg_delta > 10:
+                    overall_message = "🔥 Outstanding progress! Volume significantly increased!"
+                elif avg_delta > 0:
+                    overall_message = "📈 Solid progression - you're moving forward!"
+                elif avg_delta < -10:
+                    overall_message = "💤 Lower volume today - prioritize recovery and nutrition"
+                else:
+                    overall_message = "Great session! Keep it up! 💪"
             
             # Remove duplicate conversation hooks
             conversation_hooks = list(dict.fromkeys(conversation_hooks))  # Preserves order
