@@ -924,10 +924,19 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                 
                 inputs = self.generator_tokenizer(prompt, return_tensors="pt")
                 device_str = self._resolve_torch_device()
+                
+                # Move inputs to correct device
                 if device_str == "cuda" and torch.cuda.is_available():
                     inputs = {k: v.to(0) if hasattr(v, "to") else v for k, v in inputs.items()}
                 elif device_str == "mps" and torch.backends.mps.is_available():
                     inputs = {k: v.to("mps") if hasattr(v, "to") else v for k, v in inputs.items()}
+                
+                # Ensure model is on correct device
+                model_device = next(self.generator_model.parameters()).device
+                if hasattr(inputs, "get") and "input_ids" in inputs:
+                    input_device = inputs["input_ids"].device
+                    if model_device != input_device:
+                        self.logger.warning("Model device (%s) != input device (%s), moving inputs", model_device, input_device)
                 
                 with torch.no_grad():
                     outputs = self.generator_model.generate(
@@ -938,8 +947,17 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                         pad_token_id=self.generator_tokenizer.pad_token_id or self.generator_tokenizer.eos_token_id,
                     )
                 
-                generated_text = self.generator_tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip()
-                return generated_text.split("\n")[0].strip()  # Take first line only
+                # Decode only the new tokens
+                input_length = inputs["input_ids"].shape[1]
+                generated_ids = outputs[0][input_length:]
+                generated_text = self.generator_tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+                
+                # Clean up and return first line
+                if generated_text:
+                    return generated_text.split("\n")[0].strip()
+                else:
+                    self.logger.warning("Generated text is empty, using fallback")
+                    raise ValueError("Empty generation")
             
             # Fallback to remote if configured
             elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
@@ -964,7 +982,7 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
             return f"Great work on {insight_type}!"
         
         except Exception as e:
-            self.logger.warning("Failed to generate AI insight message: %s", e)
+            self.logger.warning("Failed to generate AI insight message (type=%s): %s", insight_type, e, exc_info=True)
             # Fallback to simple template based on type
             if insight_type == "consistency":
                 return f"🔥 You've been consistent this week - {context.get('workout_count_7d', 0)} workouts!"
@@ -1145,16 +1163,18 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                     days_since_last = (current_date - last_workout.occurred_at).days
                     
                     if days_since_last == 0:
-                        message = self._generate_insight_message("recovery", {
-                            "days_since_last": days_since_last,
-                            "workout_count_7d": workout_count_7d,
-                            "situation": "back_next_day"
-                        })
-                        session_insights.append({
-                            "type": "recovery",
-                            "message": message,
-                            "priority": 1,
-                        })
+                        # Only show "back next day" if not overtraining (avoid duplicate)
+                        if workout_count_7d < 6:
+                            message = self._generate_insight_message("recovery", {
+                                "days_since_last": days_since_last,
+                                "workout_count_7d": workout_count_7d,
+                                "situation": "back_next_day"
+                            })
+                            session_insights.append({
+                                "type": "recovery",
+                                "message": message,
+                                "priority": 1,
+                            })
                     elif days_since_last >= 3:
                         message = self._generate_insight_message("recovery", {
                             "days_since_last": days_since_last,
@@ -1168,18 +1188,21 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                         })
                         conversation_hooks.append(f"welcome back after {days_since_last} days")
                 
-                # Overtraining signal
+                # Overtraining signal (only add if not already added "back next day")
                 if workout_count_7d >= 6:
-                    message = self._generate_insight_message("recovery", {
-                        "days_since_last": 0,
-                        "workout_count_7d": workout_count_7d,
-                        "situation": "overtraining"
-                    })
-                    session_insights.append({
-                        "type": "recovery",
-                        "message": message,
-                        "priority": 2,
-                    })
+                    # Check if we already added a recovery message for this session
+                    has_recovery_msg = any(ins.get("type") == "recovery" for ins in session_insights)
+                    if not has_recovery_msg or days_since_last != 0:
+                        message = self._generate_insight_message("recovery", {
+                            "days_since_last": days_since_last if last_workout and last_workout.occurred_at else 0,
+                            "workout_count_7d": workout_count_7d,
+                            "situation": "overtraining"
+                        })
+                        session_insights.append({
+                            "type": "recovery",
+                            "message": message,
+                            "priority": 2,
+                        })
             except Exception as e:
                 self.logger.warning("Recovery intelligence detection failed: %s", e)
             
