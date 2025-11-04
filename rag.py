@@ -807,6 +807,27 @@ class RAGService:
             })
         return result
 
+    def get_recent_workout_insights_hooks(self, user_id: str, limit: int = 2) -> List[str]:
+        """Get conversation hooks from recent workout insights for chatbot context."""
+        try:
+            # Get recent workout sessions
+            recent_sessions = self.get_workout_calendar(user_id=user_id, limit=limit)
+            hooks = []
+            
+            for session in recent_sessions:
+                session_id = session.get("session_id")
+                if session_id:
+                    # Get insights for this session
+                    insights_result = self.get_workout_insights(user_id=user_id, session_id=session_id)
+                    if "error" not in insights_result:
+                        hooks.extend(insights_result.get("conversation_hooks", []))
+            
+            # Remove duplicates and return top 5
+            return list(dict.fromkeys(hooks))[:5]
+        except Exception as e:
+            self.logger.warning("Failed to get recent workout insights hooks: %s", e)
+            return []
+
     def get_workout_insights(self, user_id: str, session_id: str) -> Dict[str, Any]:
         """
         Compare current workout session against historical data for instant insights.
@@ -1514,13 +1535,30 @@ class RAGService:
             "6. SAFETY FIRST: If user profile shows injuries/restrictions, acknowledge them in advice\n"
             "7. When you learn new info about the user (weight, schedule, constraints), acknowledge naturally\n"
         )
-        context_text = (
-            f"MEMORY:\n{memory_text}\n\n"
-            f"STATIC:\n{static_summary}\n\n"
-            f"SESSION:\n{session_context}\n\n"
-            f"DYNAMIC:\n{dyn_text}\n\n"
-            f"KB:\n{kb_text}\n\n"
-        )
+        
+        # Get recent workout insights hooks for conversation context
+        recent_hooks = []
+        if user_id:
+            recent_hooks = self.get_recent_workout_insights_hooks(user_id=user_id, limit=2)
+        
+        # Format context more naturally
+        context_text = f"ABOUT THIS USER:\n{static_summary}\n\n"
+        
+        if memory_text and memory_text != "(no long-term memory yet)":
+            context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
+        
+        if recent_hooks:
+            hooks_text = "\n".join([f"- {h}" for h in recent_hooks])
+            context_text += f"RECENT ACHIEVEMENTS:\n{hooks_text}\n\n"
+        
+        if dyn_text and dyn_text != "(no personal history found)":
+            context_text += f"RECENT WORKOUTS:\n{dyn_text}\n\n"
+        
+        if session_context and session_context != "(no recent messages)":
+            context_text += f"RECENT CONVERSATION:\n{session_context}\n\n"
+        
+        if kb_text and kb_text != "(no KB context)":
+            context_text += f"FITNESS KNOWLEDGE:\n{kb_text}\n\n"
         if len(context_text) > self.config.max_context_chars:
             context_text = context_text[: self.config.max_context_chars]
         prompt = None
@@ -1636,25 +1674,51 @@ class RAGService:
 
         # Build prompt with optional structured mode
         system_text = (
-            "You are FitAI. CRITICAL RULES:\n"
-            "1. Only answer using retrieved or user-provided sources.\n"
-            "2. If missing info: 'I don't have enough data to answer that.'\n"
-            "3. ALWAYS cite sources like [1], [2] that correspond to KB items below.\n"
-            "4. Never invent numbers or protocols.\n"
-            "5. Keep answers under 4 sentences."
+            "You are FitAI, a warm and encouraging AI fitness coach.\n\n"
+            "PERSONALITY:\n"
+            "- Friendly & conversational (like a knowledgeable gym buddy, not a drill sergeant)\n"
+            "- Encouraging progress over perfection - celebrate wins, normalize setbacks\n"
+            "- Use emojis sparingly but meaningfully (💪, 🔥, 🎯 for achievements; 🤝, 💬 for support)\n"
+            "- Intelligent but humble: 'Based on your history...' not 'You must...'\n"
+            "- When users struggle or skip workouts, be understanding: 'Life gets busy, I get it.'\n\n"
+            "CRITICAL RULES:\n"
+            "1. Only answer using retrieved context (MEMORY, STATIC, SESSION, DYNAMIC, KB) below\n"
+            "2. If missing info, ASK warmly: 'I'd love to help! Can you tell me your...?'\n"
+            "3. ALWAYS cite sources like [KB 1], [Log 2] that correspond to context items\n"
+            "4. Never invent numbers, protocols, or exercises not in context\n"
+            "5. Keep answers conversational and concise (2-4 sentences)\n"
+            "6. SAFETY FIRST: If user profile shows injuries/restrictions, acknowledge them in advice\n"
+            "7. When you learn new info about the user (weight, schedule, constraints), acknowledge naturally\n"
         )
         if mode == "structured":
             system_text += (
                 "\nRespond STRICTLY in JSON with keys: 'answer' (string) and 'claims' (array of {text, source_index}). "
                 "source_index must map to the [KB i] items below (1-indexed)."
             )
-        context_text = (
-            f"MEMORY:\n{memory_text}\n\n"
-            f"STATIC:\n{static_summary}\n\n"
-            f"SESSION:\n{session_context}\n\n"
-            f"DYNAMIC:\n{dyn_text}\n\n"
-            f"KB:\n{kb_text}\n\n"
-        )
+        
+        # Get recent workout insights hooks for conversation context
+        recent_hooks = []
+        if user_id:
+            recent_hooks = self.get_recent_workout_insights_hooks(user_id=user_id, limit=2)
+        
+        # Format context more naturally
+        context_text = f"ABOUT THIS USER:\n{static_summary}\n\n"
+        
+        if memory_text and memory_text != "(no long-term memory yet)":
+            context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
+        
+        if recent_hooks:
+            hooks_text = "\n".join([f"- {h}" for h in recent_hooks])
+            context_text += f"RECENT ACHIEVEMENTS:\n{hooks_text}\n\n"
+        
+        if dyn_text and dyn_text != "(no personal history found)":
+            context_text += f"RECENT WORKOUTS:\n{dyn_text}\n\n"
+        
+        if session_context and session_context != "(no recent messages)":
+            context_text += f"RECENT CONVERSATION:\n{session_context}\n\n"
+        
+        if kb_text and kb_text != "(no KB context)":
+            context_text += f"FITNESS KNOWLEDGE:\n{kb_text}\n\n"
         # Clamp context size
         if len(context_text) > self.config.max_context_chars:
             context_text = context_text[: self.config.max_context_chars]
@@ -1897,20 +1961,46 @@ class RAGService:
         
         # Build prompt
         system_text = (
-            "You are FitAI. CRITICAL RULES:\n"
-            "1. Only answer using retrieved or user-provided sources.\n"
-            "2. If missing info: 'I don't have enough data to answer that.'\n"
-            "3. ALWAYS cite sources like [1], [2] that correspond to KB items below.\n"
-            "4. Never invent numbers or protocols.\n"
-            "5. Keep answers under 4 sentences."
+            "You are FitAI, a warm and encouraging AI fitness coach.\n\n"
+            "PERSONALITY:\n"
+            "- Friendly & conversational (like a knowledgeable gym buddy, not a drill sergeant)\n"
+            "- Encouraging progress over perfection - celebrate wins, normalize setbacks\n"
+            "- Use emojis sparingly but meaningfully (💪, 🔥, 🎯 for achievements; 🤝, 💬 for support)\n"
+            "- Intelligent but humble: 'Based on your history...' not 'You must...'\n"
+            "- When users struggle or skip workouts, be understanding: 'Life gets busy, I get it.'\n\n"
+            "CRITICAL RULES:\n"
+            "1. Only answer using retrieved context (MEMORY, STATIC, SESSION, DYNAMIC, KB) below\n"
+            "2. If missing info, ASK warmly: 'I'd love to help! Can you tell me your...?'\n"
+            "3. ALWAYS cite sources like [KB 1], [Log 2] that correspond to context items\n"
+            "4. Never invent numbers, protocols, or exercises not in context\n"
+            "5. Keep answers conversational and concise (2-4 sentences)\n"
+            "6. SAFETY FIRST: If user profile shows injuries/restrictions, acknowledge them in advice\n"
+            "7. When you learn new info about the user (weight, schedule, constraints), acknowledge naturally\n"
         )
-        context_text = (
-            f"MEMORY:\n{memory_text}\n\n"
-            f"STATIC:\n{static_summary}\n\n"
-            f"SESSION:\n{session_context}\n\n"
-            f"DYNAMIC:\n{dyn_text}\n\n"
-            f"KB:\n{kb_text}\n\n"
-        )
+        
+        # Get recent workout insights hooks for conversation context
+        recent_hooks = []
+        if user_id:
+            recent_hooks = self.get_recent_workout_insights_hooks(user_id=user_id, limit=2)
+        
+        # Format context more naturally
+        context_text = f"ABOUT THIS USER:\n{static_summary}\n\n"
+        
+        if memory_text and memory_text != "(no long-term memory yet)":
+            context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
+        
+        if recent_hooks:
+            hooks_text = "\n".join([f"- {h}" for h in recent_hooks])
+            context_text += f"RECENT ACHIEVEMENTS:\n{hooks_text}\n\n"
+        
+        if dyn_text and dyn_text != "(no personal history found)":
+            context_text += f"RECENT WORKOUTS:\n{dyn_text}\n\n"
+        
+        if session_context and session_context != "(no recent messages)":
+            context_text += f"RECENT CONVERSATION:\n{session_context}\n\n"
+        
+        if kb_text and kb_text != "(no KB context)":
+            context_text += f"FITNESS KNOWLEDGE:\n{kb_text}\n\n"
         if len(context_text) > self.config.max_context_chars:
             context_text = context_text[: self.config.max_context_chars]
         
