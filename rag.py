@@ -916,6 +916,7 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
             
             # Use local generation if available
             if self.config.gen_backend == "local" and self.generator_model and self.generator_tokenizer:
+                self.logger.debug("Attempting AI generation for insight_type=%s", insight_type)
                 # Apply chat template if available
                 if hasattr(self.generator_tokenizer, "apply_chat_template") and getattr(self.generator_tokenizer, "chat_template", None):
                     prompt = self.generator_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -939,13 +940,17 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                         self.logger.warning("Model device (%s) != input device (%s), moving inputs", model_device, input_device)
                 
                 with torch.no_grad():
-                    outputs = self.generator_model.generate(
-                        **inputs,
-                        max_new_tokens=60,  # Short messages
-                        temperature=0.7,  # Slightly more creative
-                        do_sample=True,
-                        pad_token_id=self.generator_tokenizer.pad_token_id or self.generator_tokenizer.eos_token_id,
-                    )
+                    try:
+                        outputs = self.generator_model.generate(
+                            **inputs,
+                            max_new_tokens=60,  # Short messages
+                            temperature=0.7,  # Slightly more creative
+                            do_sample=True,
+                            pad_token_id=self.generator_tokenizer.pad_token_id or self.generator_tokenizer.eos_token_id,
+                        )
+                    except Exception as gen_error:
+                        self.logger.error("Model generate() call failed: %s", gen_error, exc_info=True)
+                        raise
                 
                 # Decode only the new tokens
                 input_length = inputs["input_ids"].shape[1]
@@ -954,10 +959,19 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                 
                 # Clean up and return first line
                 if generated_text:
-                    return generated_text.split("\n")[0].strip()
-                else:
-                    self.logger.warning("Generated text is empty, using fallback")
-                    raise ValueError("Empty generation")
+                    # Remove any extra whitespace or newlines
+                    cleaned = generated_text.split("\n")[0].strip()
+                    # Remove common prefixes that models sometimes add
+                    for prefix in ["Message:", "Response:", "Insight:", "FitAI:"]:
+                        if cleaned.startswith(prefix):
+                            cleaned = cleaned[len(prefix):].strip()
+                    if cleaned:
+                        self.logger.debug("Generated insight message: %s", cleaned[:50])
+                        return cleaned
+                
+                # If we get here, generation was empty
+                self.logger.warning("Generated text is empty for insight_type=%s, prompt_length=%d", insight_type, len(prompt))
+                raise ValueError("Empty generation")
             
             # Fallback to remote if configured
             elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
