@@ -1014,6 +1014,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                             eos_token_id=eos_token_id,
                             top_p=0.9,
                             repetition_penalty=1.1,
+                            use_cache=False,  # Fixes DynamicCache compatibility issue with Phi-3
                         )
                         self.logger.debug("Generation complete, output shape: %s", outputs.shape)
                     except Exception as gen_error:
