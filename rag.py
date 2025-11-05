@@ -863,13 +863,13 @@ class RAGService:
                 frequency_rate = (workout_count_7d / 7) * 100 if workout_count_7d > 0 else 0
                 
                 prompt_context = f"""Analyze workout consistency patterns:
-- Workouts this week: {workout_count_7d}/7 days ({frequency_rate:.1f}% frequency)
-- Workouts this month: {workout_count_30d}/30 days
+- Sessions this week: {workout_count_7d} sessions in last 7 days ({frequency_rate:.1f}% frequency)
+- Sessions this month: {workout_count_30d} sessions in last 30 days
 - Total logged sessions: {total_count}
 - Current streak: {consecutive_days} consecutive days
 - Milestone: {milestone}
 
-Generate an analytical insight that highlights the actual consistency metrics. Include specific numbers and patterns. Be direct and data-focused. Example format: "You've trained {workout_count_7d} times this week ({frequency_rate:.0f}% frequency), maintaining a {consecutive_days}-day streak. This is [analysis of pattern]." Keep it concise (2-3 sentences max)."""
+Generate an analytical insight that highlights the actual consistency metrics. Include specific numbers and patterns. Be direct and data-focused. Example format: "{workout_count_7d} sessions logged in the last 7 days ({frequency_rate:.0f}% frequency), with a {consecutive_days}-day streak. This indicates [analysis of pattern]." Keep it concise (2-3 sentences max)."""
             
             elif insight_type == "recovery":
                 days_since_last = context.get('days_since_last', 0)
@@ -1048,7 +1048,8 @@ Generate an analytical insight based on the data above. Include specific numbers
                 workout_count_7d = context.get('workout_count_7d', 0)
                 workout_count_30d = context.get('workout_count_30d', 0)
                 frequency_rate = (workout_count_7d / 7) * 100 if workout_count_7d > 0 else 0
-                return f"Workout frequency: {workout_count_7d}/7 days this week ({frequency_rate:.0f}%), {workout_count_30d}/30 days this month."
+                # Clarify messaging: sessions vs days
+                return f"{workout_count_7d} sessions in the last 7 days ({frequency_rate:.0f}% frequency), {workout_count_30d} sessions in the last 30 days."
             elif insight_type == "recovery":
                 days_since_last = context.get('days_since_last', 0)
                 workout_count_7d = context.get('workout_count_7d', 0)
@@ -1103,21 +1104,23 @@ Generate an analytical insight based on the data above. Include specific numbers
             # PHASE 1: Consistency Patterns (Connection Layer)
             # ============================================
             try:
-                # Count workouts in last 7 days
+                # Count workouts in last 7 days (excluding current session)
                 seven_days_ago = current_date - timedelta(days=7)
                 workouts_last_7 = session.execute(
                     select(WorkoutSessionModel)
                     .where(WorkoutSessionModel.user_id == user_id)
+                    .where(WorkoutSessionModel.id != session_id)  # Exclude current session
                     .where(WorkoutSessionModel.occurred_at >= seven_days_ago)
                     .where(WorkoutSessionModel.occurred_at <= current_date)
                 ).scalars().all()
                 workout_count_7d = len(workouts_last_7)
                 
-                # Count workouts in last 30 days
+                # Count workouts in last 30 days (excluding current session)
                 thirty_days_ago = current_date - timedelta(days=30)
                 workouts_last_30 = session.execute(
                     select(WorkoutSessionModel)
                     .where(WorkoutSessionModel.user_id == user_id)
+                    .where(WorkoutSessionModel.id != session_id)  # Exclude current session
                     .where(WorkoutSessionModel.occurred_at >= thirty_days_ago)
                     .where(WorkoutSessionModel.occurred_at <= current_date)
                 ).scalars().all()
@@ -1131,9 +1134,14 @@ Generate an analytical insight based on the data above. Include specific numbers
                 total_count = len(total_workouts)
                 
                 # Calculate average recovery window (days between workouts)
+                # Include current session for recovery calculation
+                all_workouts_for_recovery = list(workouts_last_30)
+                if current and current.occurred_at:
+                    all_workouts_for_recovery.append(current)
+                
                 avg_recovery_days = None
-                if len(workouts_last_30) >= 2:
-                    workout_dates = sorted([w.occurred_at for w in workouts_last_30 if w.occurred_at], reverse=True)
+                if len(all_workouts_for_recovery) >= 2:
+                    workout_dates = sorted([w.occurred_at for w in all_workouts_for_recovery if w.occurred_at], reverse=True)
                     recovery_intervals = []
                     for i in range(len(workout_dates) - 1):
                         days_diff = (workout_dates[i] - workout_dates[i + 1]).days
@@ -1274,10 +1282,14 @@ Generate an analytical insight based on the data above. Include specific numbers
                     .limit(1)
                 ).scalars().first()
                 
-                # Calculate average recovery window from last 30 days
+                # Calculate average recovery window from last 30 days (include current session)
+                all_workouts_for_recovery = list(workouts_last_30)
+                if current and current.occurred_at:
+                    all_workouts_for_recovery.append(current)
+                
                 avg_recovery_days = None
-                if len(workouts_last_30) >= 2:
-                    workout_dates = sorted([w.occurred_at for w in workouts_last_30 if w.occurred_at], reverse=True)
+                if len(all_workouts_for_recovery) >= 2:
+                    workout_dates = sorted([w.occurred_at for w in all_workouts_for_recovery if w.occurred_at], reverse=True)
                     recovery_intervals = []
                     for i in range(len(workout_dates) - 1):
                         days_diff = (workout_dates[i] - workout_dates[i + 1]).days
