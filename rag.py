@@ -848,65 +848,111 @@ class RAGService:
 
     def _generate_insight_message(self, insight_type: str, context: Dict[str, Any]) -> str:
         """
-        Generate an AI-powered insight message using the LLM.
-        Gives context about what happened but lets the model generate the actual message with personality.
+        Generate an AI-powered analytical insight message using the LLM.
+        Focuses on hard stats, patterns, and actionable data rather than just encouragement.
         """
         try:
-            # Build context prompt based on insight type
+            # Build analytical context prompt based on insight type
             if insight_type == "consistency":
-                prompt_context = f"""Context: User has been consistent with workouts.
-- Workouts this week: {context.get('workout_count_7d', 0)}
-- Total workouts: {context.get('total_count', 0)}
-- Streak: {context.get('consecutive_days', 0)} days
-- Milestone: {context.get('milestone', 'none')}
+                workout_count_7d = context.get('workout_count_7d', 0)
+                workout_count_30d = context.get('workout_count_30d', 0)
+                total_count = context.get('total_count', 0)
+                consecutive_days = context.get('consecutive_days', 0)
+                milestone = context.get('milestone', 'none')
+                
+                frequency_rate = (workout_count_7d / 7) * 100 if workout_count_7d > 0 else 0
+                
+                prompt_context = f"""Analyze workout consistency patterns:
+- Workouts this week: {workout_count_7d}/7 days ({frequency_rate:.1f}% frequency)
+- Workouts this month: {workout_count_30d}/30 days
+- Total logged sessions: {total_count}
+- Current streak: {consecutive_days} consecutive days
+- Milestone: {milestone}
 
-Generate a warm, quirky, encouraging message celebrating their consistency. Be enthusiastic but authentic. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+Generate an analytical insight that highlights the actual consistency metrics. Include specific numbers and patterns. Be direct and data-focused. Example format: "You've trained {workout_count_7d} times this week ({frequency_rate:.0f}% frequency), maintaining a {consecutive_days}-day streak. This is [analysis of pattern]." Keep it concise (2-3 sentences max)."""
             
             elif insight_type == "recovery":
-                prompt_context = f"""Context: Recovery-related insight.
-- Days since last workout: {context.get('days_since_last', 0)}
-- Workouts this week: {context.get('workout_count_7d', 0)}
-- Situation: {context.get('situation', 'normal')}
+                days_since_last = context.get('days_since_last', 0)
+                workout_count_7d = context.get('workout_count_7d', 0)
+                situation = context.get('situation', 'normal')
+                avg_recovery_days = context.get('avg_recovery_days', None)
+                
+                if situation == "overtraining":
+                    recovery_rate = (workout_count_7d / 7) * 100
+                    prompt_context = f"""Analyze recovery pattern:
+- Workouts this week: {workout_count_7d} sessions
+- Weekly frequency: {recovery_rate:.1f}%
+- Days since last workout: {days_since_last}
+- Average recovery window: {avg_recovery_days if avg_recovery_days else 'N/A'} days
 
-Generate a caring, observant message about recovery. Be warm but not preachy. If they're overtraining, gently call it out. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+Generate an analytical insight about recovery patterns. Point out the frequency and potential overtraining risk. Include specific stats. Example: "You've trained {workout_count_7d} times this week ({recovery_rate:.0f}% frequency). Your average recovery window is {avg_recovery_days if avg_recovery_days else 'X'} days. [Analysis of recovery adequacy]." Keep it direct and data-focused (2 sentences max)."""
+                elif situation == "back_next_day":
+                    prompt_context = f"""Analyze recovery pattern:
+- Days since last workout: {days_since_last} (same day)
+- Workouts this week: {workout_count_7d}
+- Average recovery window: {avg_recovery_days if avg_recovery_days else 'N/A'} days
+
+Generate an analytical insight about same-day training. Include the recovery window and frequency stats. Be direct about the pattern. Keep it concise (1-2 sentences)."""
+                else:
+                    prompt_context = f"""Analyze recovery pattern:
+- Days since last workout: {days_since_last} days
+- Workouts this week: {workout_count_7d}
+- Average recovery window: {avg_recovery_days if avg_recovery_days else 'N/A'} days
+
+Generate an analytical insight comparing the current break duration to typical recovery windows. Include specific days and frequency. Keep it concise (1-2 sentences)."""
             
             elif insight_type == "pr_context":
-                situation = context.get('situation', 'regular_pr')
-                felt_strong = context.get('felt_strong', False)
+                exercise_name = context.get('exercise_name', 'unknown')
+                weight_increase = context.get('weight_increase', 0)
+                days_since_last_pr = context.get('days_since_last_pr', 0)
+                prs_this_month = context.get('prs_this_month', 0)
                 is_all_time = context.get('is_all_time', False)
+                situation = context.get('situation', 'regular_pr')
                 
-                situation_desc = {
-                    "long_break_pr": f"First PR in {context.get('days_since_last_pr', 0)} days - this is a big comeback!",
-                    "hot_streak": f"Another PR! That's {context.get('prs_this_month', 0)} PRs this month - you're on fire!",
-                    "regular_pr": "New personal record!"
-                }.get(situation, "New personal record!")
+                pr_type = "all-time PR" if is_all_time else "PR"
+                weight_pct = (weight_increase / (context.get('prev_weight', weight_increase) or 1)) * 100 if context.get('prev_weight') else 0
                 
-                strength_note = " And they felt strong doing it - that's the best kind of PR!" if felt_strong else ""
-                all_time_note = " This is an all-time PR!" if is_all_time else ""
-                
-                prompt_context = f"""Context: Personal record achievement.
-- Exercise: {context.get('exercise_name', 'unknown')}
-- Weight increase: {context.get('weight_increase', 0)}kg
-- Situation: {situation_desc}{all_time_note}{strength_note}
+                prompt_context = f"""Analyze personal record achievement:
+- Exercise: {exercise_name}
+- Weight increase: +{weight_increase:.1f}kg ({weight_pct:.1f}% increase)
+- Type: {pr_type}
+- Days since last PR: {days_since_last_pr if days_since_last_pr > 0 else 'N/A'}
+- PRs this month: {prs_this_month}
+- Situation: {situation}
 
-Generate an enthusiastic, celebratory message about their PR. Get excited! Match the energy of the situation. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+Generate an analytical insight about the PR. Include the exact weight increase, percentage gain, and context (streak, comeback, etc.). Be data-focused. Example: "New {pr_type} for {exercise_name}: +{weight_increase:.1f}kg ({weight_pct:.1f}% increase). This is your {prs_this_month} PR this month. [Analysis of progression pattern]." Keep it concise (2 sentences max)."""
             
             elif insight_type == "exercise":
-                prompt_context = f"""Context: Exercise performance insight.
-- Exercise: {context.get('exercise_name', 'unknown')}
-- Status: {context.get('status', 'unknown')} (progress/regression/maintained/pr/new)
-- Volume change: {context.get('delta_pct', 0)}%
-- Weight increase: {context.get('weight_increase', None)}
+                exercise_name = context.get('exercise_name', 'unknown')
+                status = context.get('status', 'unknown')
+                delta_pct = context.get('delta_pct', 0)
+                weight_increase = context.get('weight_increase', None)
+                volume_trend = context.get('volume_trend', None)
+                frequency_days = context.get('frequency_days', None)
+                
+                trend_note = ""
+                if volume_trend:
+                    trend_note = f" Volume trend: {volume_trend}."
+                if frequency_days:
+                    trend_note += f" Last performed {frequency_days} days ago."
+                
+                prompt_context = f"""Analyze exercise performance:
+- Exercise: {exercise_name}
+- Status: {status}
+- Volume change: {delta_pct:+.1f}%
+- Weight increase: {weight_increase if weight_increase else 'N/A'}
+{trend_note}
 
-Generate a helpful, encouraging message about this exercise. Be supportive but honest. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+Generate an analytical insight about this exercise's performance. Include the exact percentage change, what it means statistically, and any patterns. Be direct and data-focused. Example: "{exercise_name} volume changed by {delta_pct:+.1f}% vs last session. This indicates [analysis]. [Pattern observation if applicable]." Keep it concise (2 sentences max)."""
             
             else:
-                prompt_context = f"""Context: {context}
+                prompt_context = f"""Analyze workout data:
+{context}
 
-Generate a warm, encouraging message with personality. Use 1 emoji if it adds personality. Keep it 1-2 sentences."""
+Generate an analytical insight based on the data above. Include specific numbers and patterns. Be direct and data-focused. Keep it concise (2 sentences max)."""
             
-            # Create system message with FitAI personality
-            system_msg = "You are FitAI, a quirky and warm AI fitness coach. You have opinions, talk back (gently), celebrate wins enthusiastically, and care about progress. Be conversational, not robotic."
+            # Create system message focused on analytical insights
+            system_msg = "You are FitAI, an analytical AI fitness coach. Your role is to provide data-driven insights, statistical patterns, and actionable observations from workout logs. Be direct, factual, and focus on numbers and patterns. Avoid generic encouragement - provide actual analysis."
             
             # Generate the message
             messages = [
@@ -921,32 +967,32 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                 if hasattr(self.generator_tokenizer, "apply_chat_template") and getattr(self.generator_tokenizer, "chat_template", None):
                     prompt = self.generator_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
                 else:
-                    prompt = f"{system_msg}\n\n{prompt_context}\n\nMessage:"
+                    prompt = f"{system_msg}\n\n{prompt_context}\n\nAssistant:"
                 
                 inputs = self.generator_tokenizer(prompt, return_tensors="pt")
                 device_str = self._resolve_torch_device()
                 
-                # Move inputs to correct device
-                if device_str == "cuda" and torch.cuda.is_available():
-                    inputs = {k: v.to(0) if hasattr(v, "to") else v for k, v in inputs.items()}
-                elif device_str == "mps" and torch.backends.mps.is_available():
-                    inputs = {k: v.to("mps") if hasattr(v, "to") else v for k, v in inputs.items()}
-                
-                # Ensure model is on correct device
+                # Get model device first
                 model_device = next(self.generator_model.parameters()).device
-                if hasattr(inputs, "get") and "input_ids" in inputs:
-                    input_device = inputs["input_ids"].device
-                    if model_device != input_device:
-                        self.logger.warning("Model device (%s) != input device (%s), moving inputs", model_device, input_device)
+                
+                # Move inputs to match model device (critical fix)
+                if hasattr(inputs, "get"):
+                    inputs = {k: v.to(model_device) if hasattr(v, "to") else v for k, v in inputs.items()}
+                else:
+                    # If inputs is a dict-like object, convert items
+                    inputs = {k: v.to(model_device) if hasattr(v, "to") else v for k, v in inputs.items()}
+                
+                self.logger.debug("Model device: %s, Input device: %s", model_device, inputs["input_ids"].device if "input_ids" in inputs else "unknown")
                 
                 with torch.no_grad():
                     try:
                         outputs = self.generator_model.generate(
                             **inputs,
-                            max_new_tokens=60,  # Short messages
-                            temperature=0.7,  # Slightly more creative
+                            max_new_tokens=120,  # Increased for analytical insights
+                            temperature=0.5,  # Lower temp for more analytical output
                             do_sample=True,
                             pad_token_id=self.generator_tokenizer.pad_token_id or self.generator_tokenizer.eos_token_id,
+                            eos_token_id=self.generator_tokenizer.eos_token_id,
                         )
                     except Exception as gen_error:
                         self.logger.error("Model generate() call failed: %s", gen_error, exc_info=True)
@@ -992,23 +1038,42 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                     if "message" in choice and "content" in choice["message"]:
                         return str(choice["message"]["content"]).strip().split("\n")[0]
             
-            # Fallback to simple template
-            return f"Great work on {insight_type}!"
+            # Fallback to analytical template
+            return f"Analytical insight for {insight_type}: {context}"
         
         except Exception as e:
             self.logger.warning("Failed to generate AI insight message (type=%s): %s", insight_type, e, exc_info=True)
-            # Fallback to simple template based on type
+            # Fallback to analytical templates based on type
             if insight_type == "consistency":
-                return f"🔥 You've been consistent this week - {context.get('workout_count_7d', 0)} workouts!"
+                workout_count_7d = context.get('workout_count_7d', 0)
+                workout_count_30d = context.get('workout_count_30d', 0)
+                frequency_rate = (workout_count_7d / 7) * 100 if workout_count_7d > 0 else 0
+                return f"Workout frequency: {workout_count_7d}/7 days this week ({frequency_rate:.0f}%), {workout_count_30d}/30 days this month."
             elif insight_type == "recovery":
-                if context.get('days_since_last', 0) == 0:
-                    return "💪 Back at it the next day - you're dedicated!"
-                elif context.get('workout_count_7d', 0) >= 6:
-                    return "⚠️ You've trained 6 days this week - make sure you're recovering!"
+                days_since_last = context.get('days_since_last', 0)
+                workout_count_7d = context.get('workout_count_7d', 0)
+                avg_recovery = context.get('avg_recovery_days', None)
+                if days_since_last == 0:
+                    recovery_rate = (workout_count_7d / 7) * 100
+                    return f"Same-day training: {workout_count_7d} sessions this week ({recovery_rate:.0f}% frequency)."
+                elif workout_count_7d >= 6:
+                    return f"Training frequency: {workout_count_7d} sessions this week. Average recovery window: {avg_recovery if avg_recovery else 'N/A'} days."
                 else:
-                    return f"👋 Welcome back after {context.get('days_since_last', 0)} days!"
+                    return f"Return after {days_since_last} days. Average recovery window: {avg_recovery if avg_recovery else 'N/A'} days."
+            elif insight_type == "pr_context":
+                exercise_name = context.get('exercise_name', 'unknown')
+                weight_increase = context.get('weight_increase', 0)
+                prev_weight = context.get('prev_weight', weight_increase) or 1
+                weight_pct = (weight_increase / prev_weight) * 100 if prev_weight > 0 else 0
+                pr_type = "All-time PR" if context.get('is_all_time', False) else "PR"
+                return f"{pr_type} for {exercise_name}: +{weight_increase:.1f}kg ({weight_pct:.1f}% increase)."
+            elif insight_type == "exercise":
+                exercise_name = context.get('exercise_name', 'unknown')
+                delta_pct = context.get('delta_pct', 0)
+                status = context.get('status', 'unknown')
+                return f"{exercise_name}: {delta_pct:+.1f}% volume change ({status})."
             else:
-                return "Great work! 💪"
+                return f"Insight: {context}"
 
     def get_workout_insights(self, user_id: str, session_id: str) -> Dict[str, Any]:
         """
@@ -1065,13 +1130,27 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                 ).scalars().all()
                 total_count = len(total_workouts)
                 
-                # Consistency frequency insights
+                # Calculate average recovery window (days between workouts)
+                avg_recovery_days = None
+                if len(workouts_last_30) >= 2:
+                    workout_dates = sorted([w.occurred_at for w in workouts_last_30 if w.occurred_at], reverse=True)
+                    recovery_intervals = []
+                    for i in range(len(workout_dates) - 1):
+                        days_diff = (workout_dates[i] - workout_dates[i + 1]).days
+                        if days_diff > 0:
+                            recovery_intervals.append(days_diff)
+                    if recovery_intervals:
+                        avg_recovery_days = sum(recovery_intervals) / len(recovery_intervals)
+                
+                # Consistency frequency insights with analytical data
                 if workout_count_7d >= 4:
                     message = self._generate_insight_message("consistency", {
                         "workout_count_7d": workout_count_7d,
+                        "workout_count_30d": workout_count_30d,
                         "total_count": total_count,
                         "consecutive_days": 0,
-                        "milestone": "none"
+                        "milestone": "none",
+                        "avg_recovery_days": round(avg_recovery_days, 1) if avg_recovery_days else None
                     })
                     session_insights.append({
                         "type": "consistency",
@@ -1082,9 +1161,11 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                 elif workout_count_7d >= 3:
                     message = self._generate_insight_message("consistency", {
                         "workout_count_7d": workout_count_7d,
+                        "workout_count_30d": workout_count_30d,
                         "total_count": total_count,
                         "consecutive_days": 0,
-                        "milestone": "none"
+                        "milestone": "none",
+                        "avg_recovery_days": round(avg_recovery_days, 1) if avg_recovery_days else None
                     })
                     session_insights.append({
                         "type": "consistency",
@@ -1092,13 +1173,27 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                         "priority": 2,
                     })
                 
-                # Milestone celebrations
+                # Calculate average recovery window for milestone context
+                avg_recovery_days_milestone = None
+                if len(workouts_last_30) >= 2:
+                    workout_dates = sorted([w.occurred_at for w in workouts_last_30 if w.occurred_at], reverse=True)
+                    recovery_intervals = []
+                    for i in range(len(workout_dates) - 1):
+                        days_diff = (workout_dates[i] - workout_dates[i + 1]).days
+                        if days_diff > 0:
+                            recovery_intervals.append(days_diff)
+                    if recovery_intervals:
+                        avg_recovery_days_milestone = sum(recovery_intervals) / len(recovery_intervals)
+                
+                # Milestone celebrations with analytical data
                 if total_count == 10:
                     message = self._generate_insight_message("consistency", {
                         "workout_count_7d": workout_count_7d,
+                        "workout_count_30d": workout_count_30d,
                         "total_count": total_count,
                         "consecutive_days": 0,
-                        "milestone": "10"
+                        "milestone": "10",
+                        "avg_recovery_days": round(avg_recovery_days_milestone, 1) if avg_recovery_days_milestone else None
                     })
                     session_insights.append({
                         "type": "consistency",
@@ -1109,9 +1204,11 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                 elif total_count == 25:
                     message = self._generate_insight_message("consistency", {
                         "workout_count_7d": workout_count_7d,
+                        "workout_count_30d": workout_count_30d,
                         "total_count": total_count,
                         "consecutive_days": 0,
-                        "milestone": "25"
+                        "milestone": "25",
+                        "avg_recovery_days": round(avg_recovery_days_milestone, 1) if avg_recovery_days_milestone else None
                     })
                     session_insights.append({
                         "type": "consistency",
@@ -1122,9 +1219,11 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                 elif total_count == 50:
                     message = self._generate_insight_message("consistency", {
                         "workout_count_7d": workout_count_7d,
+                        "workout_count_30d": workout_count_30d,
                         "total_count": total_count,
                         "consecutive_days": 0,
-                        "milestone": "50"
+                        "milestone": "50",
+                        "avg_recovery_days": round(avg_recovery_days_milestone, 1) if avg_recovery_days_milestone else None
                     })
                     session_insights.append({
                         "type": "consistency",
@@ -1147,9 +1246,11 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                     if consecutive_days >= 3:
                         message = self._generate_insight_message("consistency", {
                             "workout_count_7d": workout_count_7d,
+                            "workout_count_30d": workout_count_30d,
                             "total_count": total_count,
                             "consecutive_days": consecutive_days,
-                            "milestone": "streak"
+                            "milestone": "streak",
+                            "avg_recovery_days": round(avg_recovery_days, 1) if avg_recovery_days else None
                         })
                         session_insights.append({
                             "type": "consistency",
@@ -1161,7 +1262,7 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                 self.logger.warning("Consistency pattern detection failed: %s", e)
             
             # ============================================
-            # PHASE 2: Recovery Intelligence (Caring Layer)
+            # PHASE 2: Recovery Intelligence (Analytical Layer)
             # ============================================
             try:
                 # Days since last workout
@@ -1173,6 +1274,18 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                     .limit(1)
                 ).scalars().first()
                 
+                # Calculate average recovery window from last 30 days
+                avg_recovery_days = None
+                if len(workouts_last_30) >= 2:
+                    workout_dates = sorted([w.occurred_at for w in workouts_last_30 if w.occurred_at], reverse=True)
+                    recovery_intervals = []
+                    for i in range(len(workout_dates) - 1):
+                        days_diff = (workout_dates[i] - workout_dates[i + 1]).days
+                        if days_diff > 0:
+                            recovery_intervals.append(days_diff)
+                    if recovery_intervals:
+                        avg_recovery_days = sum(recovery_intervals) / len(recovery_intervals)
+                
                 if last_workout and last_workout.occurred_at:
                     days_since_last = (current_date - last_workout.occurred_at).days
                     
@@ -1182,7 +1295,8 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                             message = self._generate_insight_message("recovery", {
                                 "days_since_last": days_since_last,
                                 "workout_count_7d": workout_count_7d,
-                                "situation": "back_next_day"
+                                "situation": "back_next_day",
+                                "avg_recovery_days": round(avg_recovery_days, 1) if avg_recovery_days else None
                             })
                             session_insights.append({
                                 "type": "recovery",
@@ -1193,7 +1307,8 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                         message = self._generate_insight_message("recovery", {
                             "days_since_last": days_since_last,
                             "workout_count_7d": workout_count_7d,
-                            "situation": "welcome_back"
+                            "situation": "welcome_back",
+                            "avg_recovery_days": round(avg_recovery_days, 1) if avg_recovery_days else None
                         })
                         session_insights.append({
                             "type": "recovery",
@@ -1206,11 +1321,13 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                 if workout_count_7d >= 6:
                     # Check if we already added a recovery message for this session
                     has_recovery_msg = any(ins.get("type") == "recovery" for ins in session_insights)
-                    if not has_recovery_msg or days_since_last != 0:
+                    if not has_recovery_msg or (last_workout and last_workout.occurred_at and (current_date - last_workout.occurred_at).days != 0):
+                        days_since_last = (current_date - last_workout.occurred_at).days if last_workout and last_workout.occurred_at else 0
                         message = self._generate_insight_message("recovery", {
-                            "days_since_last": days_since_last if last_workout and last_workout.occurred_at else 0,
+                            "days_since_last": days_since_last,
                             "workout_count_7d": workout_count_7d,
-                            "situation": "overtraining"
+                            "situation": "overtraining",
+                            "avg_recovery_days": round(avg_recovery_days, 1) if avg_recovery_days else None
                         })
                         session_insights.append({
                             "type": "recovery",
@@ -1226,9 +1343,9 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
             for ex in current_exercises:
                 exercise_name = ex.exercise_name
                 
-                # Find last time this exercise was performed
+                # Find last time this exercise was performed and calculate frequency
                 stmt = (
-                    select(ExerciseLogModel)
+                    select(ExerciseLogModel, WorkoutSessionModel)
                     .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
                     .where(
                         ExerciseLogModel.user_id == user_id,
@@ -1238,23 +1355,16 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                     .order_by(WorkoutSessionModel.occurred_at.desc())
                     .limit(1)
                 )
-                prev_ex = session.execute(stmt).scalars().first()
+                prev_result = session.execute(stmt).first()
+                prev_ex = prev_result[0] if prev_result else None
+                prev_session = prev_result[1] if prev_result else None
                 
-                if not prev_ex:
-                    message = self._generate_insight_message("exercise", {
-                        "exercise_name": exercise_name,
-                        "status": "new",
-                        "delta_pct": 0,
-                        "weight_increase": None
-                    })
-                    insights.append({
-                        "exercise": exercise_name,
-                        "status": "new",
-                        "message": message,
-                    })
-                    continue
+                # Calculate days since last performed
+                frequency_days = None
+                if prev_session and prev_session.occurred_at:
+                    frequency_days = (current_date - prev_session.occurred_at).days
                 
-                # Calculate volume: sets × reps × weight (approximate)
+                # Define volume calculation function (used for trend analysis)
                 def calc_volume(e: ExerciseLogModel) -> float:
                     if not e.sets or not e.reps or not e.weights:
                         return 0.0
@@ -1275,6 +1385,55 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                             continue
                     return vol
                 
+                # Get volume trend (last 3 occurrences)
+                volume_trend = None
+                if prev_ex:
+                    recent_exercises = session.execute(
+                        select(ExerciseLogModel, WorkoutSessionModel)
+                        .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
+                        .where(
+                            ExerciseLogModel.user_id == user_id,
+                            ExerciseLogModel.exercise_name == exercise_name,
+                            ExerciseLogModel.session_id != session_id,
+                        )
+                        .order_by(WorkoutSessionModel.occurred_at.desc())
+                        .limit(3)
+                    ).all()
+                    
+                    if len(recent_exercises) >= 2:
+                        volumes = []
+                        for hist_ex, _ in recent_exercises[:3]:
+                            vol = calc_volume(hist_ex)
+                            if vol > 0:
+                                volumes.append(vol)
+                        
+                        if len(volumes) >= 2:
+                            # Simple trend: increasing, decreasing, or stable
+                            if volumes[0] > volumes[-1] * 1.05:
+                                volume_trend = "increasing"
+                            elif volumes[0] < volumes[-1] * 0.95:
+                                volume_trend = "decreasing"
+                            else:
+                                volume_trend = "stable"
+                
+                if not prev_ex:
+                    message = self._generate_insight_message("exercise", {
+                        "exercise_name": exercise_name,
+                        "status": "new",
+                        "delta_pct": 0,
+                        "weight_increase": None,
+                        "volume_trend": None,
+                        "frequency_days": None
+                    })
+                    insights.append({
+                        "exercise": exercise_name,
+                        "status": "new",
+                        "message": message,
+                    })
+                    continue
+                
+                # Calculate volume: sets × reps × weight (approximate)
+                # Note: calc_volume is defined above in the volume_trend section
                 current_vol = calc_volume(ex)
                 prev_vol = calc_volume(prev_ex)
                 
@@ -1287,7 +1446,9 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                             "exercise_name": exercise_name,
                             "status": "progress",
                             "delta_pct": delta,
-                            "weight_increase": None
+                            "weight_increase": None,
+                            "volume_trend": volume_trend,
+                            "frequency_days": frequency_days
                         })
                         insights.append({
                             "exercise": exercise_name,
@@ -1300,7 +1461,9 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                             "exercise_name": exercise_name,
                             "status": "regression",
                             "delta_pct": delta,
-                            "weight_increase": None
+                            "weight_increase": None,
+                            "volume_trend": volume_trend,
+                            "frequency_days": frequency_days
                         })
                         insights.append({
                             "exercise": exercise_name,
@@ -1313,7 +1476,9 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                             "exercise_name": exercise_name,
                             "status": "maintained",
                             "delta_pct": delta,
-                            "weight_increase": None
+                            "weight_increase": None,
+                            "volume_trend": volume_trend,
+                            "frequency_days": frequency_days
                         })
                         insights.append({
                             "exercise": exercise_name,
@@ -1378,6 +1543,7 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                                 pr_context = {
                                     "exercise_name": exercise_name,
                                     "weight_increase": weight_increase,
+                                    "prev_weight": prev_max,
                                     "days_since_last_pr": days_since_last_pr if days_since_last_pr else 0,
                                     "prs_this_month": prs_this_month + 1,
                                     "is_all_time": True,
@@ -1408,6 +1574,7 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                                 pr_message = self._generate_insight_message("pr_context", {
                                     "exercise_name": exercise_name,
                                     "weight_increase": weight_increase,
+                                    "prev_weight": prev_max,
                                     "days_since_last_pr": 0,
                                     "prs_this_month": 0,
                                     "is_all_time": False,
@@ -1423,25 +1590,27 @@ Generate a warm, encouraging message with personality. Use 1 emoji if it adds pe
                     except Exception as e:
                         self.logger.warning("Enhanced PR detection failed for %s: %s", exercise_name, e)
             
-            # Overall session insight - use AI generation
+            # Overall session insight - use AI generation with analytical data
             avg_delta = total_volume_delta / len(current_exercises) if current_exercises else 0
             overall_message = self._generate_insight_message("exercise", {
                 "exercise_name": "Overall session",
                 "status": "maintained" if -5 <= avg_delta <= 5 else ("progress" if avg_delta > 5 else "regression"),
                 "delta_pct": avg_delta,
-                "weight_increase": None
+                "weight_increase": None,
+                "volume_trend": None,
+                "frequency_days": None
             })
             
-            # Fallback if generation fails
+            # Fallback if generation fails - analytical fallbacks
             if not overall_message or overall_message == "Great work on exercise!":
                 if avg_delta > 10:
-                    overall_message = "🔥 Outstanding progress! Volume significantly increased!"
+                    overall_message = f"Session volume increased by {avg_delta:+.1f}% vs previous session. Strong progression pattern."
                 elif avg_delta > 0:
-                    overall_message = "📈 Solid progression - you're moving forward!"
+                    overall_message = f"Volume up {avg_delta:+.1f}% from last session. Maintaining positive trajectory."
                 elif avg_delta < -10:
-                    overall_message = "💤 Lower volume today - prioritize recovery and nutrition"
+                    overall_message = f"Volume decreased {abs(avg_delta):.1f}% vs previous session. Lower intensity may indicate recovery need."
                 else:
-                    overall_message = "Great session! Keep it up! 💪"
+                    overall_message = f"Session volume maintained (±{abs(avg_delta):.1f}% change). Consistent performance."
             
             # Remove duplicate conversation hooks
             conversation_hooks = list(dict.fromkeys(conversation_hooks))  # Preserves order
