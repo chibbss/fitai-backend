@@ -962,14 +962,21 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Use local generation if available
             if self.config.gen_backend == "local" and self.generator_model and self.generator_tokenizer:
-                self.logger.debug("Attempting AI generation for insight_type=%s", insight_type)
+                self.logger.info("Attempting AI generation for insight_type=%s", insight_type)
                 # Apply chat template if available
                 if hasattr(self.generator_tokenizer, "apply_chat_template") and getattr(self.generator_tokenizer, "chat_template", None):
-                    prompt = self.generator_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                    try:
+                        prompt = self.generator_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                        self.logger.debug("Using chat template for prompt")
+                    except Exception as e:
+                        self.logger.warning("Chat template failed, using fallback: %s", e)
+                        prompt = f"{system_msg}\n\n{prompt_context}\n\nAssistant:"
                 else:
                     prompt = f"{system_msg}\n\n{prompt_context}\n\nAssistant:"
                 
-                inputs = self.generator_tokenizer(prompt, return_tensors="pt")
+                self.logger.debug("Prompt length: %d chars, preview: %s", len(prompt), prompt[:100])
+                
+                inputs = self.generator_tokenizer(prompt, return_tensors="pt", padding=True, truncation=False)
                 device_str = self._resolve_torch_device()
                 
                 # Get model device first
@@ -982,7 +989,19 @@ Generate an analytical insight based on the data above. Include specific numbers
                     # If inputs is a dict-like object, convert items
                     inputs = {k: v.to(model_device) if hasattr(v, "to") else v for k, v in inputs.items()}
                 
-                self.logger.debug("Model device: %s, Input device: %s", model_device, inputs["input_ids"].device if "input_ids" in inputs else "unknown")
+                input_length = inputs["input_ids"].shape[1]
+                self.logger.debug("Model device: %s, Input device: %s, Input length: %d tokens", 
+                                 model_device, inputs["input_ids"].device if "input_ids" in inputs else "unknown", input_length)
+                
+                # Ensure pad_token_id is set
+                pad_token_id = self.generator_tokenizer.pad_token_id
+                if pad_token_id is None:
+                    pad_token_id = self.generator_tokenizer.eos_token_id
+                    self.logger.debug("Using eos_token_id as pad_token_id: %s", pad_token_id)
+                
+                eos_token_id = self.generator_tokenizer.eos_token_id
+                self.logger.debug("Generation params: max_new_tokens=120, temperature=0.5, pad_token_id=%s, eos_token_id=%s", 
+                                 pad_token_id, eos_token_id)
                 
                 with torch.no_grad():
                     try:
@@ -991,32 +1010,58 @@ Generate an analytical insight based on the data above. Include specific numbers
                             max_new_tokens=120,  # Increased for analytical insights
                             temperature=0.5,  # Lower temp for more analytical output
                             do_sample=True,
-                            pad_token_id=self.generator_tokenizer.pad_token_id or self.generator_tokenizer.eos_token_id,
-                            eos_token_id=self.generator_tokenizer.eos_token_id,
+                            pad_token_id=pad_token_id,
+                            eos_token_id=eos_token_id,
+                            top_p=0.9,
+                            repetition_penalty=1.1,
                         )
+                        self.logger.debug("Generation complete, output shape: %s", outputs.shape)
                     except Exception as gen_error:
                         self.logger.error("Model generate() call failed: %s", gen_error, exc_info=True)
                         raise
                 
                 # Decode only the new tokens
-                input_length = inputs["input_ids"].shape[1]
+                output_length = outputs.shape[1]
+                self.logger.debug("Output length: %d tokens, Input length: %d tokens", output_length, input_length)
+                
+                if output_length <= input_length:
+                    self.logger.warning("Output length (%d) <= input length (%d), no new tokens generated", output_length, input_length)
+                    raise ValueError("No new tokens generated")
+                
                 generated_ids = outputs[0][input_length:]
+                self.logger.debug("Generated token IDs: %s (length: %d)", str(generated_ids[:10].tolist()) if len(generated_ids) > 0 else "empty", len(generated_ids))
+                
+                # Try decoding with skip_special_tokens first
                 generated_text = self.generator_tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+                self.logger.debug("Decoded text (with skip_special_tokens=True): %s", repr(generated_text[:100]))
+                
+                # If empty, try without skip_special_tokens to see what we're getting
+                if not generated_text:
+                    generated_text_raw = self.generator_tokenizer.decode(generated_ids, skip_special_tokens=False).strip()
+                    self.logger.debug("Decoded text (raw, no skip): %s", repr(generated_text_raw[:100]))
+                    # Try to extract meaningful text from special tokens
+                    # Remove common special tokens manually
+                    import re
+                    generated_text = re.sub(r'<\|.*?\|>', '', generated_text_raw).strip()
+                    self.logger.debug("After removing special tokens: %s", repr(generated_text[:100]))
                 
                 # Clean up and return first line
                 if generated_text:
                     # Remove any extra whitespace or newlines
                     cleaned = generated_text.split("\n")[0].strip()
                     # Remove common prefixes that models sometimes add
-                    for prefix in ["Message:", "Response:", "Insight:", "FitAI:"]:
-                        if cleaned.startswith(prefix):
+                    for prefix in ["Message:", "Response:", "Insight:", "FitAI:", "Assistant:"]:
+                        if cleaned.lower().startswith(prefix.lower()):
                             cleaned = cleaned[len(prefix):].strip()
                     if cleaned:
-                        self.logger.debug("Generated insight message: %s", cleaned[:50])
+                        self.logger.info("✓ AI-generated insight (%d chars): %s", len(cleaned), cleaned[:80])
                         return cleaned
+                    else:
+                        self.logger.warning("Generated text became empty after cleaning")
                 
                 # If we get here, generation was empty
-                self.logger.warning("Generated text is empty for insight_type=%s, prompt_length=%d", insight_type, len(prompt))
+                self.logger.warning("Generated text is empty for insight_type=%s, prompt_length=%d, generated_ids_length=%d", 
+                                   insight_type, len(prompt), len(generated_ids))
                 raise ValueError("Empty generation")
             
             # Fallback to remote if configured
@@ -1042,7 +1087,10 @@ Generate an analytical insight based on the data above. Include specific numbers
             return f"Analytical insight for {insight_type}: {context}"
         
         except Exception as e:
-            self.logger.warning("Failed to generate AI insight message (type=%s): %s", insight_type, e, exc_info=True)
+            self.logger.error("Failed to generate AI insight message (type=%s): %s", insight_type, e, exc_info=True)
+            # Log the full error for debugging
+            import traceback
+            self.logger.debug("Full traceback: %s", traceback.format_exc())
             # Fallback to analytical templates based on type
             if insight_type == "consistency":
                 workout_count_7d = context.get('workout_count_7d', 0)
