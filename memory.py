@@ -110,24 +110,24 @@ def refresh_user_conversation_memory(rag_service: RAGService, user_id: str, days
         emb = rag_service._embed([summary])[0].tolist()
         
         # Always create NEW summary (accumulate history)
-        with session.begin():
-            mem = UserMemoryModel(
-                id=str(uuid.uuid4()),
-                user_id=user_id,
-                summary=summary,
-                embedding=emb,
-                source="conversation_summary",
-                meta_data={
-                    "redacted": True,
-                    "days": days,
-                    "message_count": len(rows),
-                    "date_range_start": first_msg_date,
-                    "date_range_end": last_msg_date,
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                },
-            )
-            session.add(mem)
-            mem_id = mem.id
+        mem = UserMemoryModel(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            summary=summary,
+            embedding=emb,
+            source="conversation_summary",
+            meta_data={
+                "redacted": True,
+                "days": days,
+                "message_count": len(rows),
+                "date_range_start": first_msg_date,
+                "date_range_end": last_msg_date,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+        )
+        session.add(mem)
+        session.commit()
+        mem_id = mem.id
     return {"user_id": user_id, "updated": True, "memory_id": mem_id, "summary": summary}
 
 
@@ -166,17 +166,17 @@ def refresh_user_workout_memory(rag_service: RAGService, user_id: str, n: int = 
         if milestone:
             meta_data["milestone"] = milestone
         
-        with session.begin():
-            mem = UserMemoryModel(
-                id=str(uuid.uuid4()),
-                user_id=user_id,
-                summary=summary,
-                embedding=emb,
-                source="workout_summary",
-                meta_data=meta_data,
-            )
-            session.add(mem)
-            mem_id = mem.id
+        mem = UserMemoryModel(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            summary=summary,
+            embedding=emb,
+            source="workout_summary",
+            meta_data=meta_data,
+        )
+        session.add(mem)
+        session.commit()
+        mem_id = mem.id
     return {"user_id": user_id, "updated": True, "memory_id": mem_id, "summary": summary}
 
 
