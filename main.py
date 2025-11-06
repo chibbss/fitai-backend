@@ -1074,6 +1074,25 @@ async def get_workout_calendar(
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
+@app.get("/workouts/{session_id}/volume")
+async def get_session_volume(
+    session_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get total volume (kg) for a specific workout session.
+    Useful for calculating intensity levels for calendar color coding.
+    """
+    try:
+        volume = rag_service.get_session_volume(session_id, user_id=user.user_id)
+        return {"session_id": session_id, "volume_kg": round(volume, 1)}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("/workouts/{session_id}/volume error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
 class WorkoutInsightItem(BaseModel):
     exercise: str
     status: str  # new | progress | regression | maintained | pr
@@ -1089,6 +1108,47 @@ class SessionInsightItem(BaseModel):
     priority: int = 0  # Higher priority shown first
 
 
+class WorkoutStatsResponse(BaseModel):
+    session_id: str
+    stats: Dict[str, Any]  # Contains consistency, volume, exercises, recovery, progress
+
+
+@app.get("/stats/{session_id}", response_model=WorkoutStatsResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_STATS", "120/minute"))
+async def get_workout_stats(
+    request: Request,
+    session_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> WorkoutStatsResponse:
+    """
+    Get comprehensive workout stats for a session (Phase 1: Core Stats).
+    Returns data-driven metrics: consistency, volume, exercise frequency, recovery, progress.
+    
+    Stats include:
+    - Consistency: sessions this week/month, streaks, frequency
+    - Volume: total volume, trends, by muscle group
+    - Exercises: top 5 exercises, variety, most/least trained groups
+    - Recovery: average recovery days, trends, rest days
+    - Progress: PRs, strength progression, plateaus
+    """
+    try:
+        result = rag_service.get_workout_stats(user_id=user.user_id, session_id=session_id)
+        
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        
+        return WorkoutStatsResponse(
+            session_id=result["session_id"],
+            stats=result["stats"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/stats error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
+# Keep old insights endpoint for backward compatibility (deprecated)
 class WorkoutInsightsResponse(BaseModel):
     session_id: str
     insights: List[WorkoutInsightItem]  # Exercise-level insights

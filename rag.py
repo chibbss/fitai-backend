@@ -1703,6 +1703,506 @@ Generate an analytical insight based on the data above. Include specific numbers
                 "conversation_hooks": conversation_hooks,
             }
 
+    def get_workout_stats(self, user_id: str, session_id: str) -> Dict[str, Any]:
+        """
+        Get comprehensive workout stats for a session (Phase 1: Core Stats).
+        Returns data-driven metrics: consistency, volume, exercise frequency, recovery, progress.
+        """
+        def calc_volume(e: ExerciseLogModel) -> float:
+            """Calculate volume (sets × reps × weight) for an exercise."""
+            if not e.sets or not e.reps or not e.weights:
+                return 0.0
+            vol = 0.0
+            for i in range(min(len(e.reps), len(e.weights))):
+                try:
+                    weight_str = str(e.weights[i]).strip().upper()
+                    if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                        continue  # Skip bodyweight for volume calculation
+                    # Parse weight (e.g., "45kg", "135lbs", "100")
+                    weight_val = 0.0
+                    if "KG" in weight_str:
+                        weight_val = float(weight_str.replace("KG", "").strip())
+                    elif "LBS" in weight_str or "LB" in weight_str:
+                        weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592  # Convert to kg
+                    else:
+                        weight_val = float(weight_str)
+                    vol += int(e.reps[i]) * weight_val
+                except (ValueError, IndexError):
+                    continue
+            return vol
+        
+        with self.SessionLocal() as session:
+            # Get current session
+            current = session.get(WorkoutSessionModel, session_id)
+            if not current or current.user_id != user_id:
+                return {"error": "Session not found"}
+            
+            current_date = current.occurred_at if current.occurred_at else datetime.utcnow()
+            now = datetime.utcnow()
+            seven_days_ago = now - timedelta(days=7)
+            thirty_days_ago = now - timedelta(days=30)
+            
+            # Get all workouts for calculations
+            all_workouts = session.execute(
+                select(WorkoutSessionModel)
+                .where(WorkoutSessionModel.user_id == user_id)
+                .order_by(WorkoutSessionModel.occurred_at.desc())
+            ).scalars().all()
+            
+            workouts_7d = [w for w in all_workouts if w.occurred_at and w.occurred_at >= seven_days_ago and w.id != session_id]
+            workouts_30d = [w for w in all_workouts if w.occurred_at and w.occurred_at >= thirty_days_ago and w.id != session_id]
+            
+            # Include current session in counts
+            if current.occurred_at and current.occurred_at >= seven_days_ago:
+                workouts_7d.append(current)
+            if current.occurred_at and current.occurred_at >= thirty_days_ago:
+                workouts_30d.append(current)
+            
+            # ============================================
+            # 1. CONSISTENCY METRICS
+            # ============================================
+            sessions_this_week = len(workouts_7d)
+            sessions_this_month = len(workouts_30d)
+            total_sessions = len(all_workouts)
+            
+            # Calculate weekly frequency
+            weekly_frequency = round(sessions_this_month / 4.3, 1) if sessions_this_month > 0 else 0.0
+            
+            # Calculate current streak (consecutive days)
+            workout_dates = sorted([w.occurred_at.date() for w in all_workouts if w.occurred_at], reverse=True)
+            current_streak = 1
+            best_streak = 1
+            temp_streak = 1
+            
+            for i in range(len(workout_dates) - 1):
+                days_diff = (workout_dates[i] - workout_dates[i + 1]).days
+                if days_diff == 1:
+                    temp_streak += 1
+                    if i == 0:  # Current streak
+                        current_streak = temp_streak
+                else:
+                    best_streak = max(best_streak, temp_streak)
+                    temp_streak = 1
+            best_streak = max(best_streak, temp_streak)
+            
+            consistency = {
+                "sessions_this_week": sessions_this_week,
+                "sessions_this_month": sessions_this_month,
+                "total_sessions": total_sessions,
+                "current_streak": current_streak,
+                "weekly_frequency": weekly_frequency,
+                "best_streak": best_streak,
+            }
+            
+            # ============================================
+            # 2. VOLUME METRICS
+            # ============================================
+            def get_session_volume(session_id: str) -> float:
+                exercises = session.execute(
+                    select(ExerciseLogModel).where(ExerciseLogModel.session_id == session_id)
+                ).scalars().all()
+                return sum(calc_volume(e) for e in exercises)
+            
+            total_volume_week = sum(get_session_volume(w.id) for w in workouts_7d)
+            total_volume_month = sum(get_session_volume(w.id) for w in workouts_30d)
+            avg_session_volume = round(total_volume_month / len(workouts_30d), 1) if workouts_30d else 0.0
+            
+            # Volume trend (compare last 7 days to previous 7 days)
+            if len(workouts_7d) >= 2:
+                previous_7d_start = seven_days_ago - timedelta(days=7)
+                previous_7d_workouts = [w for w in all_workouts if w.occurred_at and previous_7d_start <= w.occurred_at < seven_days_ago]
+                previous_volume = sum(get_session_volume(w.id) for w in previous_7d_workouts)
+                if previous_volume > 0:
+                    volume_trend_pct = round(((total_volume_week - previous_volume) / previous_volume) * 100, 1)
+                    volume_trend = f"{volume_trend_pct:+.1f}%"
+                else:
+                    volume_trend = "N/A"
+            else:
+                volume_trend = "N/A"
+            
+            # Volume by muscle group
+            push_keywords = ["bench", "press", "chest", "shoulder", "tricep", "push"]
+            pull_keywords = ["pull", "row", "deadlift", "back", "bicep", "lat", "pull-up"]
+            leg_keywords = ["squat", "leg", "lunge", "calf", "quad", "hamstring", "leg press"]
+            
+            volume_push = 0.0
+            volume_pull = 0.0
+            volume_legs = 0.0
+            
+            for w in workouts_30d:
+                exercises = session.execute(
+                    select(ExerciseLogModel).where(ExerciseLogModel.session_id == w.id)
+                ).scalars().all()
+                for ex in exercises:
+                    ex_name = (ex.exercise_name or "").lower()
+                    vol = calc_volume(ex)
+                    if any(kw in ex_name for kw in push_keywords):
+                        volume_push += vol
+                    elif any(kw in ex_name for kw in pull_keywords):
+                        volume_pull += vol
+                    elif any(kw in ex_name for kw in leg_keywords):
+                        volume_legs += vol
+            
+            volume = {
+                "total_volume_week": round(total_volume_week, 1),
+                "total_volume_month": round(total_volume_month, 1),
+                "volume_trend": volume_trend,
+                "avg_session_volume": avg_session_volume,
+                "volume_by_group": {
+                    "push": round(volume_push, 1),
+                    "pull": round(volume_pull, 1),
+                    "legs": round(volume_legs, 1),
+                }
+            }
+            
+            # ============================================
+            # 3. EXERCISE FREQUENCY
+            # ============================================
+            exercise_counts = {}
+            exercise_names_set = set()
+            
+            for w in workouts_30d:
+                exercises = session.execute(
+                    select(ExerciseLogModel).where(ExerciseLogModel.session_id == w.id)
+                ).scalars().all()
+                for ex in exercises:
+                    name = ex.exercise_name or "Unknown"
+                    exercise_counts[name] = exercise_counts.get(name, 0) + 1
+                    exercise_names_set.add(name)
+            
+            top_5_exercises = sorted(exercise_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            top_5 = [{"name": name, "frequency": count} for name, count in top_5_exercises]
+            
+            # Most/least trained muscle groups
+            push_count = sum(count for name, count in exercise_counts.items() if any(kw in name.lower() for kw in push_keywords))
+            pull_count = sum(count for name, count in exercise_counts.items() if any(kw in name.lower() for kw in pull_keywords))
+            leg_count = sum(count for name, count in exercise_counts.items() if any(kw in name.lower() for kw in leg_keywords))
+            
+            most_trained = "push" if push_count >= max(pull_count, leg_count) else ("pull" if pull_count >= leg_count else "legs")
+            least_trained = "legs" if leg_count <= min(push_count, pull_count) else ("pull" if pull_count <= push_count else "push")
+            
+            exercises = {
+                "top_5": top_5,
+                "variety": len(exercise_names_set),
+                "most_trained_group": most_trained,
+                "least_trained_group": least_trained,
+            }
+            
+            # ============================================
+            # 4. RECOVERY METRICS
+            # ============================================
+            # Average recovery window
+            all_workouts_for_recovery = workouts_30d.copy()
+            if current.occurred_at:
+                all_workouts_for_recovery.append(current)
+            
+            avg_recovery_days = None
+            recovery_trend = "N/A"
+            if len(all_workouts_for_recovery) >= 2:
+                workout_dates = sorted([w.occurred_at for w in all_workouts_for_recovery if w.occurred_at], reverse=True)
+                recovery_intervals = []
+                for i in range(len(workout_dates) - 1):
+                    days_diff = (workout_dates[i] - workout_dates[i + 1]).days
+                    if days_diff > 0:
+                        recovery_intervals.append(days_diff)
+                if recovery_intervals:
+                    avg_recovery_days = round(sum(recovery_intervals) / len(recovery_intervals), 1)
+                    
+                    # Recovery trend (compare recent vs older intervals)
+                    if len(recovery_intervals) >= 4:
+                        recent_avg = sum(recovery_intervals[:len(recovery_intervals)//2]) / (len(recovery_intervals)//2)
+                        older_avg = sum(recovery_intervals[len(recovery_intervals)//2:]) / (len(recovery_intervals) - len(recovery_intervals)//2)
+                        if recent_avg < older_avg * 0.9:
+                            recovery_trend = "decreasing"
+                        elif recent_avg > older_avg * 1.1:
+                            recovery_trend = "increasing"
+                        else:
+                            recovery_trend = "stable"
+            
+            # Days since last workout
+            days_since_last = None
+            if len(all_workouts) > 1:
+                last_workout = all_workouts[1] if all_workouts[0].id == session_id else all_workouts[0]
+                if last_workout.occurred_at:
+                    days_since_last = (current_date - last_workout.occurred_at).days
+            
+            # Rest days per week
+            rest_days_per_week = round(7 - weekly_frequency, 1) if weekly_frequency > 0 else 7.0
+            
+            recovery = {
+                "avg_recovery_days": avg_recovery_days,
+                "recovery_trend": recovery_trend,
+                "days_since_last": days_since_last,
+                "rest_days_per_week": rest_days_per_week,
+            }
+            
+            # ============================================
+            # 5. PROGRESS METRICS (PRs)
+            # ============================================
+            # Count PRs this week/month
+            prs_this_week = 0
+            prs_this_month = 0
+            
+            # Get current session exercises
+            current_exercises = session.execute(
+                select(ExerciseLogModel).where(ExerciseLogModel.session_id == session_id)
+            ).scalars().all()
+            
+            for ex in current_exercises:
+                exercise_name = ex.exercise_name
+                if not exercise_name:
+                    continue
+                
+                # Get max weight from current session
+                curr_max = 0.0
+                if ex.weights:
+                    for w_str in ex.weights:
+                        try:
+                            weight_str = str(w_str).strip().upper()
+                            if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                                continue
+                            if "KG" in weight_str:
+                                weight_val = float(weight_str.replace("KG", "").strip())
+                            elif "LBS" in weight_str or "LB" in weight_str:
+                                weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                            else:
+                                weight_val = float(weight_str)
+                            curr_max = max(curr_max, weight_val)
+                        except (ValueError, AttributeError):
+                            continue
+                
+                if curr_max == 0:
+                    continue
+                
+                # Find previous max for this exercise
+                prev_exercises = session.execute(
+                    select(ExerciseLogModel, WorkoutSessionModel)
+                    .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
+                    .where(
+                        ExerciseLogModel.user_id == user_id,
+                        ExerciseLogModel.exercise_name == exercise_name,
+                        ExerciseLogModel.session_id != session_id,
+                    )
+                    .order_by(WorkoutSessionModel.occurred_at.desc())
+                ).all()
+                
+                prev_max = 0.0
+                for prev_ex, prev_sess in prev_exercises:
+                    if prev_ex.weights:
+                        for w_str in prev_ex.weights:
+                            try:
+                                weight_str = str(w_str).strip().upper()
+                                if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                                    continue
+                                if "KG" in weight_str:
+                                    weight_val = float(weight_str.replace("KG", "").strip())
+                                elif "LBS" in weight_str or "LB" in weight_str:
+                                    weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                else:
+                                    weight_val = float(weight_str)
+                                prev_max = max(prev_max, weight_val)
+                            except (ValueError, AttributeError):
+                                continue
+                    if prev_max > 0:
+                        break
+                
+                # Check if PR
+                if curr_max > prev_max:
+                    # Check if PR is this week/month
+                    if current.occurred_at and current.occurred_at >= seven_days_ago:
+                        prs_this_week += 1
+                    if current.occurred_at and current.occurred_at >= thirty_days_ago:
+                        prs_this_month += 1
+            
+            # Strength progression (average % increase on top exercises)
+            strength_progression = None
+            if top_5_exercises:
+                progressions = []
+                for ex_name, _ in top_5_exercises[:3]:  # Top 3 exercises
+                    # Get current max
+                    current_max = 0.0
+                    for ex in current_exercises:
+                        if ex.exercise_name == ex_name and ex.weights:
+                            for w_str in ex.weights:
+                                try:
+                                    weight_str = str(w_str).strip().upper()
+                                    if "KG" in weight_str:
+                                        weight_val = float(weight_str.replace("KG", "").strip())
+                                    elif "LBS" in weight_str or "LB" in weight_str:
+                                        weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                    else:
+                                        weight_val = float(weight_str)
+                                    current_max = max(current_max, weight_val)
+                                except (ValueError, AttributeError):
+                                    continue
+                    
+                    if current_max == 0:
+                        continue
+                    
+                    # Get previous max (30 days ago)
+                    month_start = thirty_days_ago
+                    prev_exercises = session.execute(
+                        select(ExerciseLogModel, WorkoutSessionModel)
+                        .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
+                        .where(
+                            ExerciseLogModel.user_id == user_id,
+                            ExerciseLogModel.exercise_name == ex_name,
+                            WorkoutSessionModel.occurred_at < month_start,
+                        )
+                        .order_by(WorkoutSessionModel.occurred_at.desc())
+                        .limit(5)
+                    ).all()
+                    
+                    prev_max = 0.0
+                    for prev_ex, _ in prev_exercises:
+                        if prev_ex.weights:
+                            for w_str in prev_ex.weights:
+                                try:
+                                    weight_str = str(w_str).strip().upper()
+                                    if "KG" in weight_str:
+                                        weight_val = float(weight_str.replace("KG", "").strip())
+                                    elif "LBS" in weight_str or "LB" in weight_str:
+                                        weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                    else:
+                                        weight_val = float(weight_str)
+                                    prev_max = max(prev_max, weight_val)
+                                except (ValueError, AttributeError):
+                                    continue
+                        if prev_max > 0:
+                            break
+                    
+                    if prev_max > 0:
+                        pct = ((current_max - prev_max) / prev_max) * 100
+                        progressions.append(pct)
+                
+                if progressions:
+                    avg_progression = sum(progressions) / len(progressions)
+                    strength_progression = f"{avg_progression:+.1f}%"
+            
+            # Plateau detection (exercises with no progress for 3+ weeks)
+            plateaus = []
+            three_weeks_ago = now - timedelta(days=21)
+            for ex_name, _ in top_5_exercises[:5]:
+                # Get max weight 3 weeks ago
+                old_max = 0.0
+                old_exercises = session.execute(
+                    select(ExerciseLogModel, WorkoutSessionModel)
+                    .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
+                    .where(
+                        ExerciseLogModel.user_id == user_id,
+                        ExerciseLogModel.exercise_name == ex_name,
+                        WorkoutSessionModel.occurred_at < three_weeks_ago,
+                    )
+                    .order_by(WorkoutSessionModel.occurred_at.desc())
+                    .limit(3)
+                ).all()
+                
+                for old_ex, _ in old_exercises:
+                    if old_ex.weights:
+                        for w_str in old_ex.weights:
+                            try:
+                                weight_str = str(w_str).strip().upper()
+                                if "KG" in weight_str:
+                                    weight_val = float(weight_str.replace("KG", "").strip())
+                                elif "LBS" in weight_str or "LB" in weight_str:
+                                    weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                else:
+                                    weight_val = float(weight_str)
+                                old_max = max(old_max, weight_val)
+                            except (ValueError, AttributeError):
+                                continue
+                    if old_max > 0:
+                        break
+                
+                # Get recent max (last 3 weeks)
+                recent_max = 0.0
+                recent_exercises = session.execute(
+                    select(ExerciseLogModel, WorkoutSessionModel)
+                    .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
+                    .where(
+                        ExerciseLogModel.user_id == user_id,
+                        ExerciseLogModel.exercise_name == ex_name,
+                        WorkoutSessionModel.occurred_at >= three_weeks_ago,
+                        WorkoutSessionModel.id != session_id,
+                    )
+                    .order_by(WorkoutSessionModel.occurred_at.desc())
+                    .limit(5)
+                ).all()
+                
+                for recent_ex, _ in recent_exercises:
+                    if recent_ex.weights:
+                        for w_str in recent_ex.weights:
+                            try:
+                                weight_str = str(w_str).strip().upper()
+                                if "KG" in weight_str:
+                                    weight_val = float(weight_str.replace("KG", "").strip())
+                                elif "LBS" in weight_str or "LB" in weight_str:
+                                    weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                else:
+                                    weight_val = float(weight_str)
+                                recent_max = max(recent_max, weight_val)
+                            except (ValueError, AttributeError):
+                                continue
+                    if recent_max > 0:
+                        break
+                
+                # Check if plateau (no improvement)
+                if old_max > 0 and recent_max <= old_max:
+                    plateaus.append({"exercise": ex_name, "weeks": 3})
+            
+            progress = {
+                "prs_this_week": prs_this_week,
+                "prs_this_month": prs_this_month,
+                "strength_progression": strength_progression,
+                "plateaus": plateaus,
+            }
+            
+            return {
+                "session_id": session_id,
+                "stats": {
+                    "consistency": consistency,
+                    "volume": volume,
+                    "exercises": exercises,
+                    "recovery": recovery,
+                    "progress": progress,
+                }
+            }
+
+    def get_session_volume(self, session_id: str, user_id: Optional[str] = None) -> float:
+        """Get total volume (kg) for a specific workout session."""
+        def calc_volume(e: ExerciseLogModel) -> float:
+            """Calculate volume (sets × reps × weight) for an exercise."""
+            if not e.sets or not e.reps or not e.weights:
+                return 0.0
+            vol = 0.0
+            for i in range(min(len(e.reps), len(e.weights))):
+                try:
+                    weight_str = str(e.weights[i]).strip().upper()
+                    if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                        continue
+                    if "KG" in weight_str:
+                        weight_val = float(weight_str.replace("KG", "").strip())
+                    elif "LBS" in weight_str or "LB" in weight_str:
+                        weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                    else:
+                        weight_val = float(weight_str)
+                    vol += int(e.reps[i]) * weight_val
+                except (ValueError, IndexError):
+                    continue
+            return vol
+        
+        with self.SessionLocal() as session:
+            # Verify session belongs to user if user_id provided
+            if user_id:
+                workout = session.get(WorkoutSessionModel, session_id)
+                if not workout or workout.user_id != user_id:
+                    raise ValueError("Session not found or access denied")
+            
+            exercises = session.execute(
+                select(ExerciseLogModel).where(ExerciseLogModel.session_id == session_id)
+            ).scalars().all()
+            return sum(calc_volume(e) for e in exercises)
+
     # ------------------------
     # Session memory (ephemeral)
     # ------------------------

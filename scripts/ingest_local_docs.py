@@ -7,6 +7,7 @@ import hashlib
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import requests
+import re
 
 try:
     from pypdf import PdfReader
@@ -180,6 +181,15 @@ def extract_pdf(path: str) -> tuple[str, Dict[str, Any]]:
             continue
     
     text = "\n".join(parts)
+    # --- Text normalization to improve chunk boundaries ---
+    # Fix hyphenation across line breaks: "car-\nbohydrate" -> "carbohydrate"
+    text = re.sub(r'-\s*\n\s*', '', text)
+    # Merge single newlines inside paragraphs into spaces; keep paragraph breaks
+    text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
+    # Collapse multiple spaces/tabs
+    text = re.sub(r'[ \t]{2,}', ' ', text)
+    # Trim
+    text = text.strip()
     
     # Assess extraction quality
     if failed_pages == 0:
@@ -283,6 +293,7 @@ def main() -> None:
     ap.add_argument("--category", default="fitness", help="Category metadata")
     ap.add_argument("--api", default=os.getenv("API_URL", "http://localhost:8000"))
     ap.add_argument("--batch", type=int, default=5)
+    ap.add_argument("--timeout", type=int, default=120, help="HTTP timeout in seconds for /add_docs requests")
     ap.add_argument("--url", default=None, help="Optional source URL to attach to all docs")
     args = ap.parse_args()
 
@@ -352,7 +363,7 @@ def main() -> None:
                 f"{args.api}/add_docs", 
                 headers=headers, 
                 data=json.dumps(payload), 
-                timeout=120
+                timeout=args.timeout
             )
             
             if r.status_code < 400:
