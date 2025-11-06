@@ -67,6 +67,9 @@ def verify_supabase_jwt(token: str) -> dict:
         error_type = type(e).__name__
         error_msg = str(e)
         
+        # Log the error first for debugging
+        logger.error(f"JWT verification error: {error_type} - {error_msg}")
+        
         # Check for expired token
         if error_type == "ExpiredSignatureError" or "expired" in error_msg.lower():
             logger.warning("Expired JWT token")
@@ -100,11 +103,10 @@ def verify_supabase_jwt(token: str) -> dict:
                 },
             )
         
-        # Fallback for any other JWT-related error
-        logger.error(f"JWT verification error: {error_type} - {error_msg}")
+        # Fallback for any other JWT-related error - include error details in response for debugging
         raise HTTPException(
             status_code=401,
-            detail="Authentication failed",
+            detail=f"Authentication failed: {error_type} - {error_msg}",
             headers={
                 "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Authentication failed"'
             },
