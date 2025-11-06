@@ -789,6 +789,23 @@ class RAGService:
                 )
                 session.add(log)
         
+        # Auto-trigger workout summary if needed (monthly or milestone)
+        try:
+            from memory import should_generate_workout_summary, refresh_user_workout_memory
+            should_gen, milestone = should_generate_workout_summary(self, user_id, check_milestone=True)
+            if should_gen:
+                # Generate summary asynchronously (fire and forget)
+                import threading
+                def generate_summary():
+                    try:
+                        result = refresh_user_workout_memory(self, user_id, n=15, milestone=milestone)
+                        self.logger.info("Auto-generated workout summary for user %s (milestone: %s)", user_id, milestone)
+                    except Exception as e:
+                        self.logger.warning("Failed to auto-generate workout summary: %s", e)
+                threading.Thread(target=generate_summary, daemon=True).start()
+        except Exception as e:
+            self.logger.debug("Workout summary check failed: %s", e)
+        
         return {
             "session_id": session_id,
             "exercise_count": len(exercises),
@@ -2018,6 +2035,170 @@ Generate an analytical insight based on the data above. Include specific numbers
         return metric_id
 
     # ------------------------
+    # Workout stats and pattern detection for enhanced context
+    # ------------------------
+    def _get_user_fitness_overview(self, user_id: str) -> str:
+        """Get comprehensive fitness overview stats for chat context."""
+        try:
+            with self.SessionLocal() as session:
+                now = datetime.utcnow()
+                seven_days_ago = now - timedelta(days=7)
+                thirty_days_ago = now - timedelta(days=30)
+                
+                # Sessions this week/month
+                workouts_7d = session.execute(
+                    select(WorkoutSessionModel)
+                    .where(WorkoutSessionModel.user_id == user_id)
+                    .where(WorkoutSessionModel.occurred_at >= seven_days_ago)
+                ).scalars().all()
+                workouts_30d = session.execute(
+                    select(WorkoutSessionModel)
+                    .where(WorkoutSessionModel.user_id == user_id)
+                    .where(WorkoutSessionModel.occurred_at >= thirty_days_ago)
+                ).scalars().all()
+                
+                session_count_7d = len(workouts_7d)
+                session_count_30d = len(workouts_30d)
+                
+                # Calculate total hours
+                total_minutes_7d = sum(w.duration_minutes or 0 for w in workouts_7d)
+                total_hours_7d = round(total_minutes_7d / 60, 1)
+                
+                # Top exercises (frequency)
+                exercise_counts = {}
+                for workout in workouts_30d:
+                    exercises = session.execute(
+                        select(ExerciseLogModel)
+                        .where(ExerciseLogModel.session_id == workout.id)
+                    ).scalars().all()
+                    for ex in exercises:
+                        name = ex.exercise_name or "Unknown"
+                        exercise_counts[name] = exercise_counts.get(name, 0) + 1
+                
+                top_exercises = sorted(exercise_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+                top_exercises_str = ", ".join([f"{name} ({count}x)" for name, count in top_exercises]) if top_exercises else "None"
+                
+                # Pattern detection: push vs pull vs legs
+                push_exercises = ["bench", "press", "chest", "shoulder", "tricep"]
+                pull_exercises = ["pull", "row", "deadlift", "back", "bicep", "lat"]
+                leg_exercises = ["squat", "leg", "lunge", "calf"]
+                
+                push_count = sum(count for name, count in exercise_counts.items() if any(p in name.lower() for p in push_exercises))
+                pull_count = sum(count for name, count in exercise_counts.items() if any(p in name.lower() for p in pull_exercises))
+                leg_count = sum(count for name, count in exercise_counts.items() if any(l in name.lower() for l in leg_exercises))
+                
+                pattern = []
+                if push_count > pull_count + leg_count:
+                    pattern.append("heavy on push")
+                if pull_count > push_count + leg_count:
+                    pattern.append("heavy on pull")
+                if leg_count < max(push_count, pull_count) / 2:
+                    pattern.append("light on legs")
+                pattern_str = ", ".join(pattern) if pattern else "balanced"
+                
+                # Recovery: average days between workouts
+                if len(workouts_30d) > 1:
+                    dates = sorted([w.occurred_at for w in workouts_30d if w.occurred_at], reverse=True)
+                    gaps = [(dates[i] - dates[i+1]).days for i in range(len(dates)-1)]
+                    avg_recovery = round(sum(gaps) / len(gaps), 1) if gaps else None
+                else:
+                    avg_recovery = None
+                
+                # Goal progress (if available)
+                user = self.get_user(user_id)
+                goal_info = ""
+                if user and user.meta_data:
+                    goals = user.meta_data.get("goals", {})
+                    if goals.get("target_weight"):
+                        goal_info = f"\n- Goal progress: {goals.get('current_weight', 'N/A')}kg → {goals.get('target_weight')}kg target"
+                
+                overview = f"""USER FITNESS OVERVIEW:
+- This week: {session_count_7d} sessions, {total_hours_7d}h total
+- This month: {session_count_30d} sessions
+- Top exercises: {top_exercises_str}
+- Pattern: {pattern_str}
+- Recovery: {avg_recovery if avg_recovery else 'N/A'} day avg between sessions{goal_info}"""
+                
+                return overview
+        except Exception as e:
+            self.logger.warning("Failed to generate fitness overview: %s", e)
+            return ""
+    
+    def _detect_user_patterns(self, user_id: str) -> List[str]:
+        """Detect simple patterns from workout history for chat context."""
+        patterns = []
+        try:
+            with self.SessionLocal() as session:
+                now = datetime.utcnow()
+                thirty_days_ago = now - timedelta(days=30)
+                
+                # Get recent workouts
+                workouts = session.execute(
+                    select(WorkoutSessionModel)
+                    .where(WorkoutSessionModel.user_id == user_id)
+                    .where(WorkoutSessionModel.occurred_at >= thirty_days_ago)
+                    .order_by(WorkoutSessionModel.occurred_at.desc())
+                ).scalars().all()
+                
+                if not workouts:
+                    return patterns
+                
+                # Day of week pattern
+                day_counts = {}
+                for w in workouts:
+                    if w.occurred_at:
+                        day = w.occurred_at.strftime("%A")
+                        day_counts[day] = day_counts.get(day, 0) + 1
+                
+                if day_counts:
+                    top_day = max(day_counts.items(), key=lambda x: x[1])
+                    if top_day[1] >= 3:
+                        patterns.append(f"You train most on {top_day[0]}s ({top_day[1]}x this month)")
+                
+                # Consistency streak
+                dates = sorted([w.occurred_at for w in workouts if w.occurred_at], reverse=True)
+                if len(dates) >= 7:
+                    # Check for consecutive days
+                    streak = 1
+                    for i in range(len(dates)-1):
+                        if (dates[i] - dates[i+1]).days == 1:
+                            streak += 1
+                        else:
+                            break
+                    if streak >= 7:
+                        patterns.append(f"You've been consistent for {streak} consecutive days")
+                
+                # Exercise frequency patterns
+                exercise_names = set()
+                for workout in workouts:
+                    exercises = session.execute(
+                        select(ExerciseLogModel)
+                        .where(ExerciseLogModel.session_id == workout.id)
+                    ).scalars().all()
+                    for ex in exercises:
+                        if ex.exercise_name:
+                            exercise_names.add(ex.exercise_name.lower())
+                
+                # Check for leg day skipping
+                leg_keywords = ["squat", "leg", "lunge", "calf", "quad", "hamstring"]
+                has_legs = any(any(keyword in name for keyword in leg_keywords) for name in exercise_names)
+                if not has_legs and len(workouts) >= 5:
+                    patterns.append("You've been skipping leg day (no leg exercises in recent workouts)")
+                
+                # Frequency pattern
+                if len(workouts) >= 10:
+                    weekly_avg = len(workouts) / 4.3  # Approximate weeks
+                    if weekly_avg >= 5:
+                        patterns.append(f"You train {weekly_avg:.1f}x per week on average (high frequency)")
+                    elif weekly_avg <= 2:
+                        patterns.append(f"You train {weekly_avg:.1f}x per week on average (low frequency)")
+                
+        except Exception as e:
+            self.logger.warning("Failed to detect patterns: %s", e)
+        
+        return patterns
+
+    # ------------------------
     # Prompt preparation for streaming/structured modes
     # ------------------------
     def _prepare_prompt(self, query: str, user_id: Optional[str], session_id: Optional[str]) -> Dict[str, Any]:
@@ -2073,11 +2254,25 @@ Generate an analytical insight based on the data above. Include specific numbers
         if user_id:
             recent_hooks = self.get_recent_workout_insights_hooks(user_id=user_id, limit=2)
         
+        # Get workout stats and patterns
+        fitness_overview = ""
+        user_patterns = []
+        if user_id:
+            fitness_overview = self._get_user_fitness_overview(user_id)
+            user_patterns = self._detect_user_patterns(user_id)
+        
         # Format context more naturally
         context_text = f"ABOUT THIS USER:\n{static_summary}\n\n"
         
         if memory_text and memory_text != "(no long-term memory yet)":
             context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
+        
+        if fitness_overview:
+            context_text += f"{fitness_overview}\n\n"
+        
+        if user_patterns:
+            patterns_text = "\n".join([f"- {p}" for p in user_patterns])
+            context_text += f"USER PATTERNS:\n{patterns_text}\n\n"
         
         if recent_hooks:
             hooks_text = "\n".join([f"- {h}" for h in recent_hooks])
@@ -2176,6 +2371,22 @@ Generate an analytical insight based on the data above. Include specific numbers
         # Append user message to session buffer
         if user_id:
             self.append_session_message(user_id, session_id, role="user", content=query)
+            
+            # Auto-trigger conversation summary if needed (weekly)
+            try:
+                from memory import should_generate_conversation_summary, refresh_user_conversation_memory
+                if should_generate_conversation_summary(self, user_id, days=7):
+                    # Generate summary asynchronously (fire and forget)
+                    import threading
+                    def generate_summary():
+                        try:
+                            refresh_user_conversation_memory(self, user_id, days=7)
+                            self.logger.info("Auto-generated conversation summary for user %s", user_id)
+                        except Exception as e:
+                            self.logger.warning("Failed to auto-generate conversation summary: %s", e)
+                    threading.Thread(target=generate_summary, daemon=True).start()
+            except Exception as e:
+                self.logger.debug("Conversation summary check failed: %s", e)
 
         # Retrieve KB and dynamic memory
         retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)

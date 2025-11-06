@@ -9,7 +9,7 @@ from sqlalchemy import select
 import sqlalchemy as sa
 
 from utils import get_logger
-from rag import RAGService, TrainingLogModel, UserMemoryModel
+from rag import RAGService, TrainingLogModel, UserMemoryModel, ChatMessageModel, WorkoutSessionModel
 
 
 logger = get_logger("memory")
@@ -41,15 +41,23 @@ def _simple_summarize(texts: List[str], max_chars: int = 1200) -> str:
     return joined[:max_chars]
 
 
-def summarize_texts(rag_service: RAGService, texts: List[str]) -> str:
+def summarize_texts(rag_service: RAGService, texts: List[str], summary_type: str = "workout") -> str:
+    """Summarize texts - supports both workout logs and conversations."""
     # Prefer remote generation if configured
     joined = "\n\n".join(texts)
     try:
         if rag_service.config.gen_backend == "remote" and rag_service._remote_session and rag_service.config.remote_gen_url:
-            prompt = (
-                "Summarize the following user's recent training logs into 2-4 short sentences. "
-                "Capture habits, goals, preferences, and recent achievements. Avoid PII.\n\n" + joined
-            )
+            if summary_type == "conversation":
+                prompt = (
+                    "Summarize the following conversation with the user into 2-4 short sentences. "
+                    "Capture preferences, feelings, goals, personality traits, injuries/concerns, and anything personal they mentioned. "
+                    "Focus on what makes them unique. Avoid PII.\n\n" + joined
+                )
+            else:  # workout
+                prompt = (
+                    "Summarize the following user's recent training logs into 2-4 short sentences. "
+                    "Capture habits, goals, preferences, and recent achievements. Avoid PII.\n\n" + joined
+                )
             payload = {
                 "model": rag_service.config.hf_model_id,
                 "prompt": prompt,
@@ -71,8 +79,60 @@ def summarize_texts(rag_service: RAGService, texts: List[str]) -> str:
     return _simple_summarize(texts)
 
 
-def refresh_user_memory(rag_service: RAGService, user_id: str, n: int = DEFAULT_SUMMARY_COUNT) -> Dict[str, Any]:
-    """Accumulate historical memory summaries instead of overwriting (deep memory)."""
+def refresh_user_conversation_memory(rag_service: RAGService, user_id: str, days: int = 7) -> Dict[str, Any]:
+    """Generate conversation summary from chat messages (weekly summaries for deep memory)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    with rag_service.SessionLocal() as session:
+        # Fetch all chat messages from last N days (all sessions)
+        stmt = (
+            select(ChatMessageModel)
+            .where(ChatMessageModel.user_id == user_id)
+            .where(ChatMessageModel.created_at >= cutoff)
+            .order_by(ChatMessageModel.created_at.asc())
+        )
+        rows = session.execute(stmt).scalars().all()
+        
+        if not rows:
+            return {"user_id": user_id, "updated": False, "reason": "no conversations"}
+        
+        # Format conversations: "user: ... assistant: ..."
+        conversation_texts = []
+        for row in rows:
+            role_prefix = "user" if row.role == "user" else "assistant"
+            conversation_texts.append(f"{role_prefix}: {row.content}")
+        
+        # Get date range
+        first_msg_date = rows[0].created_at.isoformat() if rows[0].created_at else None
+        last_msg_date = rows[-1].created_at.isoformat() if rows[-1].created_at else None
+        
+        summary = summarize_texts(rag_service, conversation_texts, summary_type="conversation")
+        summary = redact_pii(summary)
+        emb = rag_service._embed([summary])[0].tolist()
+        
+        # Always create NEW summary (accumulate history)
+        with session.begin():
+            mem = UserMemoryModel(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                summary=summary,
+                embedding=emb,
+                source="conversation_summary",
+                meta_data={
+                    "redacted": True,
+                    "days": days,
+                    "message_count": len(rows),
+                    "date_range_start": first_msg_date,
+                    "date_range_end": last_msg_date,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                },
+            )
+            session.add(mem)
+            mem_id = mem.id
+    return {"user_id": user_id, "updated": True, "memory_id": mem_id, "summary": summary}
+
+
+def refresh_user_workout_memory(rag_service: RAGService, user_id: str, n: int = DEFAULT_SUMMARY_COUNT, milestone: Optional[int] = None) -> Dict[str, Any]:
+    """Generate workout summary from training logs (monthly/milestone summaries for deep memory)."""
     with rag_service.SessionLocal() as session:
         # Fetch last n logs
         stmt = (
@@ -90,30 +150,131 @@ def refresh_user_memory(rag_service: RAGService, user_id: str, n: int = DEFAULT_
         first_log_date = rows[-1].occurred_at.isoformat() if rows[-1].occurred_at else None
         last_log_date = rows[0].occurred_at.isoformat() if rows[0].occurred_at else None
 
-        summary = summarize_texts(rag_service, texts)
+        summary = summarize_texts(rag_service, texts, summary_type="workout")
         summary = redact_pii(summary)
         emb = rag_service._embed([summary])[0].tolist()
 
         # Always create NEW summary (accumulate history instead of overwriting)
+        meta_data = {
+            "redacted": True,
+            "window_size": n,  # Number of logs summarized
+            "log_count": len(texts),
+            "date_range_start": first_log_date,
+            "date_range_end": last_log_date,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        if milestone:
+            meta_data["milestone"] = milestone
+        
         with session.begin():
             mem = UserMemoryModel(
                 id=str(uuid.uuid4()),
                 user_id=user_id,
                 summary=summary,
                 embedding=emb,
-                source="auto_summary",
-                meta_data={
-                    "redacted": True,
-                    "window_size": n,  # Number of logs summarized
-                    "log_count": len(texts),
-                    "date_range_start": first_log_date,
-                    "date_range_end": last_log_date,
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                },
+                source="workout_summary",
+                meta_data=meta_data,
             )
             session.add(mem)
             mem_id = mem.id
     return {"user_id": user_id, "updated": True, "memory_id": mem_id, "summary": summary}
+
+
+# Keep old function name for backward compatibility
+def refresh_user_memory(rag_service: RAGService, user_id: str, n: int = DEFAULT_SUMMARY_COUNT) -> Dict[str, Any]:
+    """Backward compatibility wrapper - calls workout memory refresh."""
+    return refresh_user_workout_memory(rag_service, user_id, n)
+
+
+def should_generate_conversation_summary(rag_service: RAGService, user_id: str, days: int = 7) -> bool:
+    """Check if conversation summary should be generated (weekly check)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    with rag_service.SessionLocal() as session:
+        # Check if there's a recent conversation summary
+        stmt = (
+            select(UserMemoryModel)
+            .where(UserMemoryModel.user_id == user_id)
+            .where(UserMemoryModel.source == "conversation_summary")
+            .order_by(UserMemoryModel.created_at.desc())
+            .limit(1)
+        )
+        recent_summary = session.execute(stmt).scalar_one_or_none()
+        
+        if not recent_summary:
+            # No summary exists, check if there are conversations to summarize
+            msg_stmt = (
+                select(ChatMessageModel)
+                .where(ChatMessageModel.user_id == user_id)
+                .where(ChatMessageModel.created_at >= cutoff)
+                .limit(1)
+            )
+            has_recent_messages = session.execute(msg_stmt).scalar_one_or_none() is not None
+            return has_recent_messages
+        
+        # Check if last summary is older than the interval
+        if recent_summary.created_at < cutoff:
+            return True
+        
+        return False
+
+
+def should_generate_workout_summary(rag_service: RAGService, user_id: str, check_milestone: bool = True) -> tuple[bool, Optional[int]]:
+    """
+    Check if workout summary should be generated (monthly or milestone).
+    Returns (should_generate, milestone_count) where milestone_count is None if monthly trigger.
+    """
+    with rag_service.SessionLocal() as session:
+        # Check total workout count for milestones
+        total_workouts = session.execute(
+            select(WorkoutSessionModel).where(WorkoutSessionModel.user_id == user_id)
+        ).scalars().all()
+        total_count = len(total_workouts)
+        
+        # Check milestones: 25, 50, 100, 200, etc.
+        milestones = [25, 50, 100, 200, 500]
+        if check_milestone:
+            for milestone in milestones:
+                # Check if we just hit this milestone (within last 5 workouts)
+                if total_count >= milestone and total_count < milestone + 5:
+                    # Check if we already have a summary for this milestone
+                    stmt = (
+                        select(UserMemoryModel)
+                        .where(UserMemoryModel.user_id == user_id)
+                        .where(UserMemoryModel.source == "workout_summary")
+                        .order_by(UserMemoryModel.created_at.desc())
+                    )
+                    existing_summaries = session.execute(stmt).scalars().all()
+                    # Check if any existing summary has this milestone in metadata
+                    has_milestone_summary = False
+                    for summary in existing_summaries:
+                        if summary.meta_data and summary.meta_data.get("milestone") == milestone:
+                            has_milestone_summary = True
+                            break
+                    if not has_milestone_summary:
+                        return (True, milestone)
+        
+        # Check monthly interval (30 days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        stmt = (
+            select(UserMemoryModel)
+            .where(UserMemoryModel.user_id == user_id)
+            .where(UserMemoryModel.source == "workout_summary")
+            .order_by(UserMemoryModel.created_at.desc())
+            .limit(1)
+        )
+        recent_summary = session.execute(stmt).scalar_one_or_none()
+        
+        if not recent_summary:
+            # No summary exists, check if there are workouts to summarize
+            if total_count > 0:
+                return (True, None)
+            return (False, None)
+        
+        # Check if last summary is older than 30 days
+        if recent_summary.created_at < cutoff:
+            return (True, None)
+        
+        return (False, None)
 
 
 def refresh_all_users_memories(rag_service: RAGService, n: int = DEFAULT_SUMMARY_COUNT) -> Dict[str, Any]:
@@ -138,7 +299,7 @@ def refresh_all_users_memories(rag_service: RAGService, n: int = DEFAULT_SUMMARY
     for uid in user_ids:
         scanned += 1
         try:
-            res = refresh_user_memory(rag_service, uid, n=n)
+            res = refresh_user_workout_memory(rag_service, uid, n=n)
             if res.get("updated"):
                 updated += 1
         except Exception as e:  # pragma: no cover - robustness
