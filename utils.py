@@ -161,9 +161,17 @@ class PIIAwareFormatter(logging.Formatter):
         # Redact PII from the message
         if hasattr(record, "msg") and record.msg:
             record.msg = redact_pii_from_log(str(record.msg))
-        # Also redact any args that might contain PII
+        # Also redact any args that might contain PII (only strings)
         if hasattr(record, "args") and record.args:
-            record.args = tuple(redact_pii_from_log(str(arg)) for arg in record.args)
+            # Only redact string args, preserve numeric types for formatting
+            redacted_args = []
+            for arg in record.args:
+                if isinstance(arg, str):
+                    redacted_args.append(redact_pii_from_log(arg))
+                else:
+                    # Preserve non-string args (ints, floats, etc.) for proper formatting
+                    redacted_args.append(arg)
+            record.args = tuple(redacted_args)
         return super().format(record)
 
 

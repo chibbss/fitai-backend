@@ -806,6 +806,18 @@ class RAGService:
         except Exception as e:
             self.logger.debug("Workout summary check failed: %s", e)
         
+        # Invalidate workout hooks cache when new workout is logged
+        try:
+            cache_key = f"workout_hooks:{user_id}"
+            if self._redis:
+                try:
+                    self._redis.delete(cache_key)
+                    self.logger.debug("Invalidated workout hooks cache for user %s", user_id)
+                except Exception as e:
+                    self.logger.debug("Cache invalidation failed: %s", e)
+        except Exception as e:
+            self.logger.debug("Cache invalidation check failed: %s", e)
+        
         return {
             "session_id": session_id,
             "exercise_count": len(exercises),
@@ -843,9 +855,32 @@ class RAGService:
         return result
 
     def get_recent_workout_insights_hooks(self, user_id: str, limit: int = 2) -> List[str]:
-        """Get conversation hooks from recent workout insights for chatbot context."""
+        """Get conversation hooks from recent workout insights for chatbot context.
+        
+        Uses caching to avoid regenerating insights on every chat request.
+        Cache expires after 1 hour or when new workouts are logged.
+        """
         try:
-            # Get recent workout sessions
+            import json
+            
+            # Check cache first (Redis or in-memory)
+            cache_key = f"workout_hooks:{user_id}"
+            cached_hooks = None
+            
+            if self._redis:
+                try:
+                    cached = self._redis.get(cache_key)
+                    if cached:
+                        cached_hooks = json.loads(cached)
+                        self.logger.debug("Retrieved workout hooks from Redis cache for user %s", user_id)
+                except Exception as e:
+                    self.logger.debug("Redis cache lookup failed: %s", e)
+            
+            # If cached, return it
+            if cached_hooks is not None:
+                return cached_hooks
+            
+            # Cache miss - generate hooks
             recent_sessions = self.get_workout_calendar(user_id=user_id, limit=limit)
             hooks = []
             
@@ -858,7 +893,17 @@ class RAGService:
                         hooks.extend(insights_result.get("conversation_hooks", []))
             
             # Remove duplicates and return top 5
-            return list(dict.fromkeys(hooks))[:5]
+            result = list(dict.fromkeys(hooks))[:5]
+            
+            # Cache for 1 hour
+            if self._redis:
+                try:
+                    self._redis.setex(cache_key, 3600, json.dumps(result))
+                    self.logger.debug("Cached workout hooks for user %s (expires in 1 hour)", user_id)
+                except Exception as e:
+                    self.logger.debug("Redis cache store failed: %s", e)
+            
+            return result
         except Exception as e:
             self.logger.warning("Failed to get recent workout insights hooks: %s", e)
             return []
