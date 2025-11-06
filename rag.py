@@ -6,7 +6,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone, timedelta
 from collections import deque
 
@@ -69,6 +69,8 @@ class RAGService:
         # Redis (optional)
         self._redis = None
         self._metrics: Dict[str, int] = {"rerank_total": 0, "rerank_changed": 0}
+        # In-memory cache for workout hooks (fallback when Redis unavailable)
+        self._workout_hooks_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (hooks, timestamp)}
 
     # ------------------------
     # Initialization
@@ -815,6 +817,11 @@ class RAGService:
                     self.logger.debug("Invalidated workout hooks cache for user %s", user_id)
                 except Exception as e:
                     self.logger.debug("Cache invalidation failed: %s", e)
+            
+            # Also invalidate in-memory cache
+            if user_id in self._workout_hooks_cache:
+                del self._workout_hooks_cache[user_id]
+                self.logger.debug("Invalidated in-memory workout hooks cache for user %s", user_id)
         except Exception as e:
             self.logger.debug("Cache invalidation check failed: %s", e)
         
@@ -867,6 +874,7 @@ class RAGService:
             cache_key = f"workout_hooks:{user_id}"
             cached_hooks = None
             
+            # Try Redis first
             if self._redis:
                 try:
                     cached = self._redis.get(cache_key)
@@ -875,6 +883,18 @@ class RAGService:
                         self.logger.debug("Retrieved workout hooks from Redis cache for user %s", user_id)
                 except Exception as e:
                     self.logger.debug("Redis cache lookup failed: %s", e)
+            
+            # Fallback to in-memory cache if Redis unavailable
+            if cached_hooks is None:
+                if user_id in self._workout_hooks_cache:
+                    hooks, timestamp = self._workout_hooks_cache[user_id]
+                    # Check if cache is still valid (1 hour)
+                    if time.time() - timestamp < 3600:
+                        cached_hooks = hooks
+                        self.logger.debug("Retrieved workout hooks from in-memory cache for user %s", user_id)
+                    else:
+                        # Cache expired, remove it
+                        del self._workout_hooks_cache[user_id]
             
             # If cached, return it
             if cached_hooks is not None:
@@ -895,13 +915,16 @@ class RAGService:
             # Remove duplicates and return top 5
             result = list(dict.fromkeys(hooks))[:5]
             
-            # Cache for 1 hour
+            # Cache for 1 hour (Redis and in-memory)
             if self._redis:
                 try:
                     self._redis.setex(cache_key, 3600, json.dumps(result))
                     self.logger.debug("Cached workout hooks for user %s (expires in 1 hour)", user_id)
                 except Exception as e:
                     self.logger.debug("Redis cache store failed: %s", e)
+            
+            # Also cache in memory
+            self._workout_hooks_cache[user_id] = (result, time.time())
             
             return result
         except Exception as e:
