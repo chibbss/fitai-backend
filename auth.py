@@ -16,7 +16,27 @@ load_dotenv()
 import os
 from typing import Optional
 
-import jwt
+# Import PyJWT - handle case where wrong 'jwt' package might be imported
+try:
+    import jwt
+    # Verify we have PyJWT (it has decode/encode at module level)
+    if not hasattr(jwt, 'decode') or not hasattr(jwt, 'encode'):
+        # Wrong jwt package imported - try to get PyJWT functions
+        try:
+            # PyJWT's decode/encode are in jwt.api_jwt
+            from jwt.api_jwt import decode, encode
+            # Attach to jwt module so jwt.decode/jwt.encode work
+            jwt.decode = decode
+            jwt.encode = encode
+        except (ImportError, AttributeError):
+            raise ImportError(
+                "PyJWT not found. The 'jwt' package imported is not PyJWT. "
+                "Install with: pip install PyJWT. "
+                "Or activate venv: source venv/bin/activate"
+            )
+except ImportError:
+    raise ImportError("PyJWT not found. Install with: pip install PyJWT")
+
 from fastapi import HTTPException, Security, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
