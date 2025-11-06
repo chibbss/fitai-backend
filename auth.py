@@ -28,14 +28,21 @@ try:
             # Attach to jwt module so jwt.decode/jwt.encode work
             jwt.decode = decode
             jwt.encode = encode
-        except (ImportError, AttributeError):
+        except (ImportError, AttributeError, ModuleNotFoundError) as e:
+            # If jwt.exceptions is missing, the jwt package is broken/incomplete
+            if "jwt.exceptions" in str(e) or "No module named 'jwt.exceptions'" in str(e):
+                raise ImportError(
+                    "The system 'jwt' package is incomplete. "
+                    "Please activate the virtual environment: source venv/bin/activate\n"
+                    "Or install PyJWT in system Python: pip3 install PyJWT"
+                )
             raise ImportError(
                 "PyJWT not found. The 'jwt' package imported is not PyJWT. "
                 "Install with: pip install PyJWT. "
                 "Or activate venv: source venv/bin/activate"
             )
-except ImportError:
-    raise ImportError("PyJWT not found. Install with: pip install PyJWT")
+except ImportError as e:
+    raise ImportError(f"PyJWT not found. Install with: pip install PyJWT. Error: {e}")
 
 from fastapi import HTTPException, Security, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
