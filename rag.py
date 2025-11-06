@@ -2687,8 +2687,9 @@ Generate an analytical insight based on the data above. Include specific numbers
                 # Goal progress (if available)
                 user = self.get_user(user_id)
                 goal_info = ""
-                if user and user.meta_data:
-                    goals = user.meta_data.get("goals", {})
+                if user:
+                    meta_data = user.get("meta_data", {})
+                    goals = meta_data.get("goals", {})
                     if goals.get("target_weight"):
                         goal_info = f"\n- Goal progress: {goals.get('current_weight', 'N/A')}kg → {goals.get('target_weight')}kg target"
                 
