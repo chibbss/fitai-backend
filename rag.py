@@ -71,6 +71,9 @@ class RAGService:
         self._metrics: Dict[str, int] = {"rerank_total": 0, "rerank_changed": 0}
         # In-memory cache for workout hooks (fallback when Redis unavailable)
         self._workout_hooks_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (hooks, timestamp)}
+        # Cache for fitness overview and patterns (5 minute TTL)
+        self._fitness_overview_cache: Dict[str, Tuple[str, float]] = {}  # {user_id: (overview, timestamp)}
+        self._patterns_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (patterns, timestamp)}
 
     # ------------------------
     # Initialization
@@ -808,7 +811,7 @@ class RAGService:
         except Exception as e:
             self.logger.debug("Workout summary check failed: %s", e)
         
-        # Invalidate workout hooks cache when new workout is logged
+        # Invalidate caches when new workout is logged
         try:
             cache_key = f"workout_hooks:{user_id}"
             if self._redis:
@@ -818,10 +821,19 @@ class RAGService:
                 except Exception as e:
                     self.logger.debug("Cache invalidation failed: %s", e)
             
-            # Also invalidate in-memory cache
+            # Also invalidate in-memory caches
             if user_id in self._workout_hooks_cache:
                 del self._workout_hooks_cache[user_id]
                 self.logger.debug("Invalidated in-memory workout hooks cache for user %s", user_id)
+            
+            # Invalidate fitness overview and patterns cache (they depend on workout data)
+            if user_id in self._fitness_overview_cache:
+                del self._fitness_overview_cache[user_id]
+                self.logger.debug("Invalidated fitness overview cache for user %s", user_id)
+            
+            if user_id in self._patterns_cache:
+                del self._patterns_cache[user_id]
+                self.logger.debug("Invalidated patterns cache for user %s", user_id)
         except Exception as e:
             self.logger.debug("Cache invalidation check failed: %s", e)
         
@@ -2772,19 +2784,27 @@ Generate an analytical insight based on the data above. Include specific numbers
     def _prepare_prompt(self, query: str, user_id: Optional[str], session_id: Optional[str]) -> Dict[str, Any]:
         if len(query) > self.config.max_query_chars:
             query = query[: self.config.max_query_chars]
-        retrieved = self.retrieve(query, user_id=user_id, top_k=None)
-        dyn = []
-        if user_id:
-            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, self.config.top_k))
+        
+        # Parallel retrieval
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            kb_future = executor.submit(self.retrieve, query, user_id, None)
+            logs_future = executor.submit(self.retrieve_training_logs, user_id, query, min(5, self.config.top_k)) if user_id else None
+            memories_future = executor.submit(self.retrieve_memories, user_id, query, 5) if user_id else None
+            
+            retrieved = kb_future.result()
+            dyn = logs_future.result() if logs_future else []
+            memories = memories_future.result() if memories_future else []
+        
         static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
-        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=100) if user_id else []
+        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
-        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved)]
+        # Limit KB chunks to top 5
+        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:5])]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
         dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
-        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
         mem_lines = [f"- {m['summary']}" for m in memories]
         memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
         system_text = (
@@ -2805,7 +2825,6 @@ Generate an analytical insight based on the data above. Include specific numbers
             "HOW TO USE CONTEXT:\n"
             "- Use the context below to inform your answers, but respond with personality\n"
             "- If you see workout logs (RECENT WORKOUTS), reference them - it shows you're paying attention\n"
-            "- If you see achievements (RECENT ACHIEVEMENTS), celebrate them genuinely - get excited!\n"
             "- Cite sources [KB 1], [Log 2] when making specific claims, but don't overdo it\n"
             "- If context is missing, ask with personality: 'I'd love to help! What's your current...?' or 'Tell me about...'\n\n"
             "IMPORTANT:\n"
@@ -2817,23 +2836,43 @@ Generate an analytical insight based on the data above. Include specific numbers
             "- Be quirky but not annoying - personality is good, being over-the-top is not\n"
         )
         
-        # Get recent workout insights hooks for conversation context
-        recent_hooks = []
-        if user_id:
-            recent_hooks = self.get_recent_workout_insights_hooks(user_id=user_id, limit=2)
-        
-        # Get workout stats and patterns
-        fitness_overview = ""
-        user_patterns = []
-        if user_id:
-            fitness_overview = self._get_user_fitness_overview(user_id)
-            user_patterns = self._detect_user_patterns(user_id)
-        
-        # Format context more naturally
+        # Build context (optimized: cached fitness overview/patterns, no hooks)
+        import time
         context_text = f"ABOUT THIS USER:\n{static_summary}\n\n"
         
         if memory_text and memory_text != "(no long-term memory yet)":
             context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
+        
+        # Get fitness overview and patterns (cached, 5 min TTL)
+        fitness_overview = ""
+        user_patterns = []
+        if user_id:
+            cache_ttl = 300  # 5 minutes
+            current_time = time.time()
+            
+            # Check fitness overview cache
+            if user_id in self._fitness_overview_cache:
+                overview, timestamp = self._fitness_overview_cache[user_id]
+                if current_time - timestamp < cache_ttl:
+                    fitness_overview = overview
+                else:
+                    del self._fitness_overview_cache[user_id]
+            
+            if not fitness_overview:
+                fitness_overview = self._get_user_fitness_overview(user_id)
+                self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
+            
+            # Check patterns cache
+            if user_id in self._patterns_cache:
+                patterns, timestamp = self._patterns_cache[user_id]
+                if current_time - timestamp < cache_ttl:
+                    user_patterns = patterns
+                else:
+                    del self._patterns_cache[user_id]
+            
+            if not user_patterns:
+                user_patterns = self._detect_user_patterns(user_id)
+                self._patterns_cache[user_id] = (user_patterns, current_time)
         
         if fitness_overview:
             context_text += f"{fitness_overview}\n\n"
@@ -2841,10 +2880,6 @@ Generate an analytical insight based on the data above. Include specific numbers
         if user_patterns:
             patterns_text = "\n".join([f"- {p}" for p in user_patterns])
             context_text += f"USER PATTERNS:\n{patterns_text}\n\n"
-        
-        if recent_hooks:
-            hooks_text = "\n".join([f"- {h}" for h in recent_hooks])
-            context_text += f"RECENT ACHIEVEMENTS:\n{hooks_text}\n\n"
         
         if dyn_text and dyn_text != "(no personal history found)":
             context_text += f"RECENT WORKOUTS:\n{dyn_text}\n\n"
@@ -2854,6 +2889,7 @@ Generate an analytical insight based on the data above. Include specific numbers
         
         if kb_text and kb_text != "(no KB context)":
             context_text += f"FITNESS KNOWLEDGE:\n{kb_text}\n\n"
+        
         if len(context_text) > self.config.max_context_chars:
             context_text = context_text[: self.config.max_context_chars]
         prompt = None
@@ -2933,6 +2969,10 @@ Generate an analytical insight based on the data above. Include specific numbers
         temperature: Optional[float] = None,
         mode: Optional[str] = None,
     ) -> Dict[str, Any]:
+        # Timing for performance monitoring
+        import time
+        start_time = time.time()
+        
         # Clamp input length
         if len(query) > self.config.max_query_chars:
             query = query[: self.config.max_query_chars]
@@ -2956,21 +2996,32 @@ Generate an analytical insight based on the data above. Include specific numbers
             except Exception as e:
                 self.logger.debug("Conversation summary check failed: %s", e)
 
-        # Retrieve KB and dynamic memory
-        retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)
-        dyn = []
-        if user_id:
-            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k)))
+        # Parallel retrieval for better performance
+        retrieval_start = time.time()
+        from concurrent.futures import ThreadPoolExecutor
+        
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            kb_future = executor.submit(self.retrieve, query, user_id, top_k)
+            logs_future = executor.submit(self.retrieve_training_logs, user_id, query, min(5, (top_k or self.config.top_k))) if user_id else None
+            memories_future = executor.submit(self.retrieve_memories, user_id, query, 5) if user_id else None
+            
+            retrieved = kb_future.result()
+            dyn = logs_future.result() if logs_future else []
+            memories = memories_future.result() if memories_future else []
+        
+        retrieval_time = (time.time() - retrieval_start) * 1000
+        self.logger.debug("Retrieval took %.1fms", retrieval_time)
 
         # Static summary
         static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
 
-        # Session recap - retrieve full conversation history (deep memory)
-        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=100) if user_id else []
+        # Session recap - retrieve conversation history (optimized: limit to 20 messages)
+        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
 
-        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved)]
+        # Limit KB chunks to top 5 for faster processing
+        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:5])]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
 
         dyn_blocks = [
@@ -2978,8 +3029,7 @@ Generate an analytical insight based on the data above. Include specific numbers
         ]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
 
-        # Long-term memory context - retrieve top summaries (deep memory)
-        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
+        # Long-term memory context
         mem_lines = [f"- {m['summary']}" for m in memories]
         memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
 
@@ -3002,7 +3052,6 @@ Generate an analytical insight based on the data above. Include specific numbers
             "HOW TO USE CONTEXT:\n"
             "- Use the context below to inform your answers, but respond with personality\n"
             "- If you see workout logs (RECENT WORKOUTS), reference them - it shows you're paying attention\n"
-            "- If you see achievements (RECENT ACHIEVEMENTS), celebrate them genuinely - get excited!\n"
             "- Cite sources [KB 1], [Log 2] when making specific claims, but don't overdo it\n"
             "- If context is missing, ask with personality: 'I'd love to help! What's your current...?' or 'Tell me about...'\n\n"
             "IMPORTANT:\n"
@@ -3019,20 +3068,50 @@ Generate an analytical insight based on the data above. Include specific numbers
                 "source_index must map to the [KB i] items below (1-indexed)."
             )
         
-        # Get recent workout insights hooks for conversation context
-        recent_hooks = []
-        if user_id:
-            recent_hooks = self.get_recent_workout_insights_hooks(user_id=user_id, limit=2)
-        
-        # Format context more naturally
+        # Build context (optimized: no expensive hooks, cached fitness overview/patterns)
+        context_start = time.time()
         context_text = f"ABOUT THIS USER:\n{static_summary}\n\n"
         
         if memory_text and memory_text != "(no long-term memory yet)":
             context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
         
-        if recent_hooks:
-            hooks_text = "\n".join([f"- {h}" for h in recent_hooks])
-            context_text += f"RECENT ACHIEVEMENTS:\n{hooks_text}\n\n"
+        # Get fitness overview and patterns (cached, 5 min TTL)
+        fitness_overview = ""
+        user_patterns = []
+        if user_id:
+            cache_ttl = 300  # 5 minutes
+            current_time = time.time()
+            
+            # Check fitness overview cache
+            if user_id in self._fitness_overview_cache:
+                overview, timestamp = self._fitness_overview_cache[user_id]
+                if current_time - timestamp < cache_ttl:
+                    fitness_overview = overview
+                else:
+                    del self._fitness_overview_cache[user_id]
+            
+            if not fitness_overview:
+                fitness_overview = self._get_user_fitness_overview(user_id)
+                self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
+            
+            # Check patterns cache
+            if user_id in self._patterns_cache:
+                patterns, timestamp = self._patterns_cache[user_id]
+                if current_time - timestamp < cache_ttl:
+                    user_patterns = patterns
+                else:
+                    del self._patterns_cache[user_id]
+            
+            if not user_patterns:
+                user_patterns = self._detect_user_patterns(user_id)
+                self._patterns_cache[user_id] = (user_patterns, current_time)
+        
+        if fitness_overview:
+            context_text += f"{fitness_overview}\n\n"
+        
+        if user_patterns:
+            patterns_text = "\n".join([f"- {p}" for p in user_patterns])
+            context_text += f"USER PATTERNS:\n{patterns_text}\n\n"
         
         if dyn_text and dyn_text != "(no personal history found)":
             context_text += f"RECENT WORKOUTS:\n{dyn_text}\n\n"
@@ -3042,6 +3121,10 @@ Generate an analytical insight based on the data above. Include specific numbers
         
         if kb_text and kb_text != "(no KB context)":
             context_text += f"FITNESS KNOWLEDGE:\n{kb_text}\n\n"
+        
+        context_time = (time.time() - context_start) * 1000
+        self.logger.debug("Context building took %.1fms", context_time)
+        
         # Clamp context size
         if len(context_text) > self.config.max_context_chars:
             context_text = context_text[: self.config.max_context_chars]
@@ -3063,6 +3146,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             )
 
         # Generate via remote backend if configured
+        generation_start = time.time()
         if self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
             try:
                 payload = {
@@ -3226,6 +3310,11 @@ Generate an analytical insight based on the data above. Include specific numbers
         if user_id and ans:
             self.append_session_message(user_id, session_id, role="assistant", content=ans)
 
+        generation_time = (time.time() - generation_start) * 1000
+        total_time = (time.time() - start_time) * 1000
+        self.logger.debug("Chat timing - Retrieval: %.1fms, Context: %.1fms, Generation: %.1fms, Total: %.1fms", 
+                          retrieval_time, context_time, generation_time, total_time)
+
         return {
             "answer": ans,
             "references": references,
@@ -3258,25 +3347,31 @@ Generate an analytical insight based on the data above. Include specific numbers
         if user_id:
             self.append_session_message(user_id, session_id, role="user", content=query)
         
-        # Retrieval phase
+        # Parallel retrieval for better performance
         retrieval_start = time.time()
-        retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)
-        dyn = []
-        if user_id:
-            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k)))
+        from concurrent.futures import ThreadPoolExecutor
+        
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            kb_future = executor.submit(self.retrieve, query, user_id, top_k)
+            logs_future = executor.submit(self.retrieve_training_logs, user_id, query, min(5, (top_k or self.config.top_k))) if user_id else None
+            memories_future = executor.submit(self.retrieve_memories, user_id, query, 5) if user_id else None
+            
+            retrieved = kb_future.result()
+            dyn = logs_future.result() if logs_future else []
+            memories = memories_future.result() if memories_future else []
         
         static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
-        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=100) if user_id else []
+        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
         
-        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved)]
+        # Limit KB chunks to top 5
+        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:5])]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
         
         dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
         
-        memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
         mem_lines = [f"- {m['summary']}" for m in memories]
         memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
         
@@ -3301,7 +3396,6 @@ Generate an analytical insight based on the data above. Include specific numbers
             "HOW TO USE CONTEXT:\n"
             "- Use the context below to inform your answers, but respond with personality\n"
             "- If you see workout logs (RECENT WORKOUTS), reference them - it shows you're paying attention\n"
-            "- If you see achievements (RECENT ACHIEVEMENTS), celebrate them genuinely - get excited!\n"
             "- Cite sources [KB 1], [Log 2] when making specific claims, but don't overdo it\n"
             "- If context is missing, ask with personality: 'I'd love to help! What's your current...?' or 'Tell me about...'\n\n"
             "IMPORTANT:\n"
@@ -3313,20 +3407,50 @@ Generate an analytical insight based on the data above. Include specific numbers
             "- Be quirky but not annoying - personality is good, being over-the-top is not\n"
         )
         
-        # Get recent workout insights hooks for conversation context
-        recent_hooks = []
-        if user_id:
-            recent_hooks = self.get_recent_workout_insights_hooks(user_id=user_id, limit=2)
-        
-        # Format context more naturally
+        # Build context (optimized: no expensive hooks, cached fitness overview/patterns)
+        context_start = time.time()
         context_text = f"ABOUT THIS USER:\n{static_summary}\n\n"
         
         if memory_text and memory_text != "(no long-term memory yet)":
             context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
         
-        if recent_hooks:
-            hooks_text = "\n".join([f"- {h}" for h in recent_hooks])
-            context_text += f"RECENT ACHIEVEMENTS:\n{hooks_text}\n\n"
+        # Get fitness overview and patterns (cached, 5 min TTL)
+        fitness_overview = ""
+        user_patterns = []
+        if user_id:
+            cache_ttl = 300  # 5 minutes
+            current_time = time.time()
+            
+            # Check fitness overview cache
+            if user_id in self._fitness_overview_cache:
+                overview, timestamp = self._fitness_overview_cache[user_id]
+                if current_time - timestamp < cache_ttl:
+                    fitness_overview = overview
+                else:
+                    del self._fitness_overview_cache[user_id]
+            
+            if not fitness_overview:
+                fitness_overview = self._get_user_fitness_overview(user_id)
+                self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
+            
+            # Check patterns cache
+            if user_id in self._patterns_cache:
+                patterns, timestamp = self._patterns_cache[user_id]
+                if current_time - timestamp < cache_ttl:
+                    user_patterns = patterns
+                else:
+                    del self._patterns_cache[user_id]
+            
+            if not user_patterns:
+                user_patterns = self._detect_user_patterns(user_id)
+                self._patterns_cache[user_id] = (user_patterns, current_time)
+        
+        if fitness_overview:
+            context_text += f"{fitness_overview}\n\n"
+        
+        if user_patterns:
+            patterns_text = "\n".join([f"- {p}" for p in user_patterns])
+            context_text += f"USER PATTERNS:\n{patterns_text}\n\n"
         
         if dyn_text and dyn_text != "(no personal history found)":
             context_text += f"RECENT WORKOUTS:\n{dyn_text}\n\n"
@@ -3336,6 +3460,7 @@ Generate an analytical insight based on the data above. Include specific numbers
         
         if kb_text and kb_text != "(no KB context)":
             context_text += f"FITNESS KNOWLEDGE:\n{kb_text}\n\n"
+        
         if len(context_text) > self.config.max_context_chars:
             context_text = context_text[: self.config.max_context_chars]
         
