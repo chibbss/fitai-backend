@@ -132,12 +132,12 @@ class RAGService:
 
             # Phi-3 models may require authentication
             try:
-                self.generator_tokenizer = AutoTokenizer.from_pretrained(
-                    self.config.hf_model_id, token=token, trust_remote_code=True
-                )
-                self.generator_model = AutoModelForCausalLM.from_pretrained(
-                    self.config.hf_model_id, token=token, device_map=None, **model_kwargs
-                )
+            self.generator_tokenizer = AutoTokenizer.from_pretrained(
+                self.config.hf_model_id, token=token, trust_remote_code=True
+            )
+            self.generator_model = AutoModelForCausalLM.from_pretrained(
+                self.config.hf_model_id, token=token, device_map=None, **model_kwargs
+            )
             except OSError as e:
                 if "401" in str(e) or "Unauthorized" in str(e):
                     self.logger.error(
@@ -1720,9 +1720,9 @@ Generate an analytical insight based on the data above. Include specific numbers
                                 
                                 pr_message = self._generate_insight_message("pr_context", pr_context)
                                 
-                                insights.append({
-                                    "exercise": exercise_name,
-                                    "status": "pr",
+                            insights.append({
+                                "exercise": exercise_name,
+                                "status": "pr",
                                     "message": pr_message,
                                     "weight_increase": weight_increase,
                                 })
@@ -1761,11 +1761,11 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Fallback if generation fails - analytical fallbacks
             if not overall_message or overall_message == "Great work on exercise!":
-                if avg_delta > 10:
+            if avg_delta > 10:
                     overall_message = f"Session volume increased by {avg_delta:+.1f}% vs previous session. Strong progression pattern."
-                elif avg_delta > 0:
+            elif avg_delta > 0:
                     overall_message = f"Volume up {avg_delta:+.1f}% from last session. Maintaining positive trajectory."
-                elif avg_delta < -10:
+            elif avg_delta < -10:
                     overall_message = f"Volume decreased {abs(avg_delta):.1f}% vs previous session. Lower intensity may indicate recovery need."
                 else:
                     overall_message = f"Session volume maintained (±{abs(avg_delta):.1f}% change). Consistent performance."
@@ -2980,7 +2980,7 @@ Generate an analytical insight based on the data above. Include specific numbers
         # Append user message to session buffer
         if user_id:
             self.append_session_message(user_id, session_id, role="user", content=query)
-            
+
             # Auto-trigger conversation summary if needed (weekly)
             try:
                 from memory import should_generate_conversation_summary, refresh_user_conversation_memory
@@ -3265,12 +3265,37 @@ Generate an analytical insight based on the data above. Include specific numbers
             stopping_criteria=stopping,
             **gen_kwargs,
         )
-        full_text = self.generator_tokenizer.decode(output_ids[0], skip_special_tokens=True)
-        # Extract only new completion beyond prompt/chat template
-        if full_text.startswith(prompt):
-            ans = full_text[len(prompt):].strip()
-        else:
-            ans = full_text.strip()
+        
+        # Extract only newly generated tokens (not the input prompt)
+        input_length = inputs["input_ids"].shape[1]
+        generated_ids = output_ids[0][input_length:]
+        ans = self.generator_tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+        
+        # Cleanup: remove system prompt if it appears in response
+        if ans.lower().startswith("system") or "you are fitai" in ans.lower()[:100]:
+            # Find where the actual response starts (after system prompt)
+            lines = ans.split("\n")
+            response_lines = []
+            skip_system = True
+            for line in lines:
+                line_lower = line.lower()
+                if skip_system and (
+                    line_lower.startswith("system") or 
+                    "you are fitai" in line_lower or
+                    "your personality" in line_lower or
+                    "your style" in line_lower or
+                    "how to use context" in line_lower or
+                    line.strip().startswith("YOUR") or
+                    line.strip().startswith("IMPORTANT:")
+                ):
+                    continue
+                # Stop skipping once we find actual content
+                if skip_system and line.strip() and not any(x in line_lower for x in ["personality", "style", "context", "important", "you are"]):
+                    skip_system = False
+                if not skip_system:
+                    response_lines.append(line)
+            ans = "\n".join(response_lines).strip()
+        
         # Heuristic cleanup: drop any context headers or user echo
         lines = [ln for ln in ans.splitlines() if not ln.strip().startswith(("STATIC:", "SESSION:", "DYNAMIC:", "KB:", "User message:"))]
         ans = "\n".join([ln for ln in lines if ln.strip()])
