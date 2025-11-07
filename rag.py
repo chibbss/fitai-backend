@@ -132,12 +132,12 @@ class RAGService:
 
             # Phi-3 models may require authentication
             try:
-            self.generator_tokenizer = AutoTokenizer.from_pretrained(
-                self.config.hf_model_id, token=token, trust_remote_code=True
-            )
-            self.generator_model = AutoModelForCausalLM.from_pretrained(
-                self.config.hf_model_id, token=token, device_map=None, **model_kwargs
-            )
+                self.generator_tokenizer = AutoTokenizer.from_pretrained(
+                    self.config.hf_model_id, token=token, trust_remote_code=True
+                )
+                self.generator_model = AutoModelForCausalLM.from_pretrained(
+                    self.config.hf_model_id, token=token, device_map=None, **model_kwargs
+                )
             except OSError as e:
                 if "401" in str(e) or "Unauthorized" in str(e):
                     self.logger.error(
