@@ -675,6 +675,51 @@ async def upsert_user(user_id: str, body: UserUpsertRequest, user: AuthUser = De
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
+@app.post("/users/{user_id}/preload-context")
+async def preload_user_context(
+    user_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Pre-load user context for faster chat responses.
+    Call this after login to warm up FitAI's memory.
+    
+    This runs in the background and caches:
+    - User profile/goals summary
+    - Long-term memory patterns
+    - Fitness overview stats
+    - User workout patterns
+    - Recent workout logs
+    
+    By the time the user starts chatting, FitAI already knows them!
+    """
+    try:
+        ensure_user_owns_resource(user_id, user)
+        
+        # Pre-load context asynchronously (non-blocking)
+        import threading
+        def preload():
+            try:
+                rag_service.preload_user_context(user_id)
+            except Exception as e:
+                logger.warning("Background context pre-load failed: %s", e)
+        
+        # Start in background thread
+        thread = threading.Thread(target=preload, daemon=True)
+        thread.start()
+        
+        return {
+            "user_id": user_id,
+            "status": "preloading",
+            "message": "FitAI is booting up and remembering you... Context will be ready shortly."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/users/%s/preload-context error: %s", user_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
 @app.put("/users/{user_id}/discover", response_model=UserResponse)
 async def discover_user_data(
     user_id: str,

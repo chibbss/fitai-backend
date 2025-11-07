@@ -74,6 +74,8 @@ class RAGService:
         # Cache for fitness overview and patterns (5 minute TTL)
         self._fitness_overview_cache: Dict[str, Tuple[str, float]] = {}  # {user_id: (overview, timestamp)}
         self._patterns_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (patterns, timestamp)}
+        # Cache for pre-loaded user context (10 minute TTL)
+        self._user_context_cache: Dict[str, Tuple[Dict[str, Any], float]] = {}  # {user_id: (context_dict, timestamp)}
 
     # ------------------------
     # Initialization
@@ -834,6 +836,11 @@ class RAGService:
             if user_id in self._patterns_cache:
                 del self._patterns_cache[user_id]
                 self.logger.debug("Invalidated patterns cache for user %s", user_id)
+            
+            # Invalidate pre-loaded context cache (workout data changed)
+            if user_id in self._user_context_cache:
+                del self._user_context_cache[user_id]
+                self.logger.debug("Invalidated pre-loaded context cache for user %s", user_id)
         except Exception as e:
             self.logger.debug("Cache invalidation check failed: %s", e)
         
@@ -2705,6 +2712,65 @@ Generate an analytical insight based on the data above. Include specific numbers
             self.logger.warning("Failed to generate fitness overview: %s", e)
             return ""
     
+    def preload_user_context(self, user_id: str) -> Dict[str, Any]:
+        """
+        Pre-load user context for faster chat responses.
+        Called on login to warm up FitAI's memory.
+        
+        Returns cached context that can be reused for chat requests.
+        """
+        import time
+        cache_ttl = 600  # 10 minutes
+        current_time = time.time()
+        
+        # Check if context is already cached and valid
+        if user_id in self._user_context_cache:
+            context_dict, timestamp = self._user_context_cache[user_id]
+            if current_time - timestamp < cache_ttl:
+                self.logger.debug("Using cached pre-loaded context for user %s", user_id)
+                return context_dict
+        
+        # Pre-load context in background (non-blocking)
+        self.logger.info("Pre-loading context for user %s (FitAI booting up...)", user_id)
+        
+        try:
+            # Load static user data
+            user = self.get_user(user_id)
+            static_summary = self._summarize_user(user)
+            
+            # Load long-term memories (generic query to get top memories)
+            memories = self.retrieve_memories(user_id=user_id, query="user fitness goals patterns", top_k=5)
+            mem_lines = [f"- {m['summary']}" for m in memories]
+            memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
+            
+            # Load fitness overview and patterns (already cached, but ensure they're loaded)
+            fitness_overview = self._get_user_fitness_overview(user_id)
+            user_patterns = self._detect_user_patterns(user_id)
+            
+            # Load recent workouts (generic query to get recent logs)
+            dyn = self.retrieve_training_logs(user_id=user_id, query="recent workouts training", top_k=5)
+            dyn_blocks = [
+                f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
+            ]
+            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+            
+            # Cache the pre-loaded context
+            context_dict = {
+                "static_summary": static_summary,
+                "memory_text": memory_text,
+                "fitness_overview": fitness_overview,
+                "user_patterns": user_patterns,
+                "dyn_text": dyn_text,
+            }
+            
+            self._user_context_cache[user_id] = (context_dict, current_time)
+            self.logger.info("Pre-loaded context for user %s (FitAI ready!)", user_id)
+            
+            return context_dict
+        except Exception as e:
+            self.logger.warning("Failed to pre-load context for user %s: %s", user_id, e)
+            return {}
+    
     def _detect_user_patterns(self, user_id: str) -> List[str]:
         """Detect simple patterns from workout history for chat context."""
         patterns = []
@@ -2994,22 +3060,74 @@ Generate an analytical insight based on the data above. Include specific numbers
             except Exception as e:
                 self.logger.debug("Conversation summary check failed: %s", e)
 
-        # Sequential retrieval (parallelization removed due to connection pool conflicts)
+        # Use pre-loaded context if available (much faster!)
         retrieval_start = time.time()
-        retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)
-        dyn = []
-        memories = []
-        if user_id:
-            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k)))
-            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5)
+        preloaded_context = None
+        if user_id and user_id in self._user_context_cache:
+            context_dict, timestamp = self._user_context_cache[user_id]
+            cache_ttl = 600  # 10 minutes
+            if time.time() - timestamp < cache_ttl:
+                preloaded_context = context_dict
+                self.logger.debug("Using pre-loaded context for user %s", user_id)
         
+        # Only retrieve KB context (query-specific) and session context (session-specific)
+        # Everything else comes from pre-loaded context
+        retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)
         retrieval_time = (time.time() - retrieval_start) * 1000
-        self.logger.debug("Retrieval took %.1fms", retrieval_time)
+        self.logger.debug("KB retrieval took %.1fms", retrieval_time)
 
-        # Static summary
-        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+        # Use pre-loaded context or load on-demand
+        if preloaded_context:
+            static_summary = preloaded_context.get("static_summary", "")
+            memory_text = preloaded_context.get("memory_text", "(no long-term memory yet)")
+            fitness_overview = preloaded_context.get("fitness_overview", "")
+            user_patterns = preloaded_context.get("user_patterns", [])
+            dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
+        else:
+            # Fallback: load context on-demand (slower, but works if preload wasn't called)
+            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
+            mem_lines = [f"- {m['summary']}" for m in memories]
+            memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
+            
+            # Get fitness overview and patterns (cached, 5 min TTL)
+            fitness_overview = ""
+            user_patterns = []
+            if user_id:
+                cache_ttl = 300  # 5 minutes
+                current_time = time.time()
+                
+                if user_id in self._fitness_overview_cache:
+                    overview, timestamp = self._fitness_overview_cache[user_id]
+                    if current_time - timestamp < cache_ttl:
+                        fitness_overview = overview
+                    else:
+                        del self._fitness_overview_cache[user_id]
+                
+                if not fitness_overview:
+                    fitness_overview = self._get_user_fitness_overview(user_id)
+                    self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
+                
+                if user_id in self._patterns_cache:
+                    patterns, timestamp = self._patterns_cache[user_id]
+                    if current_time - timestamp < cache_ttl:
+                        user_patterns = patterns
+                    else:
+                        del self._patterns_cache[user_id]
+                
+                if not user_patterns:
+                    user_patterns = self._detect_user_patterns(user_id)
+                    self._patterns_cache[user_id] = (user_patterns, current_time)
+            
+            # Get recent workouts
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
+            dyn_blocks = [
+                f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
+            ]
+            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
 
         # Session recap - retrieve conversation history (optimized: limit to 20 messages)
+        # This is session-specific, so always load fresh
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
@@ -3017,15 +3135,6 @@ Generate an analytical insight based on the data above. Include specific numbers
         # Limit KB chunks to top 5 for faster processing
         kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:5])]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
-
-        dyn_blocks = [
-            f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
-        ]
-        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
-
-        # Long-term memory context
-        mem_lines = [f"- {m['summary']}" for m in memories]
-        memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
 
         # Build prompt with optional structured mode
         system_text = (
@@ -3062,43 +3171,12 @@ Generate an analytical insight based on the data above. Include specific numbers
                 "source_index must map to the [KB i] items below (1-indexed)."
             )
         
-        # Build context (optimized: no expensive hooks, cached fitness overview/patterns)
+        # Build context (using pre-loaded context if available)
         context_start = time.time()
         context_text = f"ABOUT THIS USER:\n{static_summary}\n\n"
         
         if memory_text and memory_text != "(no long-term memory yet)":
             context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
-        
-        # Get fitness overview and patterns (cached, 5 min TTL)
-        fitness_overview = ""
-        user_patterns = []
-        if user_id:
-            cache_ttl = 300  # 5 minutes
-            current_time = time.time()
-            
-            # Check fitness overview cache
-            if user_id in self._fitness_overview_cache:
-                overview, timestamp = self._fitness_overview_cache[user_id]
-                if current_time - timestamp < cache_ttl:
-                    fitness_overview = overview
-                else:
-                    del self._fitness_overview_cache[user_id]
-            
-            if not fitness_overview:
-                fitness_overview = self._get_user_fitness_overview(user_id)
-                self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
-            
-            # Check patterns cache
-            if user_id in self._patterns_cache:
-                patterns, timestamp = self._patterns_cache[user_id]
-                if current_time - timestamp < cache_ttl:
-                    user_patterns = patterns
-                else:
-                    del self._patterns_cache[user_id]
-            
-            if not user_patterns:
-                user_patterns = self._detect_user_patterns(user_id)
-                self._patterns_cache[user_id] = (user_patterns, current_time)
         
         if fitness_overview:
             context_text += f"{fitness_overview}\n\n"
@@ -3117,7 +3195,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             context_text += f"FITNESS KNOWLEDGE:\n{kb_text}\n\n"
         
         context_time = (time.time() - context_start) * 1000
-        self.logger.debug("Context building took %.1fms", context_time)
+        self.logger.debug("Context building took %.1fms (pre-loaded: %s)", context_time, "yes" if preloaded_context else "no")
         
         # Clamp context size
         if len(context_text) > self.config.max_context_chars:
@@ -3366,18 +3444,69 @@ Generate an analytical insight based on the data above. Include specific numbers
         if user_id:
             self.append_session_message(user_id, session_id, role="user", content=query)
         
-        # Sequential retrieval (parallelization removed due to connection pool conflicts)
+        # Use pre-loaded context if available (much faster!)
         retrieval_start = time.time()
-        retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)
-        dyn = []
-        memories = []
-        if user_id:
-            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k)))
-            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5)
+        preloaded_context = None
+        if user_id and user_id in self._user_context_cache:
+            context_dict, timestamp = self._user_context_cache[user_id]
+            cache_ttl = 600  # 10 minutes
+            if time.time() - timestamp < cache_ttl:
+                preloaded_context = context_dict
+                self.logger.debug("Using pre-loaded context for user %s (stream)", user_id)
         
+        # Only retrieve KB context (query-specific)
+        retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)
         retrieval_time_ms = (time.time() - retrieval_start) * 1000
         
-        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+        # Use pre-loaded context or load on-demand
+        if preloaded_context:
+            static_summary = preloaded_context.get("static_summary", "")
+            memory_text = preloaded_context.get("memory_text", "(no long-term memory yet)")
+            fitness_overview = preloaded_context.get("fitness_overview", "")
+            user_patterns = preloaded_context.get("user_patterns", [])
+            dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
+        else:
+            # Fallback: load context on-demand
+            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
+            mem_lines = [f"- {m['summary']}" for m in memories]
+            memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)")
+            
+            # Get fitness overview and patterns (cached, 5 min TTL)
+            fitness_overview = ""
+            user_patterns = []
+            if user_id:
+                cache_ttl = 300  # 5 minutes
+                current_time = time.time()
+                
+                if user_id in self._fitness_overview_cache:
+                    overview, timestamp = self._fitness_overview_cache[user_id]
+                    if current_time - timestamp < cache_ttl:
+                        fitness_overview = overview
+                    else:
+                        del self._fitness_overview_cache[user_id]
+                
+                if not fitness_overview:
+                    fitness_overview = self._get_user_fitness_overview(user_id)
+                    self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
+                
+                if user_id in self._patterns_cache:
+                    patterns, timestamp = self._patterns_cache[user_id]
+                    if current_time - timestamp < cache_ttl:
+                        user_patterns = patterns
+                    else:
+                        del self._patterns_cache[user_id]
+                
+                if not user_patterns:
+                    user_patterns = self._detect_user_patterns(user_id)
+                    self._patterns_cache[user_id] = (user_patterns, current_time)
+            
+            # Get recent workouts
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
+            dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
+            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+        
+        # Session recap - always load fresh (session-specific)
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
@@ -3385,14 +3514,6 @@ Generate an analytical insight based on the data above. Include specific numbers
         # Limit KB chunks to top 5
         kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:5])]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
-        
-        dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
-        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
-        
-        mem_lines = [f"- {m['summary']}" for m in memories]
-        memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
-        
-        retrieval_time_ms = (time.time() - retrieval_start) * 1000
         
         # Build prompt
         system_text = (
@@ -3424,43 +3545,12 @@ Generate an analytical insight based on the data above. Include specific numbers
             "- Be quirky but not annoying - personality is good, being over-the-top is not\n"
         )
         
-        # Build context (optimized: no expensive hooks, cached fitness overview/patterns)
+        # Build context (using pre-loaded context if available)
         context_start = time.time()
         context_text = f"ABOUT THIS USER:\n{static_summary}\n\n"
         
         if memory_text and memory_text != "(no long-term memory yet)":
             context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
-        
-        # Get fitness overview and patterns (cached, 5 min TTL)
-        fitness_overview = ""
-        user_patterns = []
-        if user_id:
-            cache_ttl = 300  # 5 minutes
-            current_time = time.time()
-            
-            # Check fitness overview cache
-            if user_id in self._fitness_overview_cache:
-                overview, timestamp = self._fitness_overview_cache[user_id]
-                if current_time - timestamp < cache_ttl:
-                    fitness_overview = overview
-                else:
-                    del self._fitness_overview_cache[user_id]
-            
-            if not fitness_overview:
-                fitness_overview = self._get_user_fitness_overview(user_id)
-                self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
-            
-            # Check patterns cache
-            if user_id in self._patterns_cache:
-                patterns, timestamp = self._patterns_cache[user_id]
-                if current_time - timestamp < cache_ttl:
-                    user_patterns = patterns
-                else:
-                    del self._patterns_cache[user_id]
-            
-            if not user_patterns:
-                user_patterns = self._detect_user_patterns(user_id)
-                self._patterns_cache[user_id] = (user_patterns, current_time)
         
         if fitness_overview:
             context_text += f"{fitness_overview}\n\n"
