@@ -3413,13 +3413,7 @@ Generate an analytical insight based on the data above. Include specific numbers
         # Heuristic cleanup: drop any context headers or user echo
         lines = [ln for ln in ans.splitlines() if not ln.strip().startswith(("STATIC:", "SESSION:", "DYNAMIC:", "KB:", "User message:"))]
         ans = "\n".join([ln for ln in lines if ln.strip()])
-        # Limit to ~4 sentences
-        try:
-            import re
-            sentences = re.split(r"(?<=[.!?])\s+", ans)
-            ans = " ".join(sentences[:4]).strip()
-        except Exception:
-            ans = ans[:600].strip()
+        # Note: Response length is controlled by max_new_tokens (default: 128), not hardcoded limits
 
         references = [
             {
