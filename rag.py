@@ -3121,10 +3121,10 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
-            dyn_blocks = [
-                f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
-            ]
-            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+        dyn_blocks = [
+            f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
+        ]
+        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
 
         # Session recap - retrieve conversation history (optimized: limit to 20 messages)
         # This is session-specific, so always load fresh
@@ -3470,7 +3470,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
             memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
-            memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)")
+            memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
             
             # Get fitness overview and patterns (cached, 5 min TTL)
             fitness_overview = ""
@@ -3503,8 +3503,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
-            dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
-            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+        dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
+        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
         
         # Session recap - always load fresh (session-specific)
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
