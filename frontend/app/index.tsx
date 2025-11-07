@@ -1,23 +1,37 @@
 import { StatusBar, StyleSheet, Text, View } from 'react-native'
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { colors, spacingX } from '@/constants/theme'
 import { useFonts } from 'expo-font';
 
 import Animated, { FadeInDown } from 'react-native-reanimated'
-import { useRouter } from 'expo-router'
+import { useRootNavigationState, useRootNavigation, useRouter } from 'expo-router'
 
 const SplashScreen = () => {
     const [fontsLoaded] = useFonts({
         Pacifico: require('../assets/fonts/Pacifico-Regular.ttf'),
     });
 
-    
     const router = useRouter();
+    const rootNavigation = useRootNavigation();
+    const rootState = useRootNavigationState();
+    const [shouldNavigate, setShouldNavigate] = useState(false);
+
     useEffect(() => {
-        setTimeout(() => {
-            router.replace('/(auth)/welcome')
-        }, 1500)
-    }, [])
+        if (!fontsLoaded) return;
+
+        const timeout = setTimeout(() => {
+            setShouldNavigate(true);
+        }, 1500);
+
+        return () => clearTimeout(timeout);
+    }, [fontsLoaded]);
+    useEffect(() => {
+        if (!shouldNavigate || !rootState?.key || !rootNavigation?.isReady()) {
+            return;
+        }
+
+        router.replace('/welcome');
+    }, [router, shouldNavigate, rootState?.key, rootNavigation]);
 
 
     return (

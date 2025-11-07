@@ -1,47 +1,54 @@
-import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-
+import React from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { colors } from '@/constants/theme';
 
-// Instead of import ...
+// Keep using the library you already had installed
 const ProgressBarMultiStep = require('react-native-progress-bar-multi-step').default;
 
-interface MultiStepProgressProps {
-  page: number;
-}
+type MultiStepProgressBarProps = {
+  steps: string[];       
+  currentStep: number;   // 0-based index (0 for first step, 1 for second, etc.)
+};
 
-const MultiStepProgress: React.FC<MultiStepProgressProps> = ({ page }) => {
-  
-
-  const tabs = [
-    { title: 'Welcome', pageNo: 1 },
-    { title: 'Page2', pageNo: 2 },
-    { title: 'Page3', pageNo: 3 },
-  ];
+const MultiStepProgressBar = ({ steps, currentStep }: MultiStepProgressBarProps) => {
+  const tabs = steps.map((title, index) => ({
+    title:'',
+    pageNo: index + 1,         // library expects 1-based page numbers
+    key: `${title}-${index}`,
+  }));
 
   return (
     <View style={styles.container}>
-      <ProgressBarMultiStep
-        progressive={true}
-        page={page}
-        tabs={tabs.map((tab, index) => ({ ...tab, key: `${tab.title}-${index}` }))}
-        finishedBackgroundColor={colors.primaryDark}
-        inProgressBackgroundColor={colors.white}
-        circleStyle={{ width: 48, height: 48 }}
-        stepNumberStyle={{ color: 'black', fontWeight: 'bold', fontSize: 18 }}
-        stepTitleStyle={{ fontSize: 16, fontWeight: '600' }}
-        lineStyle={{ height: 3, width: 50, marginHorizontal: 10 }}
-        containerStyle={{ marginTop: 10, width: '100%', height: 100 }}
-      />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <ProgressBarMultiStep
+          progressive
+          page={currentStep + 1}              
+          tabs={tabs}
+          finishedBackgroundColor={colors.primaryDark}
+          inProgressBackgroundColor={colors.white}
+          circleStyle={{ width: 50, height: 50 }}
+          stepNumberStyle={{ color: colors.black, fontWeight: '700', fontSize: 16 }}
+          stepTitleStyle={{ fontSize: 1, lineHeight: 1, color: 'transparent', marginTop: 0, opacity: 0 }}
+          lineStyle={{ height: 3, width: 16, marginHorizontal: 4 }}
+          containerStyle={{ paddingVertical: 12 }}
+        />
+      </ScrollView>
     </View>
   );
 };
 
-export default MultiStepProgress;
+export default MultiStepProgressBar;
 
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  scrollContent: {
+    paddingHorizontal: 12,
   },
 });

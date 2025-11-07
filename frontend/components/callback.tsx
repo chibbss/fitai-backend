@@ -7,21 +7,14 @@ import Typo from '@/components/Typo';
 import { colors, spacingY } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
 import * as Linking from 'expo-linking';
-import * as Icons from 'phosphor-react-native';
-import { verticalScale } from '@/utils/styling';
 
 const AuthCallback = () => {
   const router = useRouter();
   const [status, setStatus] = useState('Verifying your email...');
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
-    const runCallback = async () => {
-      await handleCallback();
-    };
-    runCallback();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    handleCallback();
+  }, []);
 
   const handleCallback = async () => {
     try {
@@ -39,7 +32,7 @@ const AuthCallback = () => {
 
       if (!url) {
         console.log('No URL found, redirecting to login');
-        router.replace('/(auth)/login');
+        router.replace('/login');
         return;
       }
 
@@ -72,12 +65,11 @@ const AuthCallback = () => {
       // Handle errors from Supabase
       if (error) {
         console.error('Auth error:', error, errorDescription);
-        setIsError(true);
-        setStatus(errorDescription || 'Verification failed. Please try again.');
-        
-        setTimeout(() => {
-          router.replace('/(auth)/login');
-        }, 3000);
+        Alert.alert(
+          'Verification Error',
+          errorDescription || 'Failed to verify email. Please try again.',
+          [{ text: 'OK', onPress: () => router.replace('/login') }]
+        );
         return;
       }
 
@@ -92,12 +84,11 @@ const AuthCallback = () => {
 
         if (sessionError) {
           console.error('Session error:', sessionError);
-          setIsError(true);
-          setStatus('Failed to create session. Please try logging in.');
-          
-          setTimeout(() => {
-            router.replace('/(auth)/login');
-          }, 3000);
+          Alert.alert(
+            'Session Error',
+            'Failed to create session. Please try logging in.',
+            [{ text: 'OK', onPress: () => router.replace('/login') }]
+          );
           return;
         }
 
@@ -106,7 +97,7 @@ const AuthCallback = () => {
 
         if (userError || !user) {
           console.error('User error:', userError);
-          router.replace('/(auth)/login');
+          router.replace('/login');
           return;
         }
 
@@ -142,87 +133,45 @@ const AuthCallback = () => {
           // Don't block the user from continuing even if backend fails
         }
 
-        // Show success message
-        setIsSuccess(true);
-        setStatus('Email verified successfully! 🎉');
+        setStatus('Success! Redirecting...');
 
-        // Delay before redirecting to show success message
+        // Small delay to show success message
         setTimeout(() => {
           // Navigate based on verification type
           if (type === 'signup' || type === 'email_verification') {
-            router.replace('/(main)/onboarding');
-          }  else {
-            router.replace('/(main)/chatscreen');
+            router.replace('/onboarding');
+          } else if (type === 'recovery') {
+            router.replace('/login');
+          } else {
+            router.replace('/chatscreen');
           }
-        }, 2000); // Show success for 2 seconds
+        }, 500);
       } else {
         console.log('No tokens found, redirecting to login');
-        router.replace('/(auth)/login');
+        router.replace('/login');
       }
       
     } catch (error) {
       console.error('Callback error:', error);
-      setIsError(true);
-      setStatus('Something went wrong. Please try again.');
-      
-      setTimeout(() => {
-        router.replace('/(auth)/login');
-      }, 3000);
+      Alert.alert(
+        'Error',
+        'Something went wrong during verification. Please try again.',
+        [{ text: 'OK', onPress: () => router.replace('/login') }]
+      );
     }
   };
 
   return (
     <ScreenWrapper showPattern={false}>
       <View style={styles.container}>
-        {/* Success Icon */}
-        {isSuccess && (
-          <Icons.CheckCircle 
-            size={verticalScale(80)} 
-            color={colors.primary} 
-            weight="fill"
-          />
-        )}
-        
-        {/* Error Icon */}
-        {isError && (
-          <Icons.XCircle 
-            size={verticalScale(80)} 
-            color="#ef4444" 
-            weight="fill"
-          />
-        )}
-        
-        {/* Loading Spinner */}
-        {!isSuccess && !isError && (
-          <Loading size="large" color={colors.primary} />
-        )}
-        
+        <Loading size="large" color={colors.primary} />
         <Typo 
-          size={isSuccess || isError ? 24 : 18}
-          fontWeight={isSuccess || isError ? '600' : '400'}
-          color={isError ? '#ef4444' : colors.white}
-          style={{ 
-            marginTop: spacingY._20, 
-            textAlign: 'center',
-            paddingHorizontal: 40,
-          }}
+          size={18} 
+          color={colors.white} 
+          style={{ marginTop: spacingY._20, textAlign: 'center' }}
         >
           {status}
         </Typo>
-        
-        {isSuccess && (
-          <Typo 
-            size={16}
-            color={colors.neutral400}
-            style={{ 
-              marginTop: spacingY._10, 
-              textAlign: 'center',
-              paddingHorizontal: 40,
-            }}
-          >
-            Taking you to onboarding...
-          </Typo>
-        )}
       </View>
     </ScreenWrapper>
   );

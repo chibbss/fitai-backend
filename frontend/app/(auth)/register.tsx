@@ -10,7 +10,7 @@ import { verticalScale } from '@/utils/styling'
 import { useRouter } from 'expo-router'
 import Button from '@/components/Button'
 import Loading from '@/components/Loading'
-import { supabase } from '@/utils/supabase'
+import { supabase, getAuthRedirectUrl } from '@/utils/supabase'
 
 
 const Register = () => {
@@ -53,9 +53,10 @@ const Register = () => {
                 password: passwordRef.current,
                 options: {
                     data: {
-                        name: nameRef
+                        name: nameRef.current
                     },
-                    emailRedirectTo: undefined
+                    // COMMENTED OUT FOR TESTING - Disable deep linking
+                    // emailRedirectTo: getAuthRedirectUrl()
                 }
             });
 
@@ -79,15 +80,45 @@ const Register = () => {
 
             setLoadingMessage('Sending verification email...');
 
+            // 2. Create backend profile immediately (for testing without email verification)
+            const token = data.session?.access_token;
+            if (token) {
+                try {
+                    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
+                    await fetch(`${apiUrl}/users/${data.user.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: data.user.email,
+                            name: nameRef.current,
+                            profile: {},
+                            goals: {},
+                            metadata: {
+                                signup_source: 'mobile',
+                            },
+                        }),
+                    });
+                } catch (apiError) {
+                    console.error('Backend API error:', apiError);
+                    // Continue anyway
+                }
+            }
+
             // Small delay for UX
             await new Promise(resolve => setTimeout(resolve, 800));
             setIsLoading(false);
 
             // Navigate to Verify Email screen
-            router.push({
-                pathname: '/(auth)/verify-email',
+            /*router.push({
+                pathname: '/verify-email',
                 params: { email: emailRef.current.trim() }
-            })
+            })*/
+
+                // Navigate directly to onboarding (FOR TESTING - bypasses email verification)
+            router.replace('/onboarding');
         }
 
         catch (error: any) {
@@ -123,7 +154,7 @@ const Register = () => {
                 <View style={styles.loadingContainer}>
                     <Typo size={18} color={colors.white}
                         style={{ marginTop: spacingY._20, textAlign: 'center' }}>
-                            {loadingMessage}
+                        {loadingMessage}
                     </Typo>
                 </View>
             </ScreenWrapper>
@@ -195,7 +226,7 @@ const Register = () => {
 
                                     <View style={styles.footer}>
                                         <Typo>Already have an account?</Typo>
-                                        <Pressable onPress={() => router.push("/(auth)/login")}>
+                                        <Pressable onPress={() => router.push("/login")}>
                                             <Typo fontWeight={'bold'} color={colors.primaryDark}>
                                                 Login
                                             </Typo>

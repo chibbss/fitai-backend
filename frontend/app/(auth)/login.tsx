@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router'
 import Button from '@/components/Button'
 import Loading from '@/components/Loading'
 import { supabase } from '@/utils/supabase'
+import { alert } from '@/utils/alert';
 
 const Login = () => {
     const emailRef = useRef('');
@@ -26,12 +27,12 @@ const Login = () => {
 
     const handleSubmit = async () => {
         if (!emailRef.current?.trim() || !passwordRef.current?.trim()) {
-            Alert.alert('Login', 'Please fill all fields');
+            alert.error('Login', 'Please fill all fields');
             return
         }
 
         if (!validateEmail(emailRef.current)) {
-            Alert.alert('Invalid email', 'Please enter a valid email address.');
+            alert.error('Invalid email', 'Please enter a valid email address.');
             return;
         }
 
@@ -48,7 +49,7 @@ const Login = () => {
             if (error) {
                 //handle specific errors
                 if (error.message.includes('Invalid login credentials')) {
-                    Alert.alert('Login Failed', 'Incorrect email or password. Please try again.');
+                    alert.error('Login Failed', 'Incorrect email or password. Please try again.');
                 }
 
                 else if (error.message.includes('Email not confirmed')) {
@@ -62,14 +63,14 @@ const Login = () => {
                     );
                 }
                 else {
-                    Alert.alert('Login Error:', error.message)
+                    alert.error('Login Error:', error.message)
                 }
                 setIsLoading(false);
                 return;
             }
 
             if (!data.user || !data.session) {
-                Alert.alert('Login Error', 'Failed to sign in. Please try again.');
+                alert.error('Login Error', 'Failed to sign in. Please try again.');
                 setIsLoading(false);
                 return;
             }
@@ -77,13 +78,51 @@ const Login = () => {
             setLoadingMessage('Setting up your profile...');
 
             // 2. Check if user exists in backend, if not create profile
+            const token = data.session.access_token;
+            const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
+            try {
+                const userResponse = await fetch(`${apiUrl}/users/${data.user.id}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                // If user doesn't exist in backend (404), create them
+                if (userResponse.status === 404) {
+                    setLoadingMessage('Creating your profile...');
+
+                    await fetch(`${apiUrl}/users/${data.user.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: data.user.email,
+                            name: data.user.user_metadata?.name || '',
+                            profile: {},
+                            goals: {},
+                            metadata: {
+                                login_source: 'mobile',
+                            },
+                        }),
+                    });
+                }
+            } catch (apiError) {
+                console.error('Backend API error:', apiError);
+                // Continue anyway - user can still access the app
+            }
+
+            setLoadingMessage('Almost there...');
+
+
             // Small delay for better UX
             await new Promise(resolve => setTimeout(resolve, 500));
 
             setIsLoading(false);
 
             // 3. Navigate to main app
-            router.replace("/(main)/chatscreen");
+            router.replace("/chatscreen");
 
         }
 
@@ -92,7 +131,7 @@ const Login = () => {
 
             // Handle network errors
             if (error.message?.includes('fetch') || error.message?.includes('network')) {
-                Alert.alert(
+                alert.warning(
                     'Network Error',
                     'Unable to connect. Please check your internet connection and try again.'
                 );
@@ -147,14 +186,14 @@ const Login = () => {
 
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(emailRef.current.trim());
-            
+
             setIsLoading(false);
 
             if (error) {
                 Alert.alert('Error', error.message);
             } else {
                 Alert.alert(
-                    'Check Your Email', 
+                    'Check Your Email',
                     'Password reset instructions have been sent to your email address.'
                 );
             }
@@ -178,9 +217,9 @@ const Login = () => {
             <ScreenWrapper showPattern={false}>
                 <View style={styles.loadingContainer}>
                     <Loading size="large" color={colors.primary} />
-                    <Typo 
-                        size={18} 
-                        color={colors.white} 
+                    <Typo
+                        size={18}
+                        color={colors.white}
                         style={{ marginTop: spacingY._20, textAlign: 'center' }}
                     >
                         {loadingMessage}
@@ -219,8 +258,8 @@ const Login = () => {
                                     Happy to see you
                                 </Typo>
 
-                                <Input 
-                                placeholder='Enter your Email'
+                                <Input
+                                    placeholder='Enter your Email'
                                     onChangeText={(value: string) => emailRef.current = value}
                                     keyboardType="email-address"
                                     autoCapitalize="none"
@@ -249,7 +288,7 @@ const Login = () => {
 
                                     <View style={styles.footer}>
                                         <Typo>Don't have an account?</Typo>
-                                        <Pressable onPress={() => router.push("/(auth)/register")}>
+                                        <Pressable onPress={() => router.push("/register")}>
                                             <Typo fontWeight={'bold'} color={colors.primaryDark}>
                                                 Sign Up
                                             </Typo>
@@ -364,7 +403,7 @@ const styles = StyleSheet.create({
         height: verticalScale(56),
         gap: 10,
         backgroundColor: colors.white,
-        elevation: 2,
+        
     },
     googleIcon: {
         width: 22,

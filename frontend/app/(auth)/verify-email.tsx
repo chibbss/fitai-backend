@@ -1,12 +1,12 @@
-import { View, StyleSheet, Pressable, Alert } from 'react-native'
-import React, { use, useState } from 'react'
+import { View, StyleSheet, Pressable, Alert, Linking, Platform } from 'react-native'
+import React, { useState, useEffect } from 'react'
 import ScreenWrapper from '@/components/ScreenWrapper'
 import Typo from '@/components/Typo'
 import { colors, spacingX, spacingY } from '@/constants/theme'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import Button from '@/components/Button'
 import Loading from '@/components/Loading'
-import { supabase } from '@/utils/supabase'
+import { supabase, getAuthRedirectUrl } from '@/utils/supabase'
 import * as Icons from 'phosphor-react-native'
 import { verticalScale } from '@/utils/styling'
 
@@ -14,6 +14,21 @@ const VerifyEmail = () => {
     const router = useRouter();
     const { email } = useLocalSearchParams<{ email: string }>();
     const [isResending, setIsResending] = useState(false);
+
+    // Listen for auth state changes
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log('Auth event on verify page:', event);
+            
+            if (event === 'SIGNED_IN' && session) {
+                // User verified their email and is now signed in
+                console.log('User signed in after verification');
+                router.replace('/onboarding');
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
 
     const handleResendEmail = async () => {
         if (!email) {
@@ -26,6 +41,9 @@ const VerifyEmail = () => {
             const { error } = await supabase.auth.resend({
                 type: 'signup',
                 email: email,
+                options: {
+                    emailRedirectTo: getAuthRedirectUrl(),
+                },
             });
 
             if (error) {
@@ -40,9 +58,61 @@ const VerifyEmail = () => {
         }
     };
 
-    const handleOpenEmail = () => {
-        // You can add deep linking to email app here if needed
-        Alert.alert('Check Your Email', 'Please check your inbox and spam folder for the verification email.');
+    const handleOpenEmail = async () => {
+        try {
+            // Try different strategies based on platform
+            if (Platform.OS === 'ios') {
+                // iOS: Try to open Mail app to inbox
+                const mailUrl = 'message://';
+                const canOpenMail = await Linking.canOpenURL(mailUrl);
+                
+                if (canOpenMail) {
+                    await Linking.openURL(mailUrl);
+                } else {
+                    // Fallback to mailto which opens default mail client
+                    const mailtoUrl = email ? `mailto:${email}` : 'mailto:';
+                    await Linking.openURL(mailtoUrl);
+                }
+            } else if (Platform.OS === 'android') {
+                // Android: Use intent to open Gmail/Email app directly to inbox
+                try {
+                    // Try Gmail first (most common)
+                    const gmailUrl = 'googlegmail://';
+                    const canOpenGmail = await Linking.canOpenURL(gmailUrl);
+                    
+                    if (canOpenGmail) {
+                        await Linking.openURL(gmailUrl);
+                    } else {
+                        // Try generic email intent
+                        // This opens the email app chooser if multiple apps are installed
+                        const emailIntent = 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.APP_EMAIL;end';
+                        const canOpenIntent = await Linking.canOpenURL(emailIntent);
+                        
+                        if (canOpenIntent) {
+                            await Linking.openURL(emailIntent);
+                        } else {
+                            // Final fallback to mailto
+                            await Linking.openURL('mailto:');
+                        }
+                    }
+                } catch (androidError) {
+                    console.log('Android email opening fallback:', androidError);
+                    // Fallback to mailto
+                    await Linking.openURL('mailto:');
+                }
+            } else {
+                // Web or other platforms
+                await Linking.openURL('mailto:');
+            }
+        } catch (error) {
+            console.error('Error opening email app:', error);
+            // If all else fails, show helpful instructions
+            Alert.alert(
+                'Check Your Email',
+                `We've sent a verification link to ${email}.\n\nPlease open your email app and look for an email from Supabase. Click the verification link to continue.`,
+                [{ text: 'OK' }]
+            );
+        }
     };
 
     if (isResending) {
@@ -99,7 +169,7 @@ const VerifyEmail = () => {
                             </Typo>
                         </Button>
 
-                        <Pressable onPress={() => router.replace('/(auth)/login')} style={styles.backToLogin}>
+                        <Pressable onPress={() => router.replace('/login')} style={styles.backToLogin}>
                             <Typo color={colors.neutral600} size={14}>
                                 Back to{' '}
                                 <Typo fontWeight="bold" color={colors.primaryDark}>

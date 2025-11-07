@@ -1,6 +1,7 @@
 import { Router } from "expo-router";
 import { ReactNode } from "react";
 import {
+  StyleProp,
   TextInput,
   TextInputProps,
   TextProps,
@@ -33,7 +34,7 @@ export interface UserDataProps {
 
 export interface InputProps extends TextInputProps {
   icon?: React.ReactNode;
-  containerStyle?: ViewStyle;
+  containerStyle?: ViewStyle | ViewStyle[];
   inputStyle?: TextStyle;
   inputRef?: React.RefObject<TextInput>;
   //   label?: string;
@@ -75,7 +76,7 @@ export type ResponseProps = {
 };
 
 export interface ButtonProps extends TouchableOpacityProps {
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   loading?: boolean;
   children: React.ReactNode;

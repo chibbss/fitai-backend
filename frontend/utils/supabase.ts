@@ -1,16 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
-import { AppState } from 'react-native';
+import { AppState, AppStateStatus } from 'react-native';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-// Deep link redirect URL for email verification
-// This matches the route: app/auth-callback.tsx
-const redirectUrl = 'fitai://auth-callback';
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn(
+    '[supabase] Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY. ' +
+      'Auth calls will fail until these env vars are set.'
+  );
+}
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+/**
+ * Deep-link redirect used when Supabase sends magic-link / verify emails.
+ * This should match the value configured in your Supabase dashboard.
+ */
+const AUTH_CALLBACK_URL = Linking.createURL('/callback');
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
@@ -20,39 +29,70 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Get the redirect URL for auth operations
-export const getAuthRedirectUrl = () => {
-  return redirectUrl;
-};
+/**
+ * Returns the redirect URL passed to Supabase for email confirmation flows.
+ */
+export const getAuthRedirectUrl = (): string => AUTH_CALLBACK_URL;
 
-// Setup deep link listener for auth callbacks
+/**
+ * Sets up global listeners so deep links delivered while the app is open are logged
+ * (the actual session handling happens in your auth-callback screen) and ensures
+ * we re-check the session whenever the app comes back to the foreground.
+ */
 export const setupAuthListener = () => {
-  // Handle URL when app is already open
-  const urlSubscription = Linking.addEventListener('url', async ({ url }) => {
-    console.log('Deep link received:', url);
-    
-    // Let Supabase handle the auth callback
-    if (url?.includes('access_token') || url?.includes('type=')) {
-      try {
-        // The callback.tsx screen will handle this
-        console.log('Auth callback detected in URL');
-      } catch (error) {
-        console.error('Error handling deep link:', error);
-      }
+  const handleDeepLink = ({ url }: { url: string }) => {
+    if (!url) {
+      return;
     }
-  });
 
-  // Handle app state changes (when returning from email app)
-  const appStateSubscription = AppState.addEventListener('change', async (state) => {
-    if (state === 'active') {
-      // Check for session when app becomes active
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('App became active, session:', session ? 'exists' : 'none');
+    if (url.includes('access_token') || url.includes('type=')) {
+      console.log('[supabase] Auth deep link received:', url);
+    } else {
+      console.log('[supabase] URL received:', url);
     }
-  });
+  };
+
+  const handleAppStateChange = async (state: AppStateStatus) => {
+    if (state !== 'active') {
+      return;
+    }
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      console.log(
+        '[supabase] App foregrounded. Session',
+        data.session ? 'present' : 'missing'
+      );
+    } catch (error) {
+      console.warn('[supabase] Failed to refresh session after foreground.', error);
+    }
+  };
+
+  const urlSubscription = Linking.addEventListener('url', handleDeepLink);
+  const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
   return () => {
     urlSubscription.remove();
     appStateSubscription.remove();
   };
+};
+
+/**
+ * Convenience helper if you need to inspect the URL that launched the app.
+ */
+export const getInitialDeepLink = async (): Promise<string | null> => {
+  try {
+    const url = await Linking.getInitialURL();
+    if (url) {
+      return url;
+    }
+
+    if (typeof window !== 'undefined') {
+      return window.location.href ?? null;
+    }
+  } catch (error) {
+    console.warn('[supabase] Failed to read initial URL:', error);
+  }
+
+  return null;
 };

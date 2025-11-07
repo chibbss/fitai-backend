@@ -19,7 +19,7 @@ const StepThree = () => {
 
   const handleFinish = () => {
     // navigate to chat screen 
-    router.push('/(main)/chatscreen');
+    router.push('/chatscreen');
   };
 
 
