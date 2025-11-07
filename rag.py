@@ -1720,9 +1720,9 @@ Generate an analytical insight based on the data above. Include specific numbers
                                 
                                 pr_message = self._generate_insight_message("pr_context", pr_context)
                                 
-                            insights.append({
-                                "exercise": exercise_name,
-                                "status": "pr",
+                                insights.append({
+                                    "exercise": exercise_name,
+                                    "status": "pr",
                                     "message": pr_message,
                                     "weight_increase": weight_increase,
                                 })
@@ -1761,11 +1761,11 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Fallback if generation fails - analytical fallbacks
             if not overall_message or overall_message == "Great work on exercise!":
-            if avg_delta > 10:
+                if avg_delta > 10:
                     overall_message = f"Session volume increased by {avg_delta:+.1f}% vs previous session. Strong progression pattern."
-            elif avg_delta > 0:
+                elif avg_delta > 0:
                     overall_message = f"Volume up {avg_delta:+.1f}% from last session. Maintaining positive trajectory."
-            elif avg_delta < -10:
+                elif avg_delta < -10:
                     overall_message = f"Volume decreased {abs(avg_delta):.1f}% vs previous session. Lower intensity may indicate recovery need."
                 else:
                     overall_message = f"Session volume maintained (±{abs(avg_delta):.1f}% change). Consistent performance."
