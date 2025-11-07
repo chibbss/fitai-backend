@@ -35,7 +35,7 @@ class AppConfig(BaseModel):
     chunk_size_tokens: int = 300
     chunk_overlap_tokens: int = 50
 
-    max_new_tokens: int = 256
+    max_new_tokens: int = 128  # Reduced for faster responses (can be overridden via env)
     temperature: float = 0.2
 
     # Remote generation tuning

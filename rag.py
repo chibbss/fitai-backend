@@ -212,6 +212,9 @@ class RAGService:
             return "cuda"
         if d == "auto" and torch.cuda.is_available():
             return "cuda"
+        # Enable MPS (Apple Silicon) for much faster inference on Mac
+        if d in ("auto", "mps") and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
         return "cpu"
 
     # ------------------------
@@ -3281,11 +3284,17 @@ Generate an analytical insight based on the data above. Include specific numbers
                 raise RuntimeError("Generation model is not initialized")
 
         # Manual generation avoids pipeline cache issues
+        # Try to enable caching for better performance (fallback to False if model doesn't support it)
+        use_cache = True
+        if "phi-3" in self.config.hf_model_id.lower():
+            # Phi-3 has known caching issues, disable for compatibility
+            use_cache = False
+        
         gen_kwargs = {
             "max_new_tokens": max_new_tokens or self.config.max_new_tokens,
             "temperature": temperature if temperature is not None else self.config.temperature,
             "do_sample": True,
-            "use_cache": False,
+            "use_cache": use_cache,  # Enable caching for better performance (disabled for Phi-3)
             "top_p": 0.9,
             "repetition_penalty": 1.1,
             "no_repeat_ngram_size": 3,
@@ -3306,18 +3315,45 @@ Generate an analytical insight based on the data above. Include specific numbers
             inputs = {k: v.to("mps") if hasattr(v, "to") else v for k, v in inputs.items()}
 
         # Stop when the model tries to continue a dialogue with role/Q&A markers
+        # OPTIMIZED: Only decode recent tokens (last 50) instead of entire sequence
         class StopOnSubstrings(StoppingCriteria):
             def __init__(self, tokenizer, stop_strings: List[str], start_len: int):
                 self.tokenizer = tokenizer
                 self.stop_strings = stop_strings
                 self.start_len = start_len
+                # Pre-encode stop strings as token sequences for faster matching
+                self.stop_token_sequences = []
+                for stop_str in stop_strings:
+                    try:
+                        tokens = tokenizer.encode(stop_str, add_special_tokens=False)
+                        if tokens:
+                            self.stop_token_sequences.append(tokens)
+                    except Exception:
+                        pass  # Fallback to text matching if encoding fails
+            
             def __call__(self, input_ids, scores, **kwargs):
                 # Only examine newly generated suffix to avoid triggering on prompt text
                 if input_ids.shape[1] <= self.start_len:
                     return False
-                new_tokens = input_ids[0][self.start_len:]
-                text = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
-                return any(s in text for s in self.stop_strings)
+                
+                # OPTIMIZATION: Check token sequences first (much faster)
+                new_tokens = input_ids[0][self.start_len:].tolist()
+                # Check if any stop token sequence matches recent tokens
+                for stop_tokens in self.stop_token_sequences:
+                    if len(new_tokens) >= len(stop_tokens):
+                        # Check last N tokens where N = length of stop sequence
+                        if new_tokens[-len(stop_tokens):] == stop_tokens:
+                            return True
+                
+                # FALLBACK: Only decode last 50 tokens (not entire sequence) for text matching
+                # This is much faster than decoding the entire sequence
+                recent_tokens = new_tokens[-50:] if len(new_tokens) > 50 else new_tokens
+                try:
+                    text = self.tokenizer.decode(recent_tokens, skip_special_tokens=True)
+                    # Only check stop strings that might appear in recent text
+                    return any(s in text for s in self.stop_strings)
+                except Exception:
+                    return False
 
         stop_strings = [
             "\nUSER:", "USER:", "\nUser:", "User:",
@@ -3689,11 +3725,17 @@ Generate an analytical insight based on the data above. Include specific numbers
             yield {"type": "error", "content": "Generation model not initialized"}
             return
         
+        # Try to enable caching for better performance (fallback to False if model doesn't support it)
+        use_cache_stream = True
+        if "phi-3" in self.config.hf_model_id.lower():
+            # Phi-3 has known caching issues, disable for compatibility
+            use_cache_stream = False
+        
         gen_kwargs = {
             "max_new_tokens": max_new_tokens or self.config.max_new_tokens,
             "temperature": temperature if temperature is not None else self.config.temperature,
             "do_sample": True,
-            "use_cache": False,
+            "use_cache": use_cache_stream,  # Enable caching for better performance (disabled for Phi-3)
             "top_p": 0.9,
             "repetition_penalty": 1.1,
             "no_repeat_ngram_size": 3,
