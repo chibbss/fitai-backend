@@ -152,12 +152,19 @@ class RAGService:
 
             # Move model to target device explicitly for small models (prototype)
             device_str = self._resolve_torch_device()
+            self.logger.info("Resolved device: %s (CUDA available: %s, MPS available: %s)", 
+                           device_str, 
+                           torch.cuda.is_available() if hasattr(torch, 'cuda') else False,
+                           torch.backends.mps.is_available() if hasattr(torch.backends, 'mps') else False)
             if device_str == "cuda" and torch.cuda.is_available():
                 self.generator_model.to(0)
+                self.logger.info("Model moved to CUDA device 0")
             elif device_str == "mps" and torch.backends.mps.is_available():
                 self.generator_model.to("mps")
+                self.logger.info("Model moved to MPS (Apple Silicon GPU)")
             else:
                 self.generator_model.to("cpu")
+                self.logger.warning("Model running on CPU - this will be SLOW! Consider using MPS on Mac or remote generation.")
 
             # Prefer eager attention on non-CUDA backends
             try:
