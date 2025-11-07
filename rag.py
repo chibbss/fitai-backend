@@ -2786,16 +2786,13 @@ Generate an analytical insight based on the data above. Include specific numbers
         if len(query) > self.config.max_query_chars:
             query = query[: self.config.max_query_chars]
         
-        # Parallel retrieval
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            kb_future = executor.submit(self.retrieve, query, user_id, None)
-            logs_future = executor.submit(self.retrieve_training_logs, user_id, query, min(5, self.config.top_k)) if user_id else None
-            memories_future = executor.submit(self.retrieve_memories, user_id, query, 5) if user_id else None
-            
-            retrieved = kb_future.result()
-            dyn = logs_future.result() if logs_future else []
-            memories = memories_future.result() if memories_future else []
+        # Sequential retrieval (parallelization removed due to connection pool conflicts)
+        retrieved = self.retrieve(query, user_id=user_id, top_k=None)
+        dyn = []
+        memories = []
+        if user_id:
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, self.config.top_k))
+            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5)
         
         static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
@@ -2997,18 +2994,14 @@ Generate an analytical insight based on the data above. Include specific numbers
             except Exception as e:
                 self.logger.debug("Conversation summary check failed: %s", e)
 
-        # Parallel retrieval for better performance
+        # Sequential retrieval (parallelization removed due to connection pool conflicts)
         retrieval_start = time.time()
-        from concurrent.futures import ThreadPoolExecutor
-        
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            kb_future = executor.submit(self.retrieve, query, user_id, top_k)
-            logs_future = executor.submit(self.retrieve_training_logs, user_id, query, min(5, (top_k or self.config.top_k))) if user_id else None
-            memories_future = executor.submit(self.retrieve_memories, user_id, query, 5) if user_id else None
-            
-            retrieved = kb_future.result()
-            dyn = logs_future.result() if logs_future else []
-            memories = memories_future.result() if memories_future else []
+        retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)
+        dyn = []
+        memories = []
+        if user_id:
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k)))
+            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5)
         
         retrieval_time = (time.time() - retrieval_start) * 1000
         self.logger.debug("Retrieval took %.1fms", retrieval_time)
@@ -3373,18 +3366,16 @@ Generate an analytical insight based on the data above. Include specific numbers
         if user_id:
             self.append_session_message(user_id, session_id, role="user", content=query)
         
-        # Parallel retrieval for better performance
+        # Sequential retrieval (parallelization removed due to connection pool conflicts)
         retrieval_start = time.time()
-        from concurrent.futures import ThreadPoolExecutor
+        retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)
+        dyn = []
+        memories = []
+        if user_id:
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k)))
+            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5)
         
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            kb_future = executor.submit(self.retrieve, query, user_id, top_k)
-            logs_future = executor.submit(self.retrieve_training_logs, user_id, query, min(5, (top_k or self.config.top_k))) if user_id else None
-            memories_future = executor.submit(self.retrieve_memories, user_id, query, 5) if user_id else None
-            
-            retrieved = kb_future.result()
-            dyn = logs_future.result() if logs_future else []
-            memories = memories_future.result() if memories_future else []
+        retrieval_time_ms = (time.time() - retrieval_start) * 1000
         
         static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
