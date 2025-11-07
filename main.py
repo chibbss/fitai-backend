@@ -41,6 +41,16 @@ limiter = Limiter(key_func=get_remote_address)
 MAX_BODY_BYTES = int(os.getenv("MAX_BODY_BYTES", "10485760"))  # 10MB default
 
 
+# -------------------------------
+# Helper: Sanitize Error Messages
+# -------------------------------
+def sanitize_error_message(error: Exception, default_message: str = "An error occurred processing your request") -> str:
+    """Sanitize error messages to prevent PII exposure in production."""
+    if os.getenv("ENVIRONMENT", "development") in ("production", "prod"):
+        return default_message
+    return str(error)
+
+
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         cl = request.headers.get("content-length")
@@ -57,6 +67,58 @@ app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.state.limiter = limiter
+
+
+# -------------------------------
+# Middleware: TLS Enforcement
+# -------------------------------
+class TLSEnforcementMiddleware(BaseHTTPMiddleware):
+    """Enforce HTTPS in production environments."""
+    async def dispatch(self, request: Request, call_next):
+        # Only enforce in production
+        if os.getenv("ENVIRONMENT", "development") in ("production", "prod"):
+            # Check X-Forwarded-Proto header (set by reverse proxy/load balancer)
+            forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+            # Also check if request is HTTP directly (shouldn't happen behind proxy)
+            if forwarded_proto == "http" or (not forwarded_proto and request.url.scheme == "http"):
+                from fastapi.responses import RedirectResponse
+                # Redirect to HTTPS
+                https_url = str(request.url).replace("http://", "https://", 1)
+                return RedirectResponse(url=https_url, status_code=301)
+        return await call_next(request)
+
+
+# -------------------------------
+# Middleware: Security Headers
+# -------------------------------
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        
+        # HSTS (HTTP Strict Transport Security) - only in production with HTTPS
+        if os.getenv("ENVIRONMENT", "development") in ("production", "prod"):
+            forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+            if forwarded_proto == "https" or request.url.scheme == "https":
+                hsts_max_age = int(os.getenv("HSTS_MAX_AGE", "31536000"))  # 1 year default
+                response.headers["Strict-Transport-Security"] = f"max-age={hsts_max_age}; includeSubDomains"
+        
+        # Content Security Policy (CSP) - restrictive by default
+        csp = os.getenv("CSP_HEADER", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';")
+        if csp != "none":  # Allow disabling CSP if needed
+            response.headers["Content-Security-Policy"] = csp
+        
+        return response
+
+
+app.add_middleware(TLSEnforcementMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # -------------------------------------------------
 # Response Models
@@ -297,7 +359,7 @@ async def chat(
         q = body.query or ""
         if rag_service.config.profanity_filter_enabled:
             import re
-            bad = re.compile(r"\b(fuck|shit|bitch|asshole|bastard)\b", re.IGNORECASE)
+            bad = re.compile(r"\b(fuck|shit|bitch|asshole|bastard|pussy)\b", re.IGNORECASE)
             if bad.search(q):
                 if rag_service.config.profanity_block_mode == "block":
                     raise HTTPException(status_code=400, detail="Inappropriate language detected")
@@ -358,7 +420,7 @@ async def chat(
         return ChatResponse(answer=result.get("answer", ""), references=refs, citations=result.get("citations") or [])
     except Exception as e:
         logger.error("/chat error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------
@@ -382,7 +444,7 @@ async def search(
         raise
     except Exception as e:
         logger.error("/search error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------
@@ -504,7 +566,7 @@ async def add_docs(request: Request, body: AddDocsRequest, user: Optional[AuthUs
         return AddDocsResponse(**result)
     except Exception as e:
         logger.error("/add_docs error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.post("/add_docs_files", response_model=AddDocsResponse)
@@ -558,7 +620,7 @@ async def add_docs_files(
         return AddDocsResponse(**result)
     except Exception as e:
         logger.error("/add_docs_files error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.post("/reembed_all", response_model=RebuildResponse)
@@ -569,7 +631,7 @@ async def reembed_all(request: Request, user_id: Optional[str] = None, _: AuthUs
         return RebuildResponse(**result)
     except Exception as e:
         logger.error("/reembed_all error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------- User management --------
@@ -585,7 +647,7 @@ async def get_user(user_id: str, user: AuthUser = Depends(get_current_user)) -> 
         raise
     except Exception as e:
         logger.error("/users GET error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.put("/users/{user_id}", response_model=UserResponse)
@@ -610,7 +672,52 @@ async def upsert_user(user_id: str, body: UserUpsertRequest, user: AuthUser = De
         return UserResponse(**user)
     except Exception as e:
         logger.error("/users PUT error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
+@app.post("/users/{user_id}/preload-context")
+async def preload_user_context(
+    user_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Pre-load user context for faster chat responses.
+    Call this after login to warm up FitAI's memory.
+    
+    This runs in the background and caches:
+    - User profile/goals summary
+    - Long-term memory patterns
+    - Fitness overview stats
+    - User workout patterns
+    - Recent workout logs
+    
+    By the time the user starts chatting, FitAI already knows them!
+    """
+    try:
+        ensure_user_owns_resource(user_id, user)
+        
+        # Pre-load context asynchronously (non-blocking)
+        import threading
+        def preload():
+            try:
+                rag_service.preload_user_context(user_id)
+            except Exception as e:
+                logger.warning("Background context pre-load failed: %s", e)
+        
+        # Start in background thread
+        thread = threading.Thread(target=preload, daemon=True)
+        thread.start()
+        
+        return {
+            "user_id": user_id,
+            "status": "preloading",
+            "message": "FitAI is booting up and remembering you... Context will be ready shortly."
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/users/%s/preload-context error: %s", user_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.put("/users/{user_id}/discover", response_model=UserResponse)
@@ -670,7 +777,7 @@ async def discover_user_data(
         raise
     except Exception as e:
         logger.error("/users/%s/discover error: %s", user_id, e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.post("/add_training_log", response_model=TrainingLogResponse)
@@ -691,7 +798,7 @@ async def add_training_log(request: Request, body: TrainingLogRequest, user: Aut
         return TrainingLogResponse(**res)
     except Exception as e:
         logger.error("/add_training_log error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.get("/history", response_model=HistoryResponse)
@@ -703,7 +810,7 @@ async def history(user_id: str, limit: int = 100, since: Optional[str] = None, u
         return HistoryResponse(items=[HistoryItem(**r) for r in rows])
     except Exception as e:
         logger.error("/history error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------- Memories --------
@@ -715,7 +822,7 @@ async def memories_me(request: Request, user: AuthUser = Depends(get_current_use
         return MemoriesResponse(items=[MemoryItem(**m) for m in items])
     except Exception as e:
         logger.error("/memories/me error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 class MemoryRefreshRequest(BaseModel):
@@ -745,7 +852,7 @@ async def memories_refresh(body: MemoryRefreshRequest, user: AuthUser = Depends(
         )
     except Exception as e:
         logger.error("/memories/refresh error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 @app.get("/memories/{user_id}", response_model=MemoriesResponse)
@@ -755,7 +862,7 @@ async def memories_for_user(user_id: str, _: AuthUser = Depends(require_admin)) 
         return MemoriesResponse(items=[MemoryItem(**m) for m in items])
     except Exception as e:
         logger.error("/memories/{user_id} error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 class OnboardingStepRequest(BaseModel):
@@ -770,15 +877,43 @@ class OnboardingStepResponse(BaseModel):
 
 @app.post("/onboarding_step", response_model=OnboardingStepResponse)
 async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse:
+    """
+    Capture onboarding step data. Supports new step names:
+    - "why" → stores in goals.primary_goal
+    - "experience" → stores in profile.experience_level
+    - "training_style" → stores in profile.workout_preference
+    - "notes" → stores in profile.constraints
+    Also supports legacy names: "basic", "profile", "goals", "preferences"
+    """
     try:
         user = rag_service.get_user(body.user_id) or {"id": body.user_id, "profile": {}, "goals": {}, "metadata": {}}
         profile = user.get("profile", {})
         goals = user.get("goals", {})
-        if body.step in {"basic", "profile"}:
+        metadata = user.get("metadata", {}) or {}
+        
+        # Map new step names to proper storage locations
+        if body.step == "why":
+            # Store in goals
+            goals.update({"primary_goal": body.data.get("primary_goal") or list(body.data.values())[0] if body.data else None})
+        elif body.step == "experience":
+            # Store in profile
+            profile.update({"experience_level": body.data.get("experience_level") or list(body.data.values())[0] if body.data else None})
+        elif body.step == "training_style":
+            # Store in profile
+            profile.update({"workout_preference": body.data.get("workout_preference") or list(body.data.values())[0] if body.data else None})
+        elif body.step == "notes":
+            # Store constraints/notes in profile
+            constraints = body.data.get("constraints") or body.data.get("notes") or list(body.data.values())[0] if body.data else None
+            if constraints:
+                profile.update({"constraints": constraints})
+        elif body.step in {"basic", "profile", "experience", "training_style", "notes"}:
+            # Legacy: allow direct profile updates
             profile.update(body.data)
-        elif body.step in {"goals", "preferences"}:
+        elif body.step in {"goals", "preferences", "why"}:
+            # Legacy: allow direct goals updates
             goals.update(body.data)
         else:
+            # Default: update profile
             profile.update(body.data)
 
         updated = rag_service.upsert_user(
@@ -787,7 +922,7 @@ async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse
             email=user.get("email"),
             profile=profile,
             goals=goals,
-            metadata=user.get("metadata"),
+            metadata=metadata,
         )
 
         summary_text = f"Onboarding step '{body.step}': {body.data}"
@@ -796,7 +931,52 @@ async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse
         return OnboardingStepResponse(user=UserResponse(**updated))
     except Exception as e:
         logger.error("/onboarding_step error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
+@app.get("/onboarding/completion_message/{user_id}")
+async def get_onboarding_completion_message(
+    user_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Generate personalized welcome message after onboarding completion.
+    Frontend can use this for the chat handoff after onboarding.
+    """
+    try:
+        ensure_user_owns_resource(user_id, user)
+        
+        user_data = rag_service.get_user(user_id)
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        profile = user_data.get("profile", {}) or {}
+        goals = user_data.get("goals", {}) or {}
+        
+        goal = goals.get("primary_goal") or goals.get("goal") or "your goals"
+        experience = profile.get("experience_level") or "your level"
+        preference = profile.get("workout_preference") or "your style"
+        constraints = profile.get("constraints") or profile.get("restrictions")
+        
+        # Build personalized message
+        message_parts = [f"Hey there 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
+        
+        if constraints:
+            message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
+        
+        message_parts.append("Want me to help plan your next session or log your last one?")
+        
+        return {
+            "message": " ".join(message_parts),
+            "user_id": user_id,
+            "profile": profile,
+            "goals": goals
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/onboarding/completion_message error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------
@@ -884,7 +1064,7 @@ async def log_workout(
         return LogWorkoutResponse(**result)
     except Exception as e:
         logger.error("/log/workout error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 class WorkoutCalendarItem(BaseModel):
@@ -936,7 +1116,26 @@ async def get_workout_calendar(
         return WorkoutCalendarResponse(items=[WorkoutCalendarItem(**it) for it in items])
     except Exception as e:
         logger.error("/workouts/calendar error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
+@app.get("/workouts/{session_id}/volume")
+async def get_session_volume(
+    session_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get total volume (kg) for a specific workout session.
+    Useful for calculating intensity levels for calendar color coding.
+    """
+    try:
+        volume = rag_service.get_session_volume(session_id, user_id=user.user_id)
+        return {"session_id": session_id, "volume_kg": round(volume, 1)}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("/workouts/{session_id}/volume error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 class WorkoutInsightItem(BaseModel):
@@ -947,12 +1146,62 @@ class WorkoutInsightItem(BaseModel):
     weight_increase: Optional[float] = None
 
 
+class SessionInsightItem(BaseModel):
+    """Session-level insights that create connection moments."""
+    type: str  # consistency | recovery | pr_context
+    message: str
+    priority: int = 0  # Higher priority shown first
+
+
+class WorkoutStatsResponse(BaseModel):
+    session_id: str
+    stats: Dict[str, Any]  # Contains consistency, volume, exercises, recovery, progress
+
+
+@app.get("/stats/{session_id}", response_model=WorkoutStatsResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_STATS", "120/minute"))
+async def get_workout_stats(
+    request: Request,
+    session_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> WorkoutStatsResponse:
+    """
+    Get comprehensive workout stats for a session (Phase 1: Core Stats).
+    Returns data-driven metrics: consistency, volume, exercise frequency, recovery, progress.
+    
+    Stats include:
+    - Consistency: sessions this week/month, streaks, frequency
+    - Volume: total volume, trends, by muscle group
+    - Exercises: top 5 exercises, variety, most/least trained groups
+    - Recovery: average recovery days, trends, rest days
+    - Progress: PRs, strength progression, plateaus
+    """
+    try:
+        result = rag_service.get_workout_stats(user_id=user.user_id, session_id=session_id)
+        
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        
+        return WorkoutStatsResponse(
+            session_id=result["session_id"],
+            stats=result["stats"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/stats error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
+# Keep old insights endpoint for backward compatibility (deprecated)
 class WorkoutInsightsResponse(BaseModel):
     session_id: str
-    insights: List[WorkoutInsightItem]
+    insights: List[WorkoutInsightItem]  # Exercise-level insights
+    session_insights: List[SessionInsightItem] = []  # NEW: Connection layer insights
     overall_message: str
     avg_volume_change_pct: float
     exercise_count: int
+    conversation_hooks: List[str] = []  # NEW: Hooks for chatbot to reference
 
 
 @app.get("/insights/{session_id}", response_model=WorkoutInsightsResponse)
@@ -976,18 +1225,26 @@ async def get_workout_insights(
             raise HTTPException(status_code=404, detail=result["error"])
         
         insights_items = [WorkoutInsightItem(**ins) for ins in result.get("insights", [])]
+        session_insights_items = [
+            SessionInsightItem(**ins) for ins in result.get("session_insights", [])
+        ]
+        # Sort by priority (higher first)
+        session_insights_items.sort(key=lambda x: x.priority, reverse=True)
+        
         return WorkoutInsightsResponse(
             session_id=result["session_id"],
             insights=insights_items,
+            session_insights=session_insights_items,
             overall_message=result.get("overall_message", ""),
             avg_volume_change_pct=result.get("avg_volume_change_pct", 0.0),
             exercise_count=result.get("exercise_count", 0),
+            conversation_hooks=result.get("conversation_hooks", []),
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.error("/insights error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------
@@ -1038,7 +1295,7 @@ async def chat_stream(
         raise
     except Exception as e:
         logger.error("/chat_stream error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
 # -------------------------------------------------

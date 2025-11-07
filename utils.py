@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,7 +35,7 @@ class AppConfig(BaseModel):
     chunk_size_tokens: int = 300
     chunk_overlap_tokens: int = 50
 
-    max_new_tokens: int = 256
+    max_new_tokens: int = 128  # Reduced for faster responses (can be overridden via env)
     temperature: float = 0.2
 
     # Remote generation tuning
@@ -134,11 +135,51 @@ def get_config() -> AppConfig:
 # --------------------
 _logger_init_lock = threading.Lock()
 
+# PII patterns for log redaction (expanded from memory.py for broader use)
+PII_PATTERNS = [
+    re.compile(r"[\w\.-]+@[\w\.-]+\.[A-Za-z]{2,}", re.IGNORECASE),  # emails
+    re.compile(r"\+?\d[\d\s\-()]{7,}\d"),  # phone-like numbers
+    re.compile(r"\b\d{3}-?\d{2}-?\d{4}\b"),  # SSN-like
+    re.compile(r"\buser[-_]?id['\"]?\s*[:=]\s*['\"]?([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}|[a-zA-Z0-9_-]{20,})", re.IGNORECASE),  # user_id patterns
+]
+
+
+def redact_pii_from_log(text: str) -> str:
+    """Redact PII from log messages to prevent data leakage."""
+    if not text:
+        return text
+    redacted = str(text)
+    for pat in PII_PATTERNS:
+        redacted = pat.sub("[REDACTED]", redacted)
+    return redacted
+
+
+class PIIAwareFormatter(logging.Formatter):
+    """Logging formatter that redacts PII before writing logs."""
+    
+    def format(self, record: logging.LogRecord) -> str:
+        # Redact PII from the message
+        if hasattr(record, "msg") and record.msg:
+            record.msg = redact_pii_from_log(str(record.msg))
+        # Also redact any args that might contain PII (only strings)
+        if hasattr(record, "args") and record.args:
+            # Only redact string args, preserve numeric types for formatting
+            redacted_args = []
+            for arg in record.args:
+                if isinstance(arg, str):
+                    redacted_args.append(redact_pii_from_log(arg))
+                else:
+                    # Preserve non-string args (ints, floats, etc.) for proper formatting
+                    redacted_args.append(arg)
+            record.args = tuple(redacted_args)
+        return super().format(record)
+
 
 def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
-    """Return a configured logger.
+    """Return a configured logger with PII redaction.
 
     Uses a global init lock to avoid duplicate handler registration under uvicorn reload.
+    All logs are automatically redacted for PII (emails, phone numbers, user_ids).
     """
     logger = logging.getLogger(name)
     if level is None:
@@ -148,7 +189,15 @@ def get_logger(name: str, level: Optional[str] = None) -> logging.Logger:
     with _logger_init_lock:
         if not logger.handlers:
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
+            # Use PII-aware formatter
+            pii_redaction_enabled = os.getenv("LOG_PII_REDACTION_ENABLED", "1") in ("1", "true", "True")
+            if pii_redaction_enabled:
+                formatter = PIIAwareFormatter(
+                    fmt="%(asctime)s %(levelname)s %(name)s - %(message)s",
+                    datefmt="%Y-%m-%dT%H:%M:%S%z",
+                )
+            else:
+                formatter = logging.Formatter(
                 fmt="%(asctime)s %(levelname)s %(name)s - %(message)s",
                 datefmt="%Y-%m-%dT%H:%M:%S%z",
             )

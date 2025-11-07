@@ -16,7 +16,34 @@ load_dotenv()
 import os
 from typing import Optional
 
-import jwt
+# Import PyJWT - handle case where wrong 'jwt' package might be imported
+try:
+    import jwt
+    # Verify we have PyJWT (it has decode/encode at module level)
+    if not hasattr(jwt, 'decode') or not hasattr(jwt, 'encode'):
+        # Wrong jwt package imported - try to get PyJWT functions
+        try:
+            # PyJWT's decode/encode are in jwt.api_jwt
+            from jwt.api_jwt import decode, encode
+            # Attach to jwt module so jwt.decode/jwt.encode work
+            jwt.decode = decode
+            jwt.encode = encode
+        except (ImportError, AttributeError, ModuleNotFoundError) as e:
+            # If jwt.exceptions is missing, the jwt package is broken/incomplete
+            if "jwt.exceptions" in str(e) or "No module named 'jwt.exceptions'" in str(e):
+                raise ImportError(
+                    "The system 'jwt' package is incomplete. "
+                    "Please activate the virtual environment: source venv/bin/activate\n"
+                    "Or install PyJWT in system Python: pip3 install PyJWT"
+                )
+            raise ImportError(
+                "PyJWT not found. The 'jwt' package imported is not PyJWT. "
+                "Install with: pip install PyJWT. "
+                "Or activate venv: source venv/bin/activate"
+            )
+except ImportError as e:
+    raise ImportError(f"PyJWT not found. Install with: pip install PyJWT. Error: {e}")
+
 from fastapi import HTTPException, Security, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -62,38 +89,51 @@ def verify_supabase_jwt(token: str) -> dict:
             },
         )
         return payload
-    except jwt.ExpiredSignatureError:
-        logger.warning("Expired JWT token")
-        raise HTTPException(
-            status_code=401,
-            detail="Token expired - please log in again",
-            headers={
-                "WWW-Authenticate": 'Bearer error="invalid_token", error_description="The access token expired"'
-            },
-        )
-    except jwt.InvalidAudienceError:
-        logger.warning("Invalid JWT audience")
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token audience",
-            headers={
-                "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Invalid token audience"'
-            },
-        )
-    except jwt.InvalidTokenError as e:
-        logger.warning(f"Invalid JWT token: {e}")
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authentication token",
-            headers={
-                "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Invalid authentication token"'
-            },
-        )
     except Exception as e:
-        logger.error(f"JWT verification error: {e}")
+        # Handle JWT exceptions robustly (works with both direct attributes and exceptions module)
+        error_type = type(e).__name__
+        error_msg = str(e)
+        
+        # Log the error first for debugging
+        logger.error(f"JWT verification error: {error_type} - {error_msg}")
+        
+        # Check for expired token
+        if error_type == "ExpiredSignatureError" or "expired" in error_msg.lower():
+            logger.warning("Expired JWT token")
+            raise HTTPException(
+                status_code=401,
+                detail="Token expired - please log in again",
+                headers={
+                    "WWW-Authenticate": 'Bearer error="invalid_token", error_description="The access token expired"'
+                },
+            )
+        
+        # Check for invalid audience
+        if error_type == "InvalidAudienceError" or "audience" in error_msg.lower():
+            logger.warning("Invalid JWT audience")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token audience",
+                headers={
+                    "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Invalid token audience"'
+                },
+            )
+        
+        # Check for other invalid token errors
+        if error_type in ("InvalidTokenError", "DecodeError", "InvalidSignatureError"):
+            logger.warning(f"Invalid JWT token: {e}")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid authentication token",
+                headers={
+                    "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Invalid authentication token"'
+                },
+            )
+        
+        # Fallback for any other JWT-related error - include error details in response for debugging
         raise HTTPException(
             status_code=401,
-            detail="Authentication failed",
+            detail=f"Authentication failed: {error_type} - {error_msg}",
             headers={
                 "WWW-Authenticate": 'Bearer error="invalid_token", error_description="Authentication failed"'
             },

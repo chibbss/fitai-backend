@@ -1,430 +1,221 @@
-# FitAI Onboarding Flow - Frontend Implementation Guide
+# FitAI Onboarding Flow – Frontend Blueprint (v3)
 
-**For:** Frontend Developer  
-**Date:** October 28, 2025  
+**Audience:** Mobile/frontend developer  
+**Last Updated:** October 31, 2025  
 **Backend Branch:** `cursor/enhance-rag-pipeline-with-search-and-reranking-2aea`
 
 ---
 
-## 🎯 Philosophy
+## 🎯 North Star
 
-**Onboarding = Get JUST enough to be helpful**  
-**Everything else = Discover through conversation**
-
-The goal is a **warm, frictionless, encouraging** 60-second onboarding that captures the minimum required data. Everything else (weight, detailed measurements, constraints) is discovered naturally through chat.
+FitAI opens like a short cinematic sequence:
+- Sign up → three quick taps → optional note → warm welcome → first chat remembers everything.  
+- We capture just enough to personalize coaching, then keep discovering via conversation.  
+- Voice stays warm, grounded, slightly cinematic.
 
 ---
 
-## 📱 The 3-Screen Onboarding Flow
+## 🔐 Authentication First
 
-### Screen 1: Primary Goal (Required)
-**Time:** ~15 seconds  
-**Purpose:** Understand what the user wants to achieve
+1. **User signs up / logs in** via Supabase (or chosen auth).  
+2. **Create base record** *(recommended)*:
+   ```http
+   PUT /users/{user_id}
+   Authorization: Bearer {JWT}
+   {
+     "name": "Alex",
+     "email": "alex@example.com"
+   }
+   ```
+   Ensures the user exists before onboarding steps land.
 
-#### UI Copy:
-```
-Welcome to fit.ai! 👋
+---
 
-I'm your AI fitness coach.
-What brings you here?
+## 📱 Onboarding Screens
 
-○ Build muscle
-○ Lose weight  
-○ Get stronger
-○ Stay active & healthy
-○ Train for a sport
-○ Just exploring
-
-[Continue →]
-```
-
-#### API Call:
-```http
-POST /onboarding_step
-Authorization: Bearer {JWT_TOKEN}
-Content-Type: application/json
-
-{
-  "user_id": "user-123",
-  "step": "goal",
-  "data": {
-    "primary_goal": "Build muscle"
+### Screen 1 – “Your Why” *(Required)*
+- **UI:** Buttons → Build muscle 💪 / Lose fat 🔥 / Get consistent 🧘 / Feel healthier ❤️ / Train for performance ⚡ / Other…
+- **API:**
+  ```http
+  POST /onboarding_step
+  {
+    "user_id": "USER_ID",
+    "step": "goals",
+    "data": { "primary_goal": "build muscle" }
   }
-}
-```
+  ```
+- **Copy after tap:** “Got it. That’s your why. Every rep we log, every insight I give, will circle back to this.”
 
-#### Response:
+### Screen 2 – “Your Experience” *(Required)*
+- **UI:** Beginner / Intermediate / Advanced.
+- **API:**
+  ```http
+  POST /onboarding_step
+  {
+    "user_id": "USER_ID",
+    "step": "profile",
+    "data": { "experience_level": "beginner" }
+  }
+  ```
+- **Copy:** “Perfect. I’ll tailor workouts and feedback that fit your level — not overwhelm you.”
+
+### Screen 3 – “How You Train” *(Required)*
+- **UI:** Strength training 🏋️ / Cardio 🏃‍♂️ / Home 🏠 / Sports ⚽ / Mix 🔁.
+- **API:**
+  ```http
+  POST /onboarding_step
+  {
+    "user_id": "USER_ID",
+    "step": "profile",
+    "data": { "workout_preference": "strength training" }
+  }
+  ```
+- **Copy:** “Nice — I’ll remember that. Training’s more sustainable when you enjoy it.”
+
+### Screen 4 – “Anything I Should Know?” *(Optional)*
+- **UI:** Free-text box (“Shoulder injury, gym 3×/week…”) + Skip.
+- **API (if filled):**
+  ```http
+  POST /onboarding_step
+  {
+    "user_id": "USER_ID",
+    "step": "profile",
+    "data": { "constraints": "Shoulder injury, gym 3×/week" }
+  }
+  ```
+- Alternative: store via `PUT /users/{id}/discover` if you’d rather flag it as discovered.
+- **Copy:** “Thanks for telling me. I’ll keep that in mind when coaching you.”
+
+### Final Screen – “Welcome to FitAI”
+- **UI:** Single hero message + button (“Let’s go”).
+- Optional completion flag:
+  ```http
+  PUT /users/{id}/discover
+  {
+    "field": "onboarding_completed",
+    "value": true,
+    "context": "User completed 3-step onboarding"
+  }
+  ```
+- **Copy suggestion:** “🎉 You’re in. I’ll remember everything you shared — your goal, experience, and how you train.”
+
+---
+
+## 🔁 Data After Onboarding
+
+| Field | Stored In | Source Screen |
+|-------|-----------|---------------|
+| `goals.primary_goal` | `user.goals` | Screen 1 |
+| `profile.experience_level` | `user.profile` | Screen 2 |
+| `profile.workout_preference` | `user.profile` | Screen 3 |
+| `profile.constraints` (optional) | `user.profile` | Screen 4 |
+| Discovery fields (weight, schedule, etc.) | `user.metadata.discovered` | Chat or optional screen |
+
+Each `POST /onboarding_step` also writes a `training_logs` row (`kind = onboarding`, `topic = step`, `notes = ...`) so the RAG pipeline can surface the facts immediately.
+
+---
+
+## 🤝 First Chat Handoff
+
+1. **Fetch user profile:** `GET /users/{user_id}` → returns `profile`, `goals`, `metadata`.
+2. **Compose greeting (frontend logic):**
+   ```text
+   Hey there 👋 I remember what you told me — your goal is build muscle, you’ve got beginner experience, and you enjoy strength training. That’s a solid foundation.
+   Want me to help plan your next session or log your last one?
+   ```
+3. **If constraints were provided:** add “I’ll keep your note about shoulder injury in mind so we train safely.”
+4. **Offer quick actions:** buttons for “Plan next session”, “Log last workout”, “Explore/chat”.
+
+Chat (`POST /chat` or `/chat_stream`) will automatically use these fields because `_summarize_user` in `rag.py` reads `profile`, `goals`, and `metadata.discovered`.
+
+---
+
+## 🧠 Backend Quick Reference
+
+| Purpose | Endpoint | Notes |
+|---------|----------|-------|
+| Seed user after auth | `PUT /users/{user_id}` | Provide name/email metadata. |
+| Onboarding steps | `POST /onboarding_step` | Steps: `goals`, `profile`, optional `profile`. |
+| Discovered info | `PUT /users/{user_id}/discover` | Timestamped notes (injuries, schedule, etc.). |
+| Fetch summary | `GET /users/{user_id}` | Used for chat handoff and profile screens. |
+| Chat | `POST /chat` / `/chat_stream` | Personalized using onboarding data. |
+
+---
+
+## 🛠 Implementation Checklist
+
+- [ ] After auth → call `PUT /users/{id}` once.
+- [ ] Screen 1 → POST goals.
+- [ ] Screen 2 → POST experience.
+- [ ] Screen 3 → POST workout preference.
+- [ ] Screen 4 (if filled) → POST constraints.
+- [ ] Optional: mark `onboarding_completed` via `/users/{id}/discover`.
+- [ ] Fetch user via `GET /users/{id}` and render the custom chat greeting.
+- [ ] Provide quick-start actions on first chat screen.
+
+---
+
+## 📣 Copy & Tone Guidelines
+
+- Always mirror the user’s words back (“You’re here to build muscle…”).
+- Encourage without pressure (“I’ll keep it safe around that shoulder.”).
+- Use warm emojis sparingly (💪, 🔥, 🤝) to reinforce tone.
+- Optional screen’s skip button must feel guilt-free.
+
+---
+
+## 📊 Post-Onboarding KPIs
+
+| Metric | Goal | Rationale |
+|--------|------|-----------|
+| Completion time | < 60 s | Keep friction minimal. |
+| Required screens completed | > 90% | Required data only. |
+| Optional screen completion | 30–60% | Shows it’s welcoming but not forced. |
+| Workout logged within 24 h | > 50% | Confirms activation. |
+| First chat within 48 h | > 30% | Ensures ongoing engagement. |
+
+---
+
+## 📝 Appendix – Sample Payloads
+
 ```json
-{
-  "user": {
-    "id": "user-123",
-    "name": null,
-    "email": "user@example.com",
-    "profile": {},
-    "goals": {
-      "primary_goal": "Build muscle"
-    },
-    "metadata": {}
-  }
-}
-```
-
----
-
-### Screen 2: Experience Level (Required)
-**Time:** ~15 seconds  
-**Purpose:** Tailor recommendations to skill level
-
-#### UI Copy:
-```
-Cool! Building muscle 💪
-
-How would you describe your
-training experience?
-
-○ Just starting out
-○ Been training 6-12 months
-○ Training 1-2 years
-○ Experienced (2+ years)
-
-[Continue →]
-```
-
-#### API Call:
-```http
-POST /onboarding_step
-Authorization: Bearer {JWT_TOKEN}
-Content-Type: application/json
-
+// Screen 1 (goal)
 {
   "user_id": "user-123",
-  "step": "experience",
-  "data": {
-    "experience_level": "1-2 years"
-  }
+  "step": "goals",
+  "data": { "primary_goal": "build muscle" }
 }
-```
 
----
-
-### Screen 3: Workout Preference (Required)
-**Time:** ~15 seconds  
-**Purpose:** Understand training environment
-
-#### UI Copy:
-```
-Got it! What kind of workouts
-do you prefer?
-
-○ Gym workouts (weights & machines)
-○ Home workouts (minimal equipment)
-○ Bodyweight only
-○ Mix of everything
-○ Not sure yet
-
-[Continue →]
-```
-
-#### API Call:
-```http
-POST /onboarding_step
-Authorization: Bearer {JWT_TOKEN}
-Content-Type: application/json
-
+// Screen 2 (experience)
 {
   "user_id": "user-123",
-  "step": "preference",
-  "data": {
-    "workout_preference": "Gym workouts"
-  }
+  "step": "profile",
+  "data": { "experience_level": "beginner" }
 }
-```
 
----
-
-### Screen 4: Optional Details (SKIPPABLE)
-**Time:** ~15 seconds  
-**Purpose:** Capture nice-to-have details WITHOUT being intimidating
-
-#### UI Copy:
-```
-Almost there! A few quick details
-(totally optional - skip any!)
-
-Age: [___] ← Optional
-Name: [___] ← Optional
-
-Any injuries I should know about?
-[Previous knee injury] ← Optional
-
-Schedule preference?
-○ Morning person
-○ Evening workouts
-○ Flexible
-
-[Skip] or [Continue →]
-```
-
-**CRITICAL:** Make the "Skip" button prominent and guilt-free!
-
-#### API Call (if user fills anything):
-```http
-POST /onboarding_step
-Authorization: Bearer {JWT_TOKEN}
-Content-Type: application/json
-
+// Screen 3 (preference)
 {
   "user_id": "user-123",
-  "step": "details",
-  "data": {
-    "age": 28,
-    "name": "John",
-    "injuries": "Previous knee injury - fully recovered",
-    "schedule_preference": "Morning person"
-  }
+  "step": "profile",
+  "data": { "workout_preference": "strength" }
 }
-```
 
-**Note:** Only send fields the user actually filled in!
-
----
-
-### Screen 5: Immediate Action (Call to Action)
-**Time:** 0 seconds (just navigation)  
-**Purpose:** Get user engaged immediately
-
-#### UI Copy:
-```
-🎉 You're all set!
-
-Ready to log your first workout?
-
-[Log a workout now]
-[Chat with coach first]
-[I'll do it later]
-```
-
-**No API call** - just navigate based on selection.
-
----
-
-## 🗂️ Data Structure
-
-### What Goes Where
-
-#### STATIC Data (Captured in Onboarding)
-**Stored in:** `user.profile` and `user.goals`
-
-**Required:**
-- `goals.primary_goal` (Screen 1)
-- `profile.experience_level` (Screen 2)
-- `profile.workout_preference` (Screen 3)
-
-**Optional:**
-- `profile.age` (Screen 4)
-- `profile.name` (Screen 4) - or from auth
-- `profile.injuries` (Screen 4) - IMPORTANT for safety!
-- `profile.schedule_preference` (Screen 4)
-
-#### DISCOVERED Data (From Chat)
-**Stored in:** `user.metadata.discovered`
-
-This is for data the user naturally reveals during conversations, like:
-- Weight: "I weigh about 75kg"
-- Height: "I'm 180cm"
-- Constraints: "I can't train Mondays"
-- Current split: "I'm running PPL"
-- Equipment: "I have dumbbells at home"
-
-**Pattern:**
-```json
+// Optional notes
 {
-  "metadata": {
-    "discovered": {
-      "weight": {
-        "value": "75kg",
-        "discovered_at": "2025-10-28T14:30:00Z",
-        "context": "User mentioned during workout discussion"
-      },
-      "constraints": {
-        "value": "Busy Mondays & Fridays",
-        "discovered_at": "2025-10-28T15:00:00Z",
-        "context": "Chat about weekly schedule"
-      }
-    }
-  }
+  "user_id": "user-123",
+  "step": "profile",
+  "data": { "constraints": "Shoulder rehab, gym 3x/week" }
 }
-```
 
----
-
-## 💬 Discovery During Chat
-
-### Backend Endpoint: `PUT /users/{user_id}/discover`
-
-When the AI coach discovers something about the user during chat, the frontend (or a future LLM tool) can call this endpoint to store it.
-
-#### Example: User mentions weight in chat
-
-**User message:** "I weigh about 75kg"
-
-**API Call:**
-```http
-PUT /users/user-123/discover
-Authorization: Bearer {JWT_TOKEN}
-Content-Type: application/json
-
+// Completion marker (optional)
 {
-  "field": "weight",
-  "value": "75kg",
-  "context": "User mentioned during workout discussion"
-}
-```
-
-**Response:**
-```json
-{
-  "user": {
-    "id": "user-123",
-    "name": "John",
-    "email": "user@example.com",
-    "profile": {
-      "experience_level": "1-2 years",
-      "workout_preference": "Gym workouts",
-      "age": 28
-    },
-    "goals": {
-      "primary_goal": "Build muscle"
-    },
-    "metadata": {
-      "discovered": {
-        "weight": {
-          "value": "75kg",
-          "discovered_at": "2025-10-28T14:30:00Z",
-          "context": "User mentioned during workout discussion"
-        }
-      }
-    }
-  }
+  "field": "onboarding_completed",
+  "value": true,
+  "context": "User completed 3-step onboarding"
 }
 ```
 
 ---
 
-## 🎨 FitAI Voice & Personality
-
-### Tone Spectrum
-
-**Situations & Responses:**
-
-| Situation | fit.ai Response Style |
-|-----------|---------------------|
-| First workout logged | 🎉 Celebratory: "Hell yeah! Great start!" |
-| PR achieved | 🔥 Hyped: "New PR! You crushed it!" |
-| Plateau/struggle | 💪 Encouraging: "Progress isn't always linear - keep showing up!" |
-| Injury concern | 🤲 Caring: "Let's dial it back and work around that." |
-| Skipped workouts | 🤝 Understanding: "Life gets busy, I get it." |
-| Technical questions | 🧠 Knowledgeable but friendly: "Based on your history..." |
-
-### Examples
-
-**❌ Generic/Clinical:**
-> "Your workout volume increased 14.8% compared to previous session. Maintain progressive overload."
-
-**✅ fit.ai Style:**
-> "Hell yeah! 💪 You crushed it today - volume up 14.8% from last time. Your bench is climbing steadily. Keep this up and you'll hit that 80kg goal in no time."
-
----
-
-**❌ Pushy:**
-> "You haven't logged a workout in 5 days. You need to stay consistent."
-
-**✅ fit.ai Style:**
-> "Hey! Haven't seen you in the gym lately - life gets busy, I get it. Ready to jump back in? Even a quick 30-min session can get you back on track."
-
----
-
-## 📊 Success Metrics
-
-Track these to ensure onboarding is working:
-
-| Metric | Target | Why It Matters |
-|--------|--------|----------------|
-| Completion time | <60 seconds | Friction = drop-off |
-| Completion rate | >80% | Long forms kill sign-ups |
-| Skip rate (screen 4) | 40-60% | Optional details shouldn't block |
-| Workout logged within 24h | >50% | Immediate action = retention |
-| Chat engagement within 48h | >30% | Discovery starts early |
-
----
-
-## 🚀 Implementation Checklist
-
-### Initial Sign-Up (After Auth)
-```http
-PUT /users/{user_id}
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "metadata": {
-    "onboarding_started": "2025-10-28T12:00:00Z",
-    "onboarding_version": "v2"
-  }
-}
-```
-
-### Onboarding Screens (3-4 screens)
-- [ ] Screen 1: Goal → `POST /onboarding_step` with `step: "goal"`
-- [ ] Screen 2: Experience → `POST /onboarding_step` with `step: "experience"`
-- [ ] Screen 3: Preference → `POST /onboarding_step` with `step: "preference"`
-- [ ] Screen 4: Optional Details → `POST /onboarding_step` with `step: "details"` (SKIPPABLE)
-
-### Post-Onboarding
-- [ ] Show "Log workout" or "Chat with coach" CTA
-- [ ] Track if user completes first workout within 24h
-- [ ] Monitor chat engagement
-
----
-
-## 🔗 Related Endpoints
-
-### User Management
-- `GET /users/{user_id}` - Get user profile
-- `PUT /users/{user_id}` - Update user (full profile/goals)
-- `PUT /users/{user_id}/discover` - Store discovered data from chat
-
-### Onboarding
-- `POST /onboarding_step` - Capture each onboarding screen
-
-### Workout Logging
-- `POST /log/workout` - Log structured workout
-- `GET /workouts/calendar` - Get workout history
-- `GET /insights/{session_id}` - Get instant insights after workout
-
-### Chat
-- `POST /chat` - Standard chat (returns full response)
-- `POST /chat_stream` - Streaming chat (SSE)
-
----
-
-## 💡 Pro Tips
-
-1. **Keep it warm:** Use friendly copy, avoid clinical language
-2. **Make skip obvious:** Don't guilt users for skipping optional details
-3. **Show progress:** Use a simple "1 of 4" indicator
-4. **Celebrate completion:** "You're all set! 🎉" feels rewarding
-5. **Immediate action:** Get users logging or chatting ASAP
-6. **Track drop-off:** If >20% abandon at a screen, it's too long/intimidating
-
----
-
-## 📞 Questions?
-
-- **Backend API:** See `API_DOCUMENTATION.md` for full endpoint details
-- **Deployment:** See `DEPLOYMENT_GUIDE.md` for setup
-- **Implementation Summary:** See `IMPLEMENTATION_SUMMARY.md` for technical context
-
----
-
-**Remember:** The magic is in the warmth, not the data collection. Capture the minimum, discover the rest, and make every interaction feel like chatting with a knowledgeable friend. 🤝💪
+When this flow is wired in, FitAI greets the user like it’s been listening all along—exactly the “AI buddy who remembers you” experience we’re building.
 
