@@ -96,6 +96,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         
+        # Skip security headers for docs endpoints (Swagger UI needs CDN resources)
+        # Docs are only for development/internal use, so this is safe
+        if request.url.path in ("/docs", "/redoc", "/openapi.json"):
+            return response
+        
         # Security headers
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
