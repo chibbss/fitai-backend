@@ -1739,7 +1739,9 @@ Generate an analytical insight based on the data above. Include specific numbers
                                 
                                 insights.append({
                                     "exercise": exercise_name,
+
                                     "status": "pr",
+
                                     "message": pr_message,
                                     "weight_increase": weight_increase,
                                 })
