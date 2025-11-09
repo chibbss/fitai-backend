@@ -1251,7 +1251,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             if not current or current.user_id != user_id:
                 return {"error": "Session not found"}
             
-            current_date = current.occurred_at if current.occurred_at else datetime.utcnow()
+            current_date = current.occurred_at if current.occurred_at else datetime.now(timezone.utc)
             
             # Get exercises from current session
             current_exercises = session.execute(
@@ -1836,8 +1836,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             if not current or current.user_id != user_id:
                 return {"error": "Session not found"}
             
-            current_date = current.occurred_at if current.occurred_at else datetime.utcnow()
-            now = datetime.utcnow()
+            current_date = current.occurred_at if current.occurred_at else datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
             seven_days_ago = now - timedelta(days=7)
             thirty_days_ago = now - timedelta(days=30)
             
@@ -2640,7 +2640,7 @@ Generate an analytical insight based on the data above. Include specific numbers
         """Get comprehensive fitness overview stats for chat context."""
         try:
             with self.SessionLocal() as session:
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 seven_days_ago = now - timedelta(days=7)
                 thirty_days_ago = now - timedelta(days=30)
                 
@@ -2788,7 +2788,7 @@ Generate an analytical insight based on the data above. Include specific numbers
         patterns = []
         try:
             with self.SessionLocal() as session:
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 thirty_days_ago = now - timedelta(days=30)
                 
                 # Get recent workouts
@@ -3542,8 +3542,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
-        dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
-        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+            dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
+            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
         
         # Session recap - always load fresh (session-specific)
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
