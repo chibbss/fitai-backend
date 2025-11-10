@@ -24,9 +24,13 @@ services:
       - key: REMOTE_GEN_URL
         sync: false
       - key: EMBEDDING_PROVIDER
-        value: local
+        value: modal
+      - key: REMOTE_EMBED_URL
+        sync: false
       - key: RERANKER_BACKEND
         value: remote
+      - key: RERANKER_REMOTE_URL
+        sync: false
       - key: LOG_PII_REDACTION_ENABLED
         value: 1
       - key: RAGAS_LOGGING_ENABLED

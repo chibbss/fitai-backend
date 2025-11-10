@@ -1,37 +1,91 @@
-# Minimal Modal-compatible embed service stub (OpenAI-style response)
-from __future__ import annotations
+# Modal embedding service for FitAI
+# Production-grade embedding service running on Modal with GPU acceleration
 
+import os
+import modal
 from typing import List, Dict, Any
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-# In Modal, load model once globally
-try:
-    from sentence_transformers import SentenceTransformer
-    # Use 384-dim model to match DB schema by default
-    _model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-except Exception:
-    _model = None
+# Modal image with sentence-transformers
+image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .pip_install(
+        "sentence-transformers>=2.7.0",
+        "torch>=2.1.0",
+        "transformers>=4.44.2",
+        "numpy>=1.24.0",
+        "hf_transfer",
+    )
+    .env({
+        "HF_HUB_ENABLE_HF_TRANSFER": "1",
+        "PYTHONUNBUFFERED": "1",
+    })
+)
 
-app = FastAPI(title="Embed Service", version="1.0.0")
+app = modal.App("fitai-embed")
+
+# Global model cache (loaded once per container)
+_model = None
+_model_name = os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
 
 
-class EmbedRequest(BaseModel):
-    texts: List[str]
-
-
-class EmbedResponse(BaseModel):
-    embeddings: List[List[float]]
-
-
-@app.get("/embed_health")
-async def embed_health() -> Dict[str, Any]:
-    return {"ok": _model is not None, "model": "all-MiniLM-L6-v2"}
-
-
-@app.post("/embed", response_model=EmbedResponse)
-async def embed(req: EmbedRequest) -> EmbedResponse:
+def get_model():
+    """Load model once per container (Modal caches this)."""
+    global _model
     if _model is None:
-        raise RuntimeError("Embedding model not initialized")
-    vecs = _model.encode(req.texts, batch_size=64, show_progress_bar=False, normalize_embeddings=True)
-    return EmbedResponse(embeddings=[v.tolist() for v in vecs])
+        from sentence_transformers import SentenceTransformer
+        # Modal provides GPU, use cuda
+        _model = SentenceTransformer(_model_name, device="cuda")
+    return _model
+
+
+@app.function(
+    image=image,
+    gpu="T4",  # Use T4 GPU for faster embeddings (cheaper than A10G)
+    timeout=300,  # 5 minute timeout
+    container_idle_timeout=60,  # Keep container alive for 60s after last request
+)
+@modal.asgi_app()
+def serve():
+    """FastAPI app for embedding service.
+    
+    Modal automatically caches the model in the container,
+    so get_model() will only load it once per container lifecycle.
+    """
+    fastapi_app = FastAPI(title="FitAI Embed Service", version="1.0.0")
+
+    class EmbedRequest(BaseModel):
+        texts: List[str]
+
+    class EmbedResponse(BaseModel):
+        embeddings: List[List[float]]
+
+    @fastapi_app.get("/health")
+    async def health() -> Dict[str, Any]:
+        """Health check endpoint."""
+        try:
+            model = get_model()
+            return {"ok": True, "model": _model_name, "device": str(model.device) if hasattr(model, 'device') else "cuda"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @fastapi_app.post("/embed", response_model=EmbedResponse)
+    async def embed(req: EmbedRequest) -> EmbedResponse:
+        """Generate embeddings for input texts."""
+        if not req.texts:
+            return EmbedResponse(embeddings=[])
+        
+        # Get model (cached in container by Modal)
+        model = get_model()
+        # Batch encode with normalization (matching DB schema)
+        vecs = model.encode(
+            req.texts,
+            batch_size=64,
+            show_progress_bar=False,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+        )
+        return EmbedResponse(embeddings=[v.tolist() for v in vecs])
+
+    return fastapi_app

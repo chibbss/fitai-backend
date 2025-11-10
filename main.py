@@ -301,8 +301,13 @@ async def on_startup() -> None:
         except Exception as e:
             logger.warning("Failed to run migrations at startup (non-critical): %s", e)
         
-        rag_service.startup()
-        logger.info("RAG service initialized")
+        try:
+            rag_service.startup()
+            logger.info("RAG service initialized")
+        except Exception as e:
+            logger.error("RAG service startup failed: %s", e, exc_info=True)
+            # Don't raise - allow app to start even if models fail to load
+            # Health check will show readiness status
         # Dev scheduler: refresh memories on a cron schedule inside API process
         if os.getenv("ENABLE_SCHEDULER", "1") in ("1", "true", "True"):
             global _scheduler

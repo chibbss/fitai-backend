@@ -59,8 +59,23 @@ class RAGService:
         self._remote_session = None  # for remote generation
         self._reranker_model = None  # Cross-encoder model when using local reranker
 
-        # Database (SQLAlchemy)
-        self.engine = create_engine(self.config.database_url, future=True, pool_pre_ping=True)
+        # Database (SQLAlchemy) with production-grade connection pooling
+        # Pool settings optimized for production workloads (hundreds/thousands of concurrent users)
+        pool_size = int(os.getenv("DB_POOL_SIZE", "10"))  # Connections per process
+        max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "20"))  # Additional connections beyond pool_size
+        pool_timeout = int(os.getenv("DB_POOL_TIMEOUT", "30"))  # Seconds to wait for connection
+        pool_recycle = int(os.getenv("DB_POOL_RECYCLE", "3600"))  # Recycle connections after 1 hour
+        
+        self.engine = create_engine(
+            self.config.database_url,
+            future=True,
+            pool_pre_ping=True,  # Verify connections before using
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=pool_timeout,
+            pool_recycle=pool_recycle,
+            echo=False,  # Set to True for SQL query logging (disable in production)
+        )
         self.SessionLocal = sessionmaker(bind=self.engine, expire_on_commit=False, future=True)
 
         # Concurrency
@@ -105,34 +120,100 @@ class RAGService:
             self.logger.info("Startup complete: database and models initialized")
 
     def _init_models(self) -> None:
-        # Embeddings model
-        device_str = self._resolve_torch_device()
-        self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
-        self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
-
-        # Tokenizer for chunking
-        try:
-            from transformers import AutoTokenizer as HFTokenizer
-            self.embedding_tokenizer = HFTokenizer.from_pretrained(
-                self.config.embedding_model_name, use_fast=True
+        """Initialize models based on configuration. Skips local loading for remote backends."""
+        import requests
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        
+        # Initialize remote session for API calls (shared for generation and embeddings)
+        # Configure with connection pooling and retries for production reliability
+        if not self._remote_session:
+            self._remote_session = requests.Session()
+            
+            # Configure retry strategy for resilience
+            retry_strategy = Retry(
+                total=3,  # Total number of retries
+                backoff_factor=0.3,  # Wait 0.3, 0.6, 1.2 seconds between retries
+                status_forcelist=[429, 500, 502, 503, 504],  # Retry on these HTTP status codes
+                allowed_methods=["POST", "GET"],  # Only retry on safe methods
             )
-        except Exception:
+            
+            # Configure HTTP adapter with connection pooling
+            adapter = HTTPAdapter(
+                max_retries=retry_strategy,
+                pool_connections=10,  # Number of connection pools to cache
+                pool_maxsize=20,  # Maximum number of connections to save in the pool
+            )
+            
+            # Mount adapter for both HTTP and HTTPS
+            self._remote_session.mount("http://", adapter)
+            self._remote_session.mount("https://", adapter)
+            
+            # Set default timeout (can be overridden per request)
+            self._remote_session.timeout = 60
+        
+        # Embeddings: Only load locally if using local provider
+        if self.config.embedding_provider == "local":
+            device_str = self._resolve_torch_device()
+            self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
+            try:
+                self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
+                # Tokenizer for chunking
+                try:
+                    from transformers import AutoTokenizer as HFTokenizer
+                    self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                        self.config.embedding_model_name, use_fast=True
+                    )
+                except Exception:
+                    self.embedding_tokenizer = None
+            except Exception as e:
+                self.logger.error("Failed to load local embedding model: %s", e)
+                self.embedding_model = None
+        elif self.config.embedding_provider == "modal":
+            self.logger.info("Using REMOTE embedding provider (Modal) at %s", self.config.remote_embed_url)
+            if not self.config.remote_embed_url:
+                self.logger.warning("REMOTE_EMBED_URL not set - embeddings will fail at runtime")
+            if self.config.remote_embed_api_key:
+                self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
+            # No local model loading needed for embeddings
+            self.embedding_model = None
+            # Still need tokenizer for text chunking (lightweight, no model weights)
+            try:
+                from transformers import AutoTokenizer as HFTokenizer
+                self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                    self.config.embedding_model_name, use_fast=True
+                )
+                self.logger.info("Loaded tokenizer for chunking (no model weights)")
+            except Exception as e:
+                self.logger.warning("Failed to load tokenizer for chunking: %s - will use character-based chunking", e)
+                self.embedding_tokenizer = None
+        elif self.config.embedding_provider == "openai":
+            self.logger.info("Using OpenAI embedding provider")
+            if not self.config.openai_api_key:
+                self.logger.warning("OPENAI_API_KEY not set - embeddings will fail at runtime")
+            # No local model loading needed
+            self.embedding_model = None
+            self.embedding_tokenizer = None
+        else:
+            self.logger.warning("Unknown embedding provider: %s", self.config.embedding_provider)
+            self.embedding_model = None
             self.embedding_tokenizer = None
 
-        # Generation backend
+        # Generation backend: Only load locally if using local backend
         if self.config.gen_backend == "remote":
             self.logger.info("Using REMOTE generation backend at %s", self.config.remote_gen_url)
-            try:
-                import requests
-                self._remote_session = requests.Session()
+            if not self.config.remote_gen_url:
+                self.logger.warning("REMOTE_GEN_URL not set - generation will fail at runtime")
                 if self.config.remote_gen_api_key:
                     self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_gen_api_key}"})
-            except Exception as e:
-                self.logger.error("Failed to init remote session: %s", e)
-                self._remote_session = None
+            # No local model loading needed
+            self.generator_model = None
+            self.generator_tokenizer = None
+            self.generator_pipe = None
         else:
-            # Local transformers
-            self.logger.info("Loading generation model %s", self.config.hf_model_id)
+            # Local transformers - only load if gen_backend is "local"
+            device_str = self._resolve_torch_device()
+            self.logger.info("Loading LOCAL generation model %s on %s", self.config.hf_model_id, device_str)
             use_half = (
                 (device_str == "cuda" and torch.cuda.is_available())
                 or (device_str == "mps" and torch.backends.mps.is_available())
@@ -191,9 +272,9 @@ class RAGService:
 
             self.generator_pipe = None
 
-        # Optional reranker initialization
-        try:
-            if self.config.reranker_backend == "local":
+        # Reranker: Only load locally if using local backend
+        if self.config.reranker_backend == "local":
+            try:
                 if CrossEncoder is None:
                     self.logger.warning(
                         "Reranker backend is 'local' but CrossEncoder not available; skipping reranker"
@@ -209,10 +290,18 @@ class RAGService:
                     # sentence-transformers CrossEncoder accepts device identifier; map 'cuda' to 0
                     device_arg = 0 if (device_str == "cuda" and torch.cuda.is_available()) else device_str
                     self._reranker_model = CrossEncoder(self.config.reranker_model_name, device=device_arg)  # type: ignore
-            else:
+            except Exception as e:
+                self.logger.error("Failed to initialize reranker: %s", e)
                 self._reranker_model = None
-        except Exception as e:
-            self.logger.error("Failed to initialize reranker: %s", e)
+        elif self.config.reranker_backend == "remote":
+            self.logger.info("Using REMOTE reranker backend at %s", self.config.reranker_remote_url)
+            if not self.config.reranker_remote_url:
+                self.logger.warning("RERANKER_REMOTE_URL not set - reranking will be skipped")
+            # No local model loading needed
+            self._reranker_model = None
+        else:
+            # "none" or unknown - no reranker
+            self.logger.info("Reranker disabled (backend: %s)", self.config.reranker_backend)
             self._reranker_model = None
 
     def _init_redis(self) -> None:

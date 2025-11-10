@@ -15,7 +15,7 @@
 
 FitAI is an AI-powered fitness coaching platform that combines:
 - **Deep Memory System**: Remembers every conversation, workout, and user preference
-- **RAG-Powered Chat**: Context-aware AI coach powered by Llama 3 with fitness knowledge base
+- **RAG-Powered Chat**: Context-aware AI coach powered by Llama 3 with a growing fitness knowledge base
 - **Workout Tracking**: Structured logging with instant insights and progress analysis
 - **Personalized Stats**: Comprehensive analytics with calendar visualization
 
@@ -28,7 +28,7 @@ FitAI is an AI-powered fitness coaching platform that combines:
 | **Instant Insights** | PR detection, progress tracking, recovery alerts | ✅ Production Ready |
 | **Calendar & Stats** | Visual progress tracking with comprehensive metrics | ✅ Production Ready |
 | **Deep Memory** | Persistent conversation history and user patterns | ✅ Production Ready |
-| **Voice Input** | Speech-to-text for hands-free logging | ✅ Production Ready |
+| **Voice Input** | Speech-to-text for hands-free logging | ✅ Production Ready(paywall) |
 
 ---
 
