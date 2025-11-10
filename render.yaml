@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: fitai-api
+    env: python
+    buildCommand: pip install -r requirements.txt && alembic upgrade head
+    startCommand: gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fitai-db
+          property: connectionString
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: HF_MODEL_ID
+        value: meta-llama/Meta-Llama-3.1-8B-Instruct
+      - key: GEN_BACKEND
+        value: remote
+      - key: REMOTE_GEN_URL
+        sync: false
+      - key: EMBEDDING_PROVIDER
+        value: local
+      - key: RERANKER_BACKEND
+        value: local
+      - key: LOG_PII_REDACTION_ENABLED
+        value: 1
+      - key: RAGAS_LOGGING_ENABLED
+        value: 1
+      - key: ENABLE_SCHEDULER
+        value: 1
+
+databases:
+  - name: fitai-db
+    databaseName: fitai
+    user: fitai_user
+    plan: starter
+

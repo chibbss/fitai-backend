@@ -945,8 +945,9 @@ async def get_onboarding_completion_message(
     user: AuthUser = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
-    Generate personalized welcome message after onboarding completion.
+    Generate personalized welcome message after onboarding completion using AI model.
     Frontend can use this for the chat handoff after onboarding.
+    The message is warm, welcoming, and includes a follow-up question to start the conversation.
     """
     try:
         ensure_user_owns_resource(user_id, user)
@@ -962,17 +963,140 @@ async def get_onboarding_completion_message(
         experience = profile.get("experience_level") or "your level"
         preference = profile.get("workout_preference") or "your style"
         constraints = profile.get("constraints") or profile.get("restrictions")
+        name = user_data.get("name")
         
-        # Build personalized message
-        message_parts = [f"Hey there 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
+        # Build context for AI generation
+        user_context = f"""ABOUT THIS USER (just completed onboarding):
+- Goal: {goal}
+- Experience level: {experience}
+- Training preference: {preference}"""
         
         if constraints:
-            message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
+            user_context += f"\n- Important note: {constraints}"
         
-        message_parts.append("Want me to help plan your next session or log your last one?")
+        if name:
+            user_context += f"\n- Name: {name}"
+        
+        # Create prompt for AI to generate welcome message
+        system_prompt = (
+            "You are FitAI, a warm and friendly AI fitness coach. You're welcoming a new user who just completed onboarding. "
+            "Generate a warm, personalized welcome message (2-3 sentences) that:\n"
+            "1. Acknowledges what they shared during onboarding (goal, experience, preference)\n"
+            "2. Shows you remember and care about their goals\n"
+            "3. Ends with a helpful follow-up question to get the conversation started\n\n"
+            "Be warm, encouraging, and authentic. Use their name if provided. Keep it conversational and friendly.\n"
+            "Example style: 'Hey [name]! 👋 I remember you're here to [goal] and you've got [experience] experience with [preference]. "
+            "That's a solid foundation to build on. [Follow-up question to start conversation]'\n\n"
+            "IMPORTANT: Only generate the welcome message, nothing else. No explanations or meta-commentary."
+        )
+        
+        user_prompt = f"{user_context}\n\nGenerate the welcome message:"
+        
+        # Use the same generation method as chat
+        try:
+            # Prepare prompt for generation
+            if hasattr(rag_service.generator_tokenizer, "apply_chat_template") and getattr(rag_service.generator_tokenizer, "chat_template", None):
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ]
+                prompt = rag_service.generator_tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            else:
+                prompt = system_prompt + "\n\n" + user_prompt + "\nAssistant: "
+            
+            # Generate using remote backend if configured
+            if rag_service.config.gen_backend == "remote" and rag_service._remote_session and rag_service.config.remote_gen_url:
+                payload = {
+                    "model": rag_service.config.hf_model_id,
+                    "prompt": prompt,
+                    "max_tokens": 150,  # Short welcome message
+                    "temperature": 0.7,  # Slightly warmer for welcome message
+                }
+                resp = rag_service._remote_session.post(rag_service.config.remote_gen_url, json=payload, timeout=rag_service.config.gen_timeout_ms / 1000.0)
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, dict) and "choices" in data and data["choices"]:
+                    choice = data["choices"][0]
+                    if "text" in choice:
+                        message = str(choice["text"]).strip()
+                    elif "message" in choice and "content" in choice["message"]:
+                        message = str(choice["message"]["content"]).strip()
+                    else:
+                        message = None
+                else:
+                    message = None
+            else:
+                # Fallback to local generation or template
+                if rag_service.generator_model and rag_service.generator_tokenizer:
+                    import torch
+                    inputs = rag_service.generator_tokenizer(prompt, return_tensors="pt")
+                    device_str = rag_service._resolve_torch_device()
+                    if device_str == "cuda" and torch.cuda.is_available():
+                        inputs = {k: v.to(0) if hasattr(v, "to") else v for k, v in inputs.items()}
+                    elif device_str == "mps" and torch.backends.mps.is_available():
+                        inputs = {k: v.to("mps") if hasattr(v, "to") else v for k, v in inputs.items()}
+                    
+                    with torch.no_grad():
+                        outputs = rag_service.generator_model.generate(
+                            **inputs,
+                            max_new_tokens=150,
+                            temperature=0.7,
+                            do_sample=True,
+                            top_p=0.9,
+                            eos_token_id=rag_service.generator_tokenizer.eos_token_id,
+                            pad_token_id=rag_service.generator_tokenizer.pad_token_id or rag_service.generator_tokenizer.eos_token_id,
+                        )
+                    generated_text = rag_service.generator_tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+                    message = generated_text.strip()
+                else:
+                    message = None
+            
+            # Fallback to template if generation failed
+            if not message or len(message) < 20:
+                message_parts = [f"Hey there! 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
+                if constraints:
+                    message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
+                message_parts.append("Want me to help plan your next session or log your last one?")
+                message = " ".join(message_parts)
+            
+            # Clean up message (remove any extra formatting or repetition)
+            message = message.strip()
+            # Remove common generation artifacts
+            if message.startswith("Assistant:"):
+                message = message.replace("Assistant:", "").strip()
+            if message.startswith("Welcome message:"):
+                message = message.replace("Welcome message:", "").strip()
+            
+        except Exception as gen_error:
+            logger.warning("AI generation failed for onboarding message, using template: %s", gen_error)
+            # Fallback to template
+            message_parts = [f"Hey there! 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
+            if constraints:
+                message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
+            message_parts.append("Want me to help plan your next session or log your last one?")
+            message = " ".join(message_parts)
+        
+        # Save as first memory summary (in background, non-blocking)
+        try:
+            from memory import create_onboarding_summary
+            import threading
+            
+            def save_summary():
+                try:
+                    create_onboarding_summary(rag_service, user_id, intro_message=message)
+                    logger.info("Onboarding summary created for user %s", user_id)
+                except Exception as e:
+                    logger.warning("Failed to create onboarding summary for user %s: %s", user_id, e)
+            
+            # Run in background thread (don't block response)
+            thread = threading.Thread(target=save_summary, daemon=True)
+            thread.start()
+        except Exception as e:
+            # Non-critical - log but don't fail the request
+            logger.warning("Failed to save onboarding summary: %s", e)
         
         return {
-            "message": " ".join(message_parts),
+            "message": message,
             "user_id": user_id,
             "profile": profile,
             "goals": goals
