@@ -83,9 +83,25 @@ class RAGService:
     def startup(self) -> None:
         with self._lock:
             self.logger.info("Starting up RAG service")
+            try:
             self._init_db()
+            except Exception as e:
+                self.logger.error("Failed to initialize database: %s", e)
+                raise  # Database is critical, fail if it doesn't work
+            
+            try:
             self._init_models()
+            except Exception as e:
+                self.logger.error("Failed to initialize models: %s", e)
+                # Models are not critical for health check, but log the error
+                # The app can still start and health check will work
+            
+            try:
             self._init_redis()
+            except Exception as e:
+                self.logger.warning("Failed to initialize Redis: %s", e)
+                # Redis is optional, continue without it
+            
             self.logger.info("Startup complete: database and models initialized")
 
     def _init_models(self) -> None:
@@ -134,12 +150,12 @@ class RAGService:
 
             # Phi-3 models may require authentication
             try:
-                self.generator_tokenizer = AutoTokenizer.from_pretrained(
-                    self.config.hf_model_id, token=token, trust_remote_code=True
-                )
-                self.generator_model = AutoModelForCausalLM.from_pretrained(
-                    self.config.hf_model_id, token=token, device_map=None, **model_kwargs
-                )
+            self.generator_tokenizer = AutoTokenizer.from_pretrained(
+                self.config.hf_model_id, token=token, trust_remote_code=True
+            )
+            self.generator_model = AutoModelForCausalLM.from_pretrained(
+                self.config.hf_model_id, token=token, device_map=None, **model_kwargs
+            )
             except OSError as e:
                 if "401" in str(e) or "Unauthorized" in str(e):
                     self.logger.error(
@@ -1737,10 +1753,10 @@ Generate an analytical insight based on the data above. Include specific numbers
                                 
                                 pr_message = self._generate_insight_message("pr_context", pr_context)
                                 
-                                insights.append({
-                                    "exercise": exercise_name,
+                            insights.append({
+                                "exercise": exercise_name,
 
-                                    "status": "pr",
+                                "status": "pr",
 
                                     "message": pr_message,
                                     "weight_increase": weight_increase,
@@ -1780,11 +1796,11 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Fallback if generation fails - analytical fallbacks
             if not overall_message or overall_message == "Great work on exercise!":
-                if avg_delta > 10:
+            if avg_delta > 10:
                     overall_message = f"Session volume increased by {avg_delta:+.1f}% vs previous session. Strong progression pattern."
-                elif avg_delta > 0:
+            elif avg_delta > 0:
                     overall_message = f"Volume up {avg_delta:+.1f}% from last session. Maintaining positive trajectory."
-                elif avg_delta < -10:
+            elif avg_delta < -10:
                     overall_message = f"Volume decreased {abs(avg_delta):.1f}% vs previous session. Lower intensity may indicate recovery need."
                 else:
                     overall_message = f"Session volume maintained (±{abs(avg_delta):.1f}% change). Consistent performance."
@@ -3097,7 +3113,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
         else:
             # Fallback: load context on-demand (slower, but works if preload wasn't called)
-            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
             memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
@@ -3360,7 +3376,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 try:
                     text = self.tokenizer.decode(recent_tokens, skip_special_tokens=True)
                     # Only check stop strings that might appear in recent text
-                    return any(s in text for s in self.stop_strings)
+                return any(s in text for s in self.stop_strings)
                 except Exception:
                     return False
 
@@ -3506,7 +3522,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
         else:
             # Fallback: load context on-demand
-            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
             memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
@@ -3542,8 +3558,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
-            dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
-            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+        dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
+        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
         
         # Session recap - always load fresh (session-specific)
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
