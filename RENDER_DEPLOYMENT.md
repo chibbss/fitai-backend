@@ -37,8 +37,9 @@
    - **Name**: `fitai-api`
    - **Environment**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT`
-   - **Plan**: Starter ($7/month) or Standard ($25/month)
+   - **Start Command**: `gunicorn main:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120`
+     - **Note**: Using 1 worker for free tier (512MB limit). For paid plans, use `-w 2` or `-w 4`
+   - **Plan**: Free (512MB, spins down after 15min) or Starter ($7/month, 512MB) or Standard ($25/month, 2GB)
 
 ---
 
@@ -69,12 +70,18 @@ REMOTE_GEN_API_KEY=<optional-if-needed>
 
 ```bash
 EMBEDDING_PROVIDER=local
-RERANKER_BACKEND=local
+RERANKER_BACKEND=remote  # Use "remote" for free tier (saves memory), "local" for paid plans
+RERANKER_REMOTE_URL=https://<your-modal-reranker>.modal.run/rerank  # If using remote reranker
 LOG_PII_REDACTION_ENABLED=1
 RAGAS_LOGGING_ENABLED=1
 ENABLE_SCHEDULER=1
 SENTRY_DSN=<your-sentry-dsn>
 ```
+
+**Note for Free Tier:**
+- Use `RERANKER_BACKEND=remote` to avoid loading reranker model (saves ~100MB)
+- Use `-w 1` worker (single worker) to stay within 512MB limit
+- Consider upgrading to Starter/Standard plan for better performance
 
 ---
 
