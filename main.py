@@ -284,6 +284,23 @@ async def on_startup() -> None:
         except Exception:
             pass
 
+        # Run database migrations at startup (if DATABASE_URL is available)
+        try:
+            if os.getenv("DATABASE_URL"):
+                import subprocess
+                result = subprocess.run(
+                    ["alembic", "upgrade", "head"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                if result.returncode == 0:
+                    logger.info("Database migrations completed successfully")
+                else:
+                    logger.warning("Migration output: %s", result.stdout + result.stderr)
+        except Exception as e:
+            logger.warning("Failed to run migrations at startup (non-critical): %s", e)
+        
         rag_service.startup()
         logger.info("RAG service initialized")
         # Dev scheduler: refresh memories on a cron schedule inside API process

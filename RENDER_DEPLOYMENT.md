@@ -36,7 +36,7 @@
 3. Configure:
    - **Name**: `fitai-api`
    - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt && alembic upgrade head`
+   - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT`
    - **Plan**: Starter ($7/month) or Standard ($25/month)
 
