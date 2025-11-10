@@ -39,7 +39,6 @@ typing-inspection==0.4.1
 typing_extensions==4.15.0
 urllib3==2.5.0
 uvicorn==0.36.0
-outlines==0.0.46
 pycountry==24.6.1
 SQLAlchemy==2.0.35
 alembic==1.13.3
