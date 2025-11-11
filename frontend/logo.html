@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>fit.ai – Pulse-Driven Dark Theme</title>
+    <style>
+        :root{
+            --electric-teal:#00ffc8;
+            --aqua-glow:#00e4ff;
+            --deep-charcoal:#0a0a0a;
+            --vibrant-coral:#ff3366;
+            --pulse-glow:#00ffc8;
+        }
+        *{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
+        body{background:var(--deep-charcoal);color:#e5e5e5;line-height:1.6;padding:20px;}
+        .container{max-width:1200px;margin:0 auto;padding:20px;}
+        header{text-align:center;padding:60px 0;}
+        header h1{font-size:3.2rem;font-weight:700;background:linear-gradient(90deg,var(--electric-teal),var(--aqua-glow));-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-1px;margin-bottom:20px;}
+        .subtitle{font-size:1.2rem;color:#a0a0a0;max-width:700px;margin:0 auto;}
+        .card-section{background:#111827;border-radius:20px;box-shadow:0 25px 50px rgba(0,0,0,0.4);padding:40px;margin:30px 0;}
+        .section-title{text-align:center;font-size:2rem;font-weight:700;margin-bottom:40px;position:relative;}
+        .section-title:after{content:"";position:absolute;bottom:-15px;left:50%;transform:translateX(-50%);width:80px;height:4px;background:linear-gradient(90deg,var(--electric-teal),var(--aqua-glow));border-radius:2px;}
+        .logo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:40px;margin-top:40px;}
+        .logo-card{background:#111827;border-radius:16px;padding:30px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.5);transition:transform .3s;}
+        .logo-card:hover{transform:translateY(-8px);}
+        .logo-preview{padding:30px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;border-radius:12px;background:#0d0d0d;}
+        .card-title{font-weight:600;font-size:1.1rem;color:#a0a0a0;}
+        .colors-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:25px;margin-top:40px;}
+        .color-card{display:flex;flex-direction:column;border-radius:16px;overflow:hidden;box-shadow:0 8px 20px rgba(0,0,0,.5);}
+        .color-swatch{height:150px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:1.1rem;}
+        .color-info{padding:20px;background:#111827;}
+        .color-name{font-weight:600;font-size:1.1rem;margin-bottom:5px;color:#e5e5e5;}
+        .live-animation{display:flex;justify-content:center;margin:40px 0;padding:30px;}
+        .pulse-element{width:180px;height:180px;position:relative;}
+        .brand-text{text-align:center;padding:25px;max-width:800px;margin:30px auto;font-size:1.1rem;color:#a0a0a0;line-height:1.7;font-style:italic;border-top:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1);}
+        footer{text-align:center;padding:40px 0;color:#6b7280;}
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>fit.ai – Pulse-Driven Dark Theme</h1>
+            <p class="subtitle">fit.ai as one word: the dot is the heartbeat pulse</p>
+        </header>
+
+        <section class="card-section">
+            <h2 class="section-title">One-Word Wordmark</h2>
+            <div class="logo-grid">
+                <div class="logo-card">
+                    <div class="logo-preview" style="background:#0d0d0d;">
+                        <svg width="320" height="90" viewBox="0 0 320 90">
+                            <defs>
+                                <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="#00ffc8"/>
+                                    <stop offset="100%" stop-color="#00e4ff"/>
+                                </linearGradient>
+                                <filter id="pulseGlow" x="-50%" y="-50%" width="200%" height="200%">
+                                    <feGaussianBlur stdDeviation="4" result="blur"/>
+                                    <feMerge>
+                                        <feMergeNode in="blur"/>
+                                        <feMergeNode in="SourceGraphic"/>
+                                    </feMerge>
+                                </filter>
+                            </defs>
+                            <!-- Neural Motion Icon -->
+                            <path d="M40,50 Q55,20 65,35 T100,25" fill="none" stroke="url(#brandGradient)" stroke-width="3.5" stroke-linecap="round"/>
+                            <circle cx="40" cy="50" r="4" fill="url(#brandGradient)"/>
+                            <circle cx="65" cy="35" r="4.5" fill="#ff3366"/>
+                            <circle cx="100" cy="25" r="4" fill="url(#brandGradient)"/>
+                            <!-- One-word wordmark: fit.ai -->
+                            <g transform="translate(130 20)">
+                                <text x="0" y="32" style="font-family:'Poppins',sans-serif;font-weight:600;font-size:32px;letter-spacing:-3px;" fill="#e5e5e5">
+                                    <tspan>fit</tspan>
+                                    <tspan fill="url(#brandGradient)" filter="url(#pulseGlow)">.</tspan>
+                                    <tspan fill="#e5e5e5">ai</tspan>
+                                </text>
+                            </g>
+                        </svg>
+                    </div>
+                    <p class="card-title">Primary Dark Theme</p>
+                </div>
+
+                <div class="logo-card">
+                    <div class="logo-preview" style="background:#0d0d0d;">
+                        <svg width="320" height="90" viewBox="0 0 320 90">
+                            <defs>
+                                <linearGradient id="brandGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="#00ffc8"/>
+                                    <stop offset="100%" stop-color="#00e4ff"/>
+                                </linearGradient>
+                                    <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
+                                    <feGaussianBlur stdDeviation="3" result="blur"/>
+                                    <feMerge>
+                                        <feMergeNode in="blur"/>
+                                        <feMergeNode in="SourceGraphic"/>
+                                    </feMerge>
+                                </filter>
+                            </defs>
+                            <!-- Neural Motion Icon -->
+                            <path d="M40,50 Q55,20 65,35 T100,25" fill="none" stroke="url(#brandGradient2)" stroke-width="3.5" stroke-linecap="round"/>
+                            <circle cx="40" cy="50" r="4" fill="url(#brandGradient2)"/>
+                            <circle cx="65" cy="35" r="4.5" fill="#ff3366"/>
+                            <circle cx="100" cy="25" r="4" fill="url(#brandGradient2)"/>
+                            <!-- Neon wordmark -->
+                            <g transform="translate(130 20)">
+                                <text x="0" y="32" style="font-family:'Poppins',sans-serif;font-weight:600;font-size:32px;letter-spacing:-3px;" fill="#ffffff">
+                                    <tspan>fit</tspan>
+                                    <tspan fill="url(#brandGradient2)" filter="url(#neonGlow)">.</tspan>
+                                    <tspan fill="#ffffff">ai</tspan>
+                                </text>
+                            </g>
+                        </svg>
+                    </div>
+                    <p class="card-title">Neon Glow Variant</p>
+                </div>
+
+                <div class="logo-card">
+                    <div class="logo-preview" style="background:#0d0d0d;">
+                        <svg width="200" height="200" viewBox="0 0 100 100">
+                            <defs>
+                                <linearGradient id="iconGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="#00ffc8"/>
+                                    <stop offset="100%" stop-color="#00e4ff"/>
+                                </linearGradient>
+                            </defs>
+                            <!-- Neural Motion Icon -->
+                            <path d="M25,65 Q40,35 50,50 T85,40" fill="none" stroke="url(#iconGradient)" stroke-width="3.5" stroke-linecap="round"/>
+                            <circle cx="25" cy="65" r="4" fill="url(#iconGradient)"/>
+                            <circle cx="50" cy="50" r="4.5" fill="#ff3366"/>
+                            <circle cx="85" cy="40" r="4" fill="url(#iconGradient)"/>
+                        </svg>
+                    </div>
+                    <p class="card-title">Standalone App Icon</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="card-section">
+            <h2 class="section-title">Dark Color System</h2>
+            <div class="colors-grid">
+                <div class="color-card">
+                    <div class="color-swatch" style="background:#00ffc8;color:#0a0a0a;">Electric Teal</div>
+                    <div class="color-info">
+                        <div class="color-name">Electric Teal</div>
+                        <div>HEX: #00ffc8</div>
+                        <div>Used for: Pulse & primary accent</div>
+                    </div>
+                </div>
+                <div class="color-card">
+                    <div class="color-swatch" style="background:#0a0a0a;color:#e5e5e5;">Deep Charcoal</div>
+                    <div class="color-info">
+                        <div class="color-name">Deep Charcoal</div>
+                        <div>HEX: #0a0a0a</div>
+                        <div>Used for: Backgrounds</div>
+                    </div>
+                </div>
+                <div class="color-card">
+                    <div class="color-swatch" style="background:#ff3366;">Vibrant Coral</div>
+                    <div class="color-info">
+                        <div class="color-name">Vibrant Coral</div>
+                        <div>HEX: #ff3366</div>
+                        <div>Used for: Heartbeat node</div>
+                    </div>
+                </div>
+                <div class="color-card">
+                    <div class="color-swatch" style="background:linear-gradient(90deg,#00ffc8,#00e4ff);color:#0a0a0a;">Teal → Aqua</div>
+                    <div class="color-info">
+                        <div class="color-name">Teal → Aqua</div>
+                        <div>HEX: #00ffc8 → #00e4ff</div>
+                        <div>Used for: Motion & progress</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card-section">
+            <h2 class="section-title">Live Pulse Animation</h2>
+            <div class="live-animation">
+                <div class="pulse-element">
+                    <svg id="animated-icon" width="180" height="180" viewBox="0 0 100 100">
+                        <defs>
+                            <linearGradient id="animatedGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#00ffc8"/>
+                                <stop offset="100%" stop-color="#00e4ff"/>
+                            </linearGradient>
+                            <radialGradient id="pulseEffect" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                                <stop offset="0%" stop-color="#00ffc8" stop-opacity="0.8"/>
+                                <stop offset="100%" stop-color="#00ffc8" stop-opacity="0"/>
+                            </radialGradient>
+                        </defs>
+                        <circle id="pulse" cx="50" cy="50" r="45" fill="url(#pulseEffect)" opacity="0.3"></circle>
+                        <path d="M25,65 Q40,35 50,50 T85,40" fill="none" stroke="url(#animatedGradient)" stroke-width="3.5" stroke-linecap="round"/>
+                        <circle cx="25" cy="65" r="4" fill="#00ffc8"/>
+                        <circle id="coreNode" cx="50" cy="50" r="4.5" fill="#ff3366"/>
+                        <circle cx="85" cy="40" r="4" fill="#4FFFD3"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="brand-text">
+                "The central dot pulses like a heartbeat, turning the period in fit.ai into a living indicator of AI activity."
+            </div>
+        </section>
+
+        <section class="card-section">
+            <h2 class="section-title">Application Examples</h2>
+            <div class="application-grid">
+                <div class="app-card">
+                    <div class="app-display" style="background:#0a0a0a;">
+                        <div style="max-width:300px;margin:0 auto;padding:20px;text-align:center;">
+                            <svg width="150" height="150" viewBox="0 0 100 100">
+                                <defs>
+                                    <linearGradient id="appIconGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stop-color="#00ffc8"/>
+                                        <stop offset="100%" stop-color="#00e4ff"/>
+                                    </linearGradient>
+                                </defs>
+                                <path d="M25,65 Q40,35 50,50 T85,40" fill="none" stroke="url(#appIconGradient)" stroke-width="3.5" stroke-linecap="round"/>
+                                <circle cx="25" cy="65" r="4" fill="url(#appIconGradient)"/>
+                                <circle cx="50" cy="50" r="4.5" fill="#ff3366"/>
+                                <circle cx="85" cy="40" r="4" fill="url(#appIconGradient)"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="app-description">
+                        <div class="app-title">App Store Icon</div>
+                        <p>Dark, high-contrast icon with a pulsating heartbeat dot that stands out in stores.</p>
+                    </div>
+                </div>
+                <div class="app-card">
+                    <div class="app-display" style="background:linear-gradient(135deg,#0d0d0d,#1a1a1a);padding:30px;">
+                        <div style="max-width:320px;margin:0 auto;">
+                            <svg width="200" height="60" viewBox="0 0 200 60" style="margin-bottom:25px;">
+                                <defs>
+                                    <linearGradient id="splashGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stop-color="#00ffc8"/>
+                                        <stop offset="100%" stop-color="#00e4ff"/>
+                                    </linearGradient>
+                                </defs>
+                                <text x="0" y="35" style="font-family:'Poppins',sans-serif;font-weight:600;font-size:28px;letter-spacing:-3px;" fill="#ffffff">fit.</text>
+                                <text x="70" y="35" style="font-family:'Poppins',sans-serif;font-weight:600;font-size:28px;letter-spacing:-2px;">
+                                    <tspan fill="#ffffff">a</tspan>
+                                    <tspan fill="url(#splashGradient)">i</tspan>
+                                </text>
+                            </svg>
+                            <div style="text-align:center;">
+                                <svg width="100" height="100" viewBox="0 0 100 100">
+                                    <defs>
+                                        <linearGradient id="iconGradient2" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stop-color="#00ffc8"/>
+                                            <stop offset="100%" stop-color="#00e4ff"/>
+                                        </linearGradient>
+                                    </defs>
+                                    <path d="M25,65 Q40,35 50,50 T85,40" fill="none" stroke="url(#iconGradient2)" stroke-width="3.5" stroke-linecap="round"/>
+                                    <circle cx="25" cy="65" r="4" fill="url(#iconGradient2)"/>
+                                    <circle cx="50" cy="50" r="4.5" fill="#ff3366"/>
+                                    <circle cx="85" cy="40" r="4" fill="url(#iconGradient2)"/>
+                                </svg>
+                            </div>
+                            <div style="color:#9CA3AF;font-size:0.9rem;margin-top:20px;text-align:center;">AI is analyzing your form...</div>
+                        </div>
+                    </div>
+                    <div class="app-description">
+                        <div class="app-title">Dark Splash Screen</div>
+                        <p>Dark-themed loading screen with the one-word wordmark glowing, indicating AI progress.</p>
+                    </div>
+                </div>
+                <div class="app-card">
+                    <div class="app-display" style="background:#0d0d0d;padding:30px;">
+                        <div style="max-width:300px;margin:0 auto;border-radius:12px;padding:25px;box-shadow:0 5px 15px rgba(0,0,0,.5);">
+                            <svg width="180" height="45" viewBox="0 0 200 45" style="margin-bottom:20px;">
+                                <defs>
+                                    <linearGradient id="bannerGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stop-color="#00ffc8"/>
+                                        <stop offset="100%" stop-color="#00e4ff"/>
+                                    </linearGradient>
+                                </defs>
+                                <text x="0" y="30" style="font-family:'Poppins',sans-serif;font-weight:600;font-size:26px;letter-spacing:-3px;" fill="#ffffff">fit.</text>
+                                <text x="65" y="30" style="font-family:'Poppins',sans-serif;font-weight:600;font-size:26px;letter-spacing:-2px;">
+                                    <tspan fill="#ffffff">a</tspan>
+                                    <tspan fill="url(#bannerGradient)">i</tspan>
+                                </text>
+                            </svg>
+                            <p style="color:#a0a0a0;font-size:1rem;line-height:1.6;margin-bottom:15px;">Ready to start your AI-powered fitness journey?</p>
+                            <div style="display:flex;gap:10px;margin-top:20px;">
+                                <div style="flex:1;text-align:center;background:#ffffff;color:#0d0d0d;padding:10px;border-radius:8px;font-size:0.9rem;">Learn More</div>
+                                <div style="flex:1;text-align:center;background:linear-gradient(90deg,#00ffc8,#00e4ff);color:#0d0d0d;padding:10px;border-radius:8px;font-weight:600;font-size:0.9rem;">Try Free</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="app-description">
+                        <div class="app-title">Marketing Collateral</div>
+                        <p>Dark collateral with the pulsating dot in the wordmark, guiding user attention.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            &copy; fit.ai – Pulse-Driven Dark Theme
+        </footer>
+    </div>
+    
+    <script>
+        // Animate the pulse effect
+        function animatePulse(){
+            const pulse=document.getElementById('pulse');
+            const coreNode=document.getElementById('coreNode');
+            let scale=1;
+            let opacity=0.3;
+            let expanding=true;
+            setInterval(()=>{
+                if(expanding){
+                    scale+=0.02;
+                    opacity-=0.01;
+                    if(scale>1.5) expanding=false;
+                }else{
+                    scale-=0.02;
+                    opacity+=0.01;
+                    if(scale<1) expanding=true;
+                }
+                pulse.style.transform=`scale(${scale})`;
+                pulse.style.opacity=opacity;
+                if(!expanding){
+                    coreNode.style.fill='#ff3366';
+                }else{
+                    coreNode.style.fill='#00ffc8';
+                }
+            },60);
+        }
+        document.addEventListener('DOMContentLoaded',animatePulse);
+    </script>
+</body>
+</html>
