@@ -147,50 +147,125 @@ psql $DATABASE_URL -c "SELECT COUNT(*) FROM ragas_metrics;"
 
 ---
 
-## ☁️ Modal vLLM Setup (Remote Generation)
+## ☁️ Modal Services Setup (Remote Generation, Embeddings, Reranking)
 
-### 1. Configure Modal app
+FitAI uses **two separate Modal apps** for optimal performance and cost:
 
-- Ensure your HF token is stored in Modal secrets:
+1. **`fitai-vllm`** - Generation (Llama 8B) + Reranking
+2. **`fitai-embed`** - Embeddings (SentenceTransformers)
+
+### 1. Configure Modal Secrets
+
+Ensure your HF token is stored in Modal secrets:
 ```bash
 python -m modal secret create hf-token HF_TOKEN=hf_XXXXXXXXXXXXXXXXXXXX
 ```
 
-- Deploy vLLM app:
+### 2. Deploy Generation + Reranking Service
+
+Deploy the vLLM app (includes generation and reranker):
 ```bash
-python -m modal deploy infra/modal_vllm.py
+cd infra
+modal deploy modal_vllm.py
 ```
 
-The app uses:
-- GPU: A10G (sufficient for Llama 3.1 8B Instruct)
-- DType: float16
-- Max model len: auto-detected from model config
+**This service provides:**
+- **Generation**: Llama 3.1 8B Instruct via vLLM
+  - Endpoint: `/v1/chat/completions`
+  - GPU: A10G (sufficient for Llama 3.1 8B)
+  - DType: float16
+  - Max model len: auto-detected from model config
+- **Reranking**: CrossEncoder model
+  - Endpoint: `/rerank`
+  - Model: `cross-encoder/ms-marco-MiniLM-L-6-v2`
 
-### 2. Set backend env
-
-Add these to your `.env`:
+**Get the URL:**
 ```bash
+modal app list
+# Note the URL: https://your-username--fitai-vllm-serve.modal.run
+```
+
+### 3. Deploy Embedding Service
+
+Deploy the embedding service (separate app):
+```bash
+cd infra
+modal deploy embed_service_modal.py
+```
+
+**This service provides:**
+- **Embeddings**: SentenceTransformer model
+  - Endpoint: `/embed`
+  - Model: `sentence-transformers/all-MiniLM-L6-v2`
+  - GPU: T4 (cost-effective for embeddings)
+  - Batch size: 64
+
+**Get the URL:**
+```bash
+modal app list
+# Note the URL: https://your-username--fitai-embed-serve.modal.run
+```
+
+### 4. Set Backend Environment Variables
+
+Add these to your `.env` (or Render environment variables):
+```bash
+# Generation Backend
 GEN_BACKEND=remote
-REMOTE_GEN_URL=https://<your-modal-app>.modal.run/v1/completions
+REMOTE_GEN_URL=https://your-username--fitai-vllm-serve.modal.run/v1/chat/completions
 HF_MODEL_ID=meta-llama/Meta-Llama-3.1-8B-Instruct
+
+# Embeddings
+EMBEDDING_PROVIDER=modal
+REMOTE_EMBED_URL=https://your-username--fitai-embed-serve.modal.run/embed
+
+# Reranking
+RERANKER_BACKEND=remote
+RERANKER_REMOTE_URL=https://your-username--fitai-vllm-serve.modal.run/rerank
 ```
 
-### 3. Warm and test
+### 5. Test Modal Services
+
+**Test Generation Service:**
 ```bash
-curl -s https://<your-modal-app>.modal.run/health
+curl -s https://your-username--fitai-vllm-serve.modal.run/health
+# Expected: {"status":"ok","model":"..."}
 
-curl -s -X POST https://<your-modal-app>.modal.run/v1/completions \
+curl -s -X POST https://your-username--fitai-vllm-serve.modal.run/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model":"meta-llama/Meta-Llama-3.1-8B-Instruct", "prompt":"Hello", "max_tokens":64}'
+  -d '{"model":"meta-llama/Meta-Llama-3.1-8B-Instruct", "messages":[{"role":"user","content":"Hello"}], "max_tokens":64}'
 ```
 
-Then test FitAI chat:
+**Test Embedding Service:**
+```bash
+curl -s https://your-username--fitai-embed-serve.modal.run/health
+# Expected: {"ok":true,"model":"sentence-transformers/all-MiniLM-L6-v2"}
+
+curl -s -X POST https://your-username--fitai-embed-serve.modal.run/embed \
+  -H "Content-Type: application/json" \
+  -d '{"texts":["test embedding"]}'
+# Expected: {"embeddings":[[...384 numbers...]]}
+```
+
+**Test Reranking Service:**
+```bash
+curl -s -X POST https://your-username--fitai-vllm-serve.modal.run/rerank \
+  -H "Content-Type: application/json" \
+  -d '{"query":"fitness", "texts":["workout", "exercise", "nutrition"]}'
+# Expected: {"scores":[0.123, 0.456, 0.789], "model":"cross-encoder/ms-marco-MiniLM-L-6-v2"}
+```
+
+### 6. Test FitAI Backend Integration
+
+Once Modal services are deployed and environment variables are set:
 ```bash
 curl -s -X POST http://localhost:8000/chat \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query":"Plan a leg day for me."}'
 ```
+
+**Expected:** Chat response using remote Modal services (check logs to confirm no local model loading).
 
 ---
 
@@ -245,17 +320,19 @@ SUPABASE_URL=https://your-project.supabase.co
 
 # Generation Backend (optional, defaults to local)
 GEN_BACKEND=remote  # or "local"
-REMOTE_GEN_URL=https://your-vllm.modal.run/v1/completions
-REMOTE_GEN_API_KEY=your-api-key  # if needed
+REMOTE_GEN_URL=https://your-username--fitai-vllm-serve.modal.run/v1/chat/completions
+REMOTE_GEN_API_KEY=your-api-key  # if needed (usually not required for Modal)
 
 # Embeddings (optional, defaults to local)
-EMBEDDING_PROVIDER=local  # or "modal" or "openai"
-# REMOTE_EMBED_URL=https://your-embed-service.modal.run/embed
-# OPENAI_API_KEY=sk-...
+EMBEDDING_PROVIDER=modal  # or "local" or "openai"
+REMOTE_EMBED_URL=https://your-username--fitai-embed-serve.modal.run/embed
+REMOTE_EMBED_API_KEY=your-api-key  # if needed (usually not required for Modal)
+# OPENAI_API_KEY=sk-...  # Only if using OpenAI embeddings
 
 # Reranker (optional, defaults to local)
-RERANKER_BACKEND=local  # or "remote" or "none"
-# RERANKER_REMOTE_URL=https://your-rerank.modal.run/rerank
+RERANKER_BACKEND=remote  # or "local" or "none"
+RERANKER_REMOTE_URL=https://your-username--fitai-vllm-serve.modal.run/rerank
+# Note: Reranker is hosted in the same Modal app as generation (fitai-vllm)
 ```
 
 ### Optional Toggles
@@ -416,7 +493,9 @@ Before deploying to production:
 - [ ] Verify RAGAS metrics logging
 - [ ] Set up database backups
 - [ ] Configure CORS if needed
-- [ ] Test with production vLLM/generation backend
+- [ ] Deploy Modal services (generation+reranker and embeddings)
+- [ ] Set Modal service URLs in environment variables
+- [ ] Test with production Modal services (generation, embeddings, reranking)
 - [ ] Load test insights endpoint
 - [ ] Set appropriate worker count for gunicorn
 
