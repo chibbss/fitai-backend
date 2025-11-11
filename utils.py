@@ -87,7 +87,7 @@ def load_env() -> None:
 def get_config() -> AppConfig:
     load_env()
     return AppConfig(
-        hf_model_id=os.getenv("HF_MODEL_ID", "microsoft/phi-3-mini-4k-instruct"),
+        hf_model_id=os.getenv("HF_MODEL_ID", "meta-llama/Llama-3.1-8B-Instruct"),
         hf_token=os.getenv("HF_TOKEN") or None,
         embedding_model_name=os.getenv(
             "EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"

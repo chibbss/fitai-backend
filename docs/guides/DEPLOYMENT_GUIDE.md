@@ -173,8 +173,8 @@ modal deploy modal_vllm.py
 - **Generation**: Llama 3.1 8B Instruct via vLLM
   - Endpoint: `/v1/chat/completions`
   - GPU: A10G (sufficient for Llama 3.1 8B)
-  - DType: float16
-  - Max model len: auto-detected from model config
+- DType: float16
+- Max model len: auto-detected from model config
 - **Reranking**: CrossEncoder model
   - Endpoint: `/rerank`
   - Model: `cross-encoder/ms-marco-MiniLM-L-6-v2`

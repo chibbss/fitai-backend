@@ -7,7 +7,9 @@ Welcome to the FitAI backend documentation. This directory contains comprehensiv
 ### 🚀 [Guides](./guides/)
 Step-by-step guides for common tasks:
 - **[Deployment Guide](./guides/DEPLOYMENT_GUIDE.md)** - Production deployment instructions
+- **[Deployment Checklist](./guides/DEPLOYMENT_CHECKLIST.md)** - Step-by-step Render rollout tracker
 - **[Onboarding Guide](./guides/ONBOARDING_GUIDE.md)** - Frontend integration guide
+- **[FitAI Product Overview](./guides/FITAI_PRODUCT_OVERVIEW.md)** - How the coach, memory, and insights system work together
 
 ### 📖 [Reference](./reference/)
 Technical documentation and API references:

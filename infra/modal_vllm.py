@@ -60,7 +60,7 @@ def get_model_max_length(model_name: str, hf_token: str | None) -> int:
 )
 @modal.asgi_app()
 def serve():
-    MODEL = os.environ.get("MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+    MODEL = os.environ.get("MODEL", "meta-llama/Llama-3.1-8B-Instruct")
     HF_TOKEN = os.environ.get("HF_TOKEN")
     VLLM_HOST = "127.0.0.1"
     VLLM_PORT = 8001
