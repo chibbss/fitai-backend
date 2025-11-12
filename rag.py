@@ -99,24 +99,24 @@ class RAGService:
         with self._lock:
             self.logger.info("Starting up RAG service")
             try:
-            self._init_db()
+                self._init_db()
             except Exception as e:
                 self.logger.error("Failed to initialize database: %s", e)
                 raise  # Database is critical, fail if it doesn't work
-
+            
             try:
-            self._init_models()
+                self._init_models()
             except Exception as e:
                 self.logger.error("Failed to initialize models: %s", e)
                 # Models are not critical for health check, but log the error
                 # The app can still start and health check will work
-
+            
             try:
-            self._init_redis()
+                self._init_redis()
             except Exception as e:
                 self.logger.warning("Failed to initialize Redis: %s", e)
                 # Redis is optional, continue without it
-
+            
             self.logger.info("Startup complete: database and models initialized")
 
     def _init_models(self) -> None:
@@ -154,22 +154,21 @@ class RAGService:
         
         # Embeddings: Only load locally if using local provider
         if self.config.embedding_provider == "local":
-        device_str = self._resolve_torch_device()
-        self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
+            device_str = self._resolve_torch_device()
+            self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
             try:
-        self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
+                self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
+                # Tokenizer for chunking
+                try:
+                    from transformers import AutoTokenizer as HFTokenizer
+                    self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                        self.config.embedding_model_name, use_fast=True
+                    )
+                except Exception:
+                    self.embedding_tokenizer = None
             except Exception as e:
                 self.logger.error("Failed to load local embedding model: %s", e)
                 self.embedding_model = None
-
-        # Tokenizer for chunking
-        try:
-            from transformers import AutoTokenizer as HFTokenizer
-            self.embedding_tokenizer = HFTokenizer.from_pretrained(
-                self.config.embedding_model_name, use_fast=True
-            )
-        except Exception:
-            self.embedding_tokenizer = None
         elif self.config.embedding_provider == "modal":
             self.logger.info("Using REMOTE embedding provider (Modal) at %s", self.config.remote_embed_url)
             if not self.config.remote_embed_url:
@@ -232,12 +231,12 @@ class RAGService:
 
             # Phi-3 models may require authentication
             try:
-            self.generator_tokenizer = AutoTokenizer.from_pretrained(
-                self.config.hf_model_id, token=token, trust_remote_code=True
-            )
-            self.generator_model = AutoModelForCausalLM.from_pretrained(
-                self.config.hf_model_id, token=token, device_map=None, **model_kwargs
-            )
+                self.generator_tokenizer = AutoTokenizer.from_pretrained(
+                    self.config.hf_model_id, token=token, trust_remote_code=True
+                )
+                self.generator_model = AutoModelForCausalLM.from_pretrained(
+                    self.config.hf_model_id, token=token, device_map=None, **model_kwargs
+                )
             except OSError as e:
                 if "401" in str(e) or "Unauthorized" in str(e):
                     self.logger.error(
@@ -250,12 +249,10 @@ class RAGService:
 
             # Move model to target device explicitly for small models (prototype)
             device_str = self._resolve_torch_device()
-            self.logger.info(
-                "Resolved device: %s (CUDA available: %s, MPS available: %s)",
-                device_str,
-                torch.cuda.is_available() if hasattr(torch, "cuda") else False,
-                torch.backends.mps.is_available() if hasattr(torch.backends, "mps") else False,
-            )
+            self.logger.info("Resolved device: %s (CUDA available: %s, MPS available: %s)", 
+                           device_str, 
+                           torch.cuda.is_available() if hasattr(torch, 'cuda') else False,
+                           torch.backends.mps.is_available() if hasattr(torch.backends, 'mps') else False)
             if device_str == "cuda" and torch.cuda.is_available():
                 self.generator_model.to(0)
                 self.logger.info("Model moved to CUDA device 0")
@@ -264,9 +261,7 @@ class RAGService:
                 self.logger.info("Model moved to MPS (Apple Silicon GPU)")
             else:
                 self.generator_model.to("cpu")
-                self.logger.warning(
-                    "Model running on CPU - this will be SLOW! Consider using MPS on Mac or remote generation."
-                )
+                self.logger.warning("Model running on CPU - this will be SLOW! Consider using MPS on Mac or remote generation.")
 
             # Prefer eager attention on non-CUDA backends
             try:
@@ -278,7 +273,7 @@ class RAGService:
             self.generator_pipe = None
 
         # Reranker: Only load locally if using local backend
-            if self.config.reranker_backend == "local":
+        if self.config.reranker_backend == "local":
             try:
                 if CrossEncoder is None:
                     self.logger.warning(
@@ -295,8 +290,8 @@ class RAGService:
                     # sentence-transformers CrossEncoder accepts device identifier; map 'cuda' to 0
                     device_arg = 0 if (device_str == "cuda" and torch.cuda.is_available()) else device_str
                     self._reranker_model = CrossEncoder(self.config.reranker_model_name, device=device_arg)  # type: ignore
-        except Exception as e:
-            self.logger.error("Failed to initialize reranker: %s", e)
+            except Exception as e:
+                self.logger.error("Failed to initialize reranker: %s", e)
                 self._reranker_model = None
         elif self.config.reranker_backend == "remote":
             self.logger.info("Using REMOTE reranker backend at %s", self.config.reranker_remote_url)
@@ -1846,38 +1841,31 @@ Generate an analytical insight based on the data above. Include specific numbers
                                     conversation_hooks.append(f"PR for {exercise_name}")
                                 
                                 pr_message = self._generate_insight_message("pr_context", pr_context)
-
-                                insights.append(
-                                    {
-                                "exercise": exercise_name,
-                                "status": "pr",
-                                        "message": pr_message,
-                                        "weight_increase": weight_increase,
-                                    }
-                                )
+                                
+                                insights.append({
+                                    "exercise": exercise_name,
+                                    "status": "pr",
+                                    "message": pr_message,
+                                    "weight_increase": weight_increase,
+                                })
                             else:
                                 # Regular PR (not all-time) - use AI generation
                                 weight_increase = curr_max - prev_max
-                                pr_message = self._generate_insight_message(
-                                    "pr_context",
-                                    {
-                                        "exercise_name": exercise_name,
-                                        "weight_increase": weight_increase,
-                                        "prev_weight": prev_max,
-                                        "days_since_last_pr": 0,
-                                        "prs_this_month": 0,
-                                        "is_all_time": False,
-                                        "situation": "regular_pr",
-                                    },
-                                )
-                                insights.append(
-                                    {
-                                        "exercise": exercise_name,
-                                        "status": "pr",
-                                        "message": pr_message,
-                                        "weight_increase": weight_increase,
-                                    }
-                                )
+                                pr_message = self._generate_insight_message("pr_context", {
+                                    "exercise_name": exercise_name,
+                                    "weight_increase": weight_increase,
+                                    "prev_weight": prev_max,
+                                    "days_since_last_pr": 0,
+                                    "prs_this_month": 0,
+                                    "is_all_time": False,
+                                    "situation": "regular_pr"
+                                })
+                                insights.append({
+                                    "exercise": exercise_name,
+                                    "status": "pr",
+                                    "message": pr_message,
+                                    "weight_increase": weight_increase,
+                                })
                                 conversation_hooks.append(f"PR for {exercise_name}")
                     except Exception as e:
                         self.logger.warning("Enhanced PR detection failed for %s: %s", exercise_name, e)
@@ -1895,22 +1883,14 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Fallback if generation fails - analytical fallbacks
             if not overall_message or overall_message == "Great work on exercise!":
-            if avg_delta > 10:
-                    overall_message = (
-                        f"Session volume increased by {avg_delta:+.1f}% vs previous session. Strong progression pattern."
-                    )
-            elif avg_delta > 0:
-                    overall_message = (
-                        f"Volume up {avg_delta:+.1f}% from last session. Maintaining positive trajectory."
-                    )
-            elif avg_delta < -10:
-                    overall_message = (
-                        f"Volume decreased {abs(avg_delta):.1f}% vs previous session. Lower intensity may indicate recovery need."
-                    )
+                if avg_delta > 10:
+                    overall_message = f"Session volume increased by {avg_delta:+.1f}% vs previous session. Strong progression pattern."
+                elif avg_delta > 0:
+                    overall_message = f"Volume up {avg_delta:+.1f}% from last session. Maintaining positive trajectory."
+                elif avg_delta < -10:
+                    overall_message = f"Volume decreased {abs(avg_delta):.1f}% vs previous session. Lower intensity may indicate recovery need."
                 else:
-                    overall_message = (
-                        f"Session volume maintained (±{abs(avg_delta):.1f}% change). Consistent performance."
-                    )
+                    overall_message = f"Session volume maintained (±{abs(avg_delta):.1f}% change). Consistent performance."
             
             # Remove duplicate conversation hooks
             conversation_hooks = list(dict.fromkeys(conversation_hooks))  # Preserves order
@@ -3212,17 +3192,15 @@ Generate an analytical insight based on the data above. Include specific numbers
         self.logger.debug("KB retrieval took %.1fms", retrieval_time)
 
         # Use pre-loaded context or load on-demand
-        dyn: List[Dict[str, Any]] = []
         if preloaded_context:
             static_summary = preloaded_context.get("static_summary", "")
             memory_text = preloaded_context.get("memory_text", "(no long-term memory yet)")
             fitness_overview = preloaded_context.get("fitness_overview", "")
             user_patterns = preloaded_context.get("user_patterns", [])
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
-            dyn = preloaded_context.get("dyn", [])
         else:
             # Fallback: load context on-demand (slower, but works if preload wasn't called)
-        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
             memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
@@ -3257,13 +3235,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                     self._patterns_cache[user_id] = (user_patterns, current_time)
             
             # Get recent workouts
-            dyn = (
-                self.retrieve_training_logs(
-                    user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))
-                )
-                if user_id
-                else []
-            )
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
         dyn_blocks = [
             f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
         ]
@@ -3271,9 +3243,7 @@ Generate an analytical insight based on the data above. Include specific numbers
 
         # Session recap - retrieve conversation history (optimized: limit to 20 messages)
         # This is session-specific, so always load fresh
-        session_msgs = (
-            self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
-        )
+        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
 
@@ -3493,7 +3463,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 try:
                     text = self.tokenizer.decode(recent_tokens, skip_special_tokens=True)
                     # Only check stop strings that might appear in recent text
-                return any(s in text for s in self.stop_strings)
+                    return any(s in text for s in self.stop_strings)
                 except Exception:
                     return False
 
@@ -3639,7 +3609,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
         else:
             # Fallback: load context on-demand
-        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
             memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
@@ -3674,12 +3644,8 @@ Generate an analytical insight based on the data above. Include specific numbers
                     self._patterns_cache[user_id] = (user_patterns, current_time)
             
             # Get recent workouts
-            dyn = self.retrieve_training_logs(
-                user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))
-            ) if user_id else []
-            dyn_blocks = [
-                f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
-            ]
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
+        dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
         
         # Session recap - always load fresh (session-specific)

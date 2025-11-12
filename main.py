@@ -1,5 +1,6 @@
 # main.py
 
+import json
 import traceback
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,8 @@ from prometheus_fastapi_instrumentator import Instrumentator
 import sentry_sdk
 from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from sqlalchemy import text as sql_text
+from uuid import uuid4
 
 logger = get_logger("main")
 app = FastAPI(title="Production RAG API", version="1.0.0")
@@ -253,6 +256,19 @@ class MemoriesResponse(BaseModel):
     items: List[MemoryItem]
 
 
+class ReportBugRequest(BaseModel):
+    description: str = Field(..., min_length=1, max_length=4000)
+    title: Optional[str] = Field(None, max_length=200, description="Short summary of the bug")
+    severity: Optional[str] = Field(None, description="Optional severity label (e.g. low, medium, high)")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional client-provided context")
+
+
+class ReportBugResponse(BaseModel):
+    bug_id: str
+    status: str
+    message: str
+
+
 class AddDocsResponse(BaseModel):
     added_docs: int
     added_vectors: int
@@ -366,6 +382,53 @@ async def readiness() -> ReadinessResponse:
     except Exception:
         gen_ok = False
     return ReadinessResponse(ok=db_ok and gen_ok, db_ok=db_ok, gen_ok=gen_ok)
+
+
+@app.post("/bugs", response_model=ReportBugResponse, status_code=201)
+@limiter.limit(os.getenv("RATE_LIMIT_BUGS", "30/minute"))
+async def report_bug(
+    request: Request,
+    payload: ReportBugRequest = Body(...),
+    user: Optional[AuthUser] = Depends(get_optional_user),
+) -> ReportBugResponse:
+    try:
+        bug_id = str(uuid4())
+        enriched_metadata: Dict[str, Any] = dict(payload.metadata or {})
+        if payload.severity:
+            enriched_metadata["severity"] = payload.severity
+        enriched_metadata.setdefault("user_agent", request.headers.get("user-agent"))
+        enriched_metadata.setdefault("referer", request.headers.get("referer"))
+        if request.client and request.client.host:
+            enriched_metadata.setdefault("client_ip", request.client.host)
+        enriched_metadata.setdefault("path", str(request.url))
+        metadata_json = json.dumps({k: v for k, v in enriched_metadata.items() if v is not None}) or "{}"
+
+        with rag_service.engine.begin() as conn:
+            conn.execute(
+                sql_text(
+                    """
+                    INSERT INTO bug_reports (id, user_id, title, description, status, metadata, created_at)
+                    VALUES (:id, :user_id, :title, :description, :status, :metadata::jsonb, CURRENT_TIMESTAMP)
+                    """
+                ),
+                {
+                    "id": bug_id,
+                    "user_id": user.user_id if user else None,
+                    "title": payload.title or None,
+                    "description": payload.description.strip(),
+                    "status": "open",
+                    "metadata": metadata_json,
+                },
+            )
+
+        logger.info("Bug report %s recorded (user_id=%s)", bug_id, user.user_id if user else "anonymous")
+        return ReportBugResponse(bug_id=bug_id, status="open", message="Bug report submitted")
+    except Exception as exc:
+        logger.error("Failed to record bug report: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error_message(exc, "Unable to submit bug report"),
+        )
 
 
 # -------------------------------------------------
