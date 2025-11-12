@@ -154,10 +154,17 @@ class RAGService:
         
         # Embeddings: Only load locally if using local provider
         if self.config.embedding_provider == "local":
-            device_str = self._resolve_torch_device()
-            self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
             try:
-                self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
+                device_str = self._resolve_torch_device()
+                self.logger.info(
+                    "Loading embedding model %s on %s",
+                    self.config.embedding_model_name,
+                    device_str,
+                )
+                self.embedding_model = SentenceTransformer(
+                    self.config.embedding_model_name, device=device_str
+                )
+
                 # Tokenizer for chunking
                 try:
                     from transformers import AutoTokenizer as HFTokenizer
@@ -177,16 +184,8 @@ class RAGService:
                 self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
             # No local model loading needed for embeddings
             self.embedding_model = None
-            # Still need tokenizer for text chunking (lightweight, no model weights)
-            try:
-                from transformers import AutoTokenizer as HFTokenizer
-                self.embedding_tokenizer = HFTokenizer.from_pretrained(
-                    self.config.embedding_model_name, use_fast=True
-                )
-                self.logger.info("Loaded tokenizer for chunking (no model weights)")
-            except Exception as e:
-                self.logger.warning("Failed to load tokenizer for chunking: %s - will use character-based chunking", e)
-                self.embedding_tokenizer = None
+            # Skip tokenizer download to avoid slow startup; fallback chunking will be character-based
+            self.embedding_tokenizer = None
         elif self.config.embedding_provider == "openai":
             self.logger.info("Using OpenAI embedding provider")
             if not self.config.openai_api_key:
