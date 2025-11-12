@@ -15,11 +15,18 @@ pip install -r requirements.txt
 ### 2. Run Database Migration
 
 ```bash
-# Run the new migration to create workout and RAGAS tables
+# Apply migrations against your local database
 alembic upgrade head
+
+# Apply the same migrations against production (Render)
+alembic -x url=$RENDER_DATABASE_URL upgrade head
 ```
 
-**Expected Output:**
+> ℹ️ **Why manual?**  
+> The API no longer runs Alembic automatically during startup.  
+> Run `alembic upgrade head` for each environment (local, Render) **before** deploying code that depends on a new schema.
+
+**Expected Output (per environment):**
 ```
 INFO  [alembic.runtime.migration] Running upgrade b43c9a785a9e -> c8d4f2e1b9a3, workout sessions and ragas metrics
 ```
