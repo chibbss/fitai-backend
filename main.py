@@ -308,7 +308,7 @@ async def on_startup() -> None:
                     ["alembic", "upgrade", "head"],
                     capture_output=True,
                     text=True,
-                    timeout=60
+                    timeout=300
                 )
                 if result.returncode == 0:
                     logger.info("Database migrations completed successfully")
