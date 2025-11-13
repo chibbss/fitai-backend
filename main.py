@@ -352,7 +352,7 @@ async def readiness() -> ReadinessResponse:
     try:
         # lightweight DB check
         with rag_service.engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(sql_text("SELECT 1"))
         db_ok = True
     except Exception:
         db_ok = False
