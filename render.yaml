@@ -2,6 +2,9 @@ services:
   - type: web
     name: fitai-api
     env: python
+    region: oregon
+    healthCheckPath: /health
+    healthCheckTimeoutSeconds: 180
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn main:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120
     envVars:
@@ -37,6 +40,14 @@ services:
         value: 1
       - key: ENABLE_SCHEDULER
         value: 1
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "10"
+      - key: DB_POOL_TIMEOUT
+        value: "30"
+      - key: DB_POOL_RECYCLE
+        value: "1800"
 
 databases:
   - name: fitai-db
