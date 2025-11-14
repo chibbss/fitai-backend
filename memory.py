@@ -156,12 +156,12 @@ def refresh_user_workout_memory(rag_service: RAGService, user_id: str, n: int = 
 
         # Always create NEW summary (accumulate history instead of overwriting)
         meta_data = {
-            "redacted": True,
-            "window_size": n,  # Number of logs summarized
-            "log_count": len(texts),
-            "date_range_start": first_log_date,
-            "date_range_end": last_log_date,
-            "created_at": datetime.now(timezone.utc).isoformat()
+                    "redacted": True,
+                    "window_size": n,  # Number of logs summarized
+                    "log_count": len(texts),
+                    "date_range_start": first_log_date,
+                    "date_range_end": last_log_date,
+                    "created_at": datetime.now(timezone.utc).isoformat()
         }
         if milestone:
             meta_data["milestone"] = milestone
