@@ -8,9 +8,9 @@ import {
     Animated,
     Dimensions,
 } from 'react-native';
-import { colors, radius, spacingX, spacingY } from '@/constants/theme';
-import Typo from './Typo';
-import Button from './Button';
+import { radius, spacingX, spacingY, colors } from '@/constants/theme';
+import Typo from '@/components/Typo';
+import Button from '@/components/Button';
 import * as Icons from 'phosphor-react-native';
 import { verticalScale } from '@/utils/styling';
 
@@ -70,26 +70,26 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
             case 'success':
                 return {
                     icon: 'CheckCircle' as keyof typeof Icons,
-                    iconColor: colors.green,
-                    backgroundColor: colors.green + '15',
+                    iconColor: colors.accentPrimary,
+                    backgroundColor: colors.accentPrimary + '15',
                 };
             case 'error':
                 return {
                     icon: 'XCircle' as keyof typeof Icons,
-                    iconColor: colors.rose,
-                    backgroundColor: colors.rose + '15',
+                    iconColor: colors.accentWarm,
+                    backgroundColor: colors.accentWarm + '15',
                 };
             case 'warning':
                 return {
                     icon: 'Warning' as keyof typeof Icons,
-                    iconColor: colors.primaryDark,
-                    backgroundColor: colors.primaryLight + '40',
+                    iconColor: colors.accentSecondary,
+                    backgroundColor: colors.accentSecondary + '40',
                 };
             default:
                 return {
                     icon: 'Info' as keyof typeof Icons,
-                    iconColor: colors.primary,
-                    backgroundColor: colors.primaryLight + '30',
+                    iconColor: colors.accentPrimary,
+                    backgroundColor: colors.accentPrimary + '30',
                 };
         }
     };
@@ -151,6 +151,7 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
                                     size={20}
                                     fontWeight="600"
                                     color={colors.black}
+                                    color={colors.textPrimary}
                                     style={styles.title}
                                 >
                                     {title}
@@ -161,6 +162,7 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
                             <Typo
                                 size={16}
                                 color={colors.neutral600}
+                                color={colors.textSecondary}
                                 style={styles.message}
                             >
                                 {message}
@@ -181,8 +183,8 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
                                             fontWeight="600"
                                             color={
                                                 buttons[0].style === 'destructive'
-                                                    ? colors.white
-                                                    : colors.black
+                                                    ? colors.surface
+                                                    : colors.textPrimary
                                             }
                                             size={16}
                                         >
@@ -207,10 +209,10 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
                                                     fontWeight="600"
                                                     color={
                                                         button.style === 'destructive'
-                                                            ? colors.rose
-                                                            : button.style === 'cancel'
-                                                            ? colors.neutral600
-                                                            : colors.primary
+                                                    ? colors.accentWarm
+                                                    : button.style === 'cancel'
+                                                    ? colors.textSecondary
+                                                    : colors.accentPrimary
                                                     }
                                                     size={16}
                                                 >

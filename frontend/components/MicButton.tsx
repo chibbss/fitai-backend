@@ -3,6 +3,7 @@ import { TouchableOpacity, Alert, ActivityIndicator, View, StyleSheet } from 're
 import { Audio } from 'expo-av';
 import * as Icons from 'phosphor-react-native';
 import LottieView from 'lottie-react-native';
+import { colors } from '@/constants/theme';
 
 type MicButtonProps = {
   onRecordingDone: (uri: string) => void;
@@ -114,7 +115,7 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
           />
         </View>
       ) : (
-        <Icons.Microphone size={28} color="white" weight="fill" />
+        <Icons.Microphone size={28} color={colors.white} weight="fill" />
       )}
     </TouchableOpacity>
   );
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: colors.primary,
   },
   animationWrapper: {
     width: 32, // ✅ same visual size as icon

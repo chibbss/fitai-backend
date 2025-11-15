@@ -1,9 +1,10 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import React from 'react'
+import { StyleSheet, TouchableOpacity, View } from 'react-native'
+import React, { useMemo } from 'react'
 import { ButtonProps } from '@/types'
-import { colors, radius } from '@/constants/theme'
+import { radius } from '@/constants/theme'
 import { verticalScale } from '@/utils/styling'
 import Loading from './Loading'
+import { useTheme } from '@/context/ThemeContext'
 
 const Button = ({
   style,
@@ -11,10 +12,26 @@ const Button = ({
   children,
   loading = false,
 }: ButtonProps) => {
+  const { colors } = useTheme();
+
+  const baseStyle = useMemo(
+    () =>
+      StyleSheet.create({
+        button: {
+          backgroundColor: colors.accentPrimary,
+          borderRadius: radius.full,
+          borderCurve: 'continuous',
+          height: verticalScale(56),
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+      }),
+    [colors]
+  );
 
   if (loading) {
     return (
-      <View style={[styles.button, style, { backgroundColor: 'transparent' }]}>
+      <View style={[baseStyle.button, style, { backgroundColor: 'transparent' }]}>
         <Loading />
       </View>
     )
@@ -22,21 +39,10 @@ const Button = ({
   }
 
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.button, style]}>
+    <TouchableOpacity onPress={onPress} style={[baseStyle.button, style]}>
       {children}
     </TouchableOpacity>
   )
 }
 
 export default Button
-
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    borderCurve: 'continuous',
-    height: verticalScale(56),
-    justifyContent: 'center',
-    alignItems: 'center',
-  }
-})

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 //import { setupAuthListener } from '@/utils/supabase';
 import { AlertProvider } from '@/context/AlertContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -12,13 +13,14 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AlertProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(main)" options={{ headerShown: false }} />
-      </Stack>
-    </AlertProvider>
-
+    <ThemeProvider>
+      <AlertProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="(main)" options={{ headerShown: false }} />
+        </Stack>
+      </AlertProvider>
+    </ThemeProvider>
   );
 }
