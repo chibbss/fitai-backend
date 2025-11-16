@@ -7,7 +7,6 @@ import Typo from '@/components/Typo';
 import { colors, spacingY } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
 import * as Linking from 'expo-linking';
-import { API_URL } from '@/utils/config';
 
 const AuthCallback = () => {
   const router = useRouter();
@@ -105,7 +104,7 @@ const AuthCallback = () => {
         setStatus('Creating your profile...');
 
         // Create backend profile
-        const apiUrl = API_URL;
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
         
         try {
           const response = await fetch(`${apiUrl}/users/${user.id}`, {

@@ -47,10 +47,10 @@ const ScreenWrapperChat = ({
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.white }}>
+    <View style={{ flex: 1, backgroundColor: !showPattern ? colors.white : colors.neutral900 }}>
       <StatusBar 
-        barStyle="dark-content" 
-        backgroundColor={colors.white} 
+        barStyle={showPattern ? "light-content" : "dark-content"} 
+        backgroundColor={!showPattern ? colors.white : "transparent"} 
         translucent={false}
       />
       {/* ✅ Background looping video (fades in) */}

@@ -1,12 +1,11 @@
-import { Dimensions, Platform, StatusBar, StyleSheet, View, Image } from 'react-native';
+import { Dimensions, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import React, { useEffect } from 'react';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { ScreenWrapperProps } from '@/types';
+import { colors } from '@/constants/theme';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
-import { useTheme } from '@/context/ThemeContext';
 
-const { height, width } = Dimensions.get('window');
-const screenHeight = Dimensions.get('screen').height;
+const { height } = Dimensions.get('window');
 
 const ScreenWrapper = ({
   style,
@@ -14,9 +13,7 @@ const ScreenWrapper = ({
   showPattern = false,
   isModal = false,
   bgOpacity = 1,
-  backgroundImage,
 }: ScreenWrapperProps) => {
-  const { colors: themeColors, isDarkMode } = useTheme();
   // ✅ Load video player
   const player = useVideoPlayer(require('../assets/images/videos/day_animated.mp4'), (player) => {
     player.loop = true;
@@ -43,12 +40,9 @@ const ScreenWrapper = ({
     paddingBottom = height * 0.02;
   }
 
-  const containerBackground =
-    showPattern || bgOpacity > 0 ? themeColors.background : 'transparent';
-
   return (
-    <View style={{ flex: 1, backgroundColor: containerBackground }}>
-      {/* ✅ Background looping video (fades in) 
+    <View style={{ flex: 1, backgroundColor: colors.neutral900 }}>
+      {/* ✅ Background looping video (fades in) */}
       {showPattern && (
         <Animated.View style={[StyleSheet.absoluteFill, animatedStyle]}>
           <VideoView
@@ -58,55 +52,19 @@ const ScreenWrapper = ({
             allowsPictureInPicture={false}
           />
         </Animated.View>
-      )}*/}
-
-      {backgroundImage && (
-        <Animated.View
-          style={[
-            {
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: width,
-              height: screenHeight,
-              zIndex:0
-            },
-            animatedStyle
-          ]}
-        >
-          <Image
-            source={backgroundImage}
-            style={{
-              width: width,
-              height: screenHeight,
-            }}
-            resizeMode="cover"
-          />
-        </Animated.View>
       )}
-
 
       {/* ✅ Overlay for opacity control */}
       <View
         style={[
           StyleSheet.absoluteFill,
-          {
-            backgroundColor: themeColors.background,
-            opacity: backgroundImage
-              ? bgOpacity
-              : (showPattern ? 1 - bgOpacity : bgOpacity === 0 ? 0 : 1),
-            zIndex: 1,
-          },
+          { backgroundColor: colors.neutral900, opacity: showPattern ? 1 - bgOpacity : 1 },
         ]}
       />
 
       {/* ✅ Foreground content */}
-      <View style={[{ paddingTop, paddingBottom, flex: 1, zIndex:2 }, style]}>
-        <StatusBar
-          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-          backgroundColor="transparent"
-          translucent
-        />
+      <View style={[{ paddingTop, paddingBottom, flex: 1 }, style]}>
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
         {children}
       </View>
     </View>

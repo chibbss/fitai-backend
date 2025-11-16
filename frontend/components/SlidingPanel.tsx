@@ -1,5 +1,5 @@
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native'
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState } from 'react'
 // @ts-ignore
 import Hamburger from 'react-native-animated-hamburger';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -11,10 +11,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Input from './Input';
 import { verticalScale } from '@/utils/styling';
 import { useRouter } from 'expo-router';
-import {supabase} from "@/utils/supabase";
-import { getAccentColor, getGradientColors } from '@/utils/settings';
-import { useFocusEffect } from '@react-navigation/native';
-
 
 const { width } = Dimensions.get("window");
 const screenHeight = Dimensions.get('screen').height;
@@ -52,39 +48,6 @@ const SlidingPanel = () => {
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
     const router = useRouter();
-    const [gradientColors, setGradientColors] = useState<[string, string]>(['#fafaf9', '#e7e5e4']);
-
-    const [userName, setUserName] = useState<string>('User Name');
-    const [userEmail, setUserEmail] = useState<string>('user@example.com');
-
-    // Load accent color and generate gradient
-    useFocusEffect(
-        React.useCallback(() => {
-            const loadAccentColor = async () => {
-                const accentColor = await getAccentColor();
-                setGradientColors(getGradientColors(accentColor));
-            };
-            loadAccentColor();
-        }, [])
-    );
-
-    // Add useEffect to fetch user data (after state declarations):
-    useEffect(() => {
-        const fetchUserData = async () => {
-            try {
-                const { data: { user }, error } = await supabase.auth.getUser();
-                if (user && !error) {
-                    const name = user.user_metadata?.name || user.email?.split('@')[0] || 'User';
-                    setUserName(name);
-                    setUserEmail(user.email || 'user@example.com');
-                }
-            } catch (error) {
-                console.error('Error fetching user data:', error);
-            }
-        };
-
-        fetchUserData();
-    }, []);
 
     const togglePanel = () => {
         const newState = !isOpen;
@@ -161,13 +124,20 @@ const SlidingPanel = () => {
                 onPress={togglePanel}
                 activeOpacity={0.8}
             >
-                <Hamburger
-                    type="cross"
-                    active={isOpen}
-                    onPress={togglePanel}
-                    color={colors.white}
-                    underlayColor="transparent"
-                />
+                <LinearGradient
+                    colors={['#ffb347', '#ffcc33']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.gradientButton}
+                >
+                    <Hamburger
+                        type="cross"
+                        active={isOpen}
+                        onPress={togglePanel}
+                        color={colors.white}
+                        underlayColor="transparent"
+                    />
+                </LinearGradient>
             </TouchableOpacity>
 
 
@@ -351,10 +321,6 @@ const SlidingPanel = () => {
                         <TouchableOpacity
                             style={styles.userButton}
                             activeOpacity={0.7}
-                            onPress={() => {
-                                closePanel();
-                                router.push('/settings' as any);
-                            }}
                         >
                             <View style={styles.userIconContainer}>
                                 <Icons.UserCircle size={32} color={colors.white} weight="fill" />
@@ -367,7 +333,7 @@ const SlidingPanel = () => {
                                     fontWeight="600"
                                     textProps={{ numberOfLines: 1 }}
                                 >
-                                    {userName}
+                                    User Name
                                 </Typo>
                                 <Typo
                                     size={13}
@@ -375,7 +341,7 @@ const SlidingPanel = () => {
                                     fontWeight="400"
                                     textProps={{ numberOfLines: 1 }}
                                 >
-                                    {userEmail}
+                                    user@example.com
                                 </Typo>
                             </View>
                         </TouchableOpacity>
@@ -429,10 +395,6 @@ const styles = StyleSheet.create({
         borderRadius: 25,
         elevation: 4,
         overflow: 'hidden',
-        backgroundColor: colors.primary,
-        padding: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     gradientButton: {
         padding: 8,

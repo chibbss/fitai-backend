@@ -5,8 +5,6 @@ import { Platform, Alert } from 'react-native';
 import { supabase } from './supabase';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
-import Constants from 'expo-constants';
-import { API_URL } from './config';
 
 // Complete the auth session properly
 WebBrowser.maybeCompleteAuthSession();
@@ -102,7 +100,7 @@ export const handlePostOAuthFlow = async (user: any, session: any) => {
     }
 
     const token = session.access_token;
-    const apiUrl = API_URL;
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 
     try {
         // Check if user exists in backend
@@ -135,39 +133,9 @@ export const handlePostOAuthFlow = async (user: any, session: any) => {
                 }),
             });
 
-            // ⚡ Pre-load FitAI context for faster chat responses
-            fetch(`${apiUrl}/users/${user.id}/preload-context`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            })
-            .then(() => {
-                console.log('Context pre-loaded for OAuth user');
-            })
-            .catch(err => {
-                console.warn('Context pre-load failed (non-critical):', err);
-            });
-
             // Navigate to onboarding for new users
             router.replace('/onboarding');
         } else {
-            // Existing user - pre-load context before going to chatscreen
-            fetch(`${apiUrl}/users/${user.id}/preload-context`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            })
-            .then(() => {
-                console.log('Context pre-loaded for existing user');
-            })
-            .catch(err => {
-                console.warn('Context pre-load failed (non-critical):', err);
-            });
-
             // Existing user - go to chatscreen
             router.replace('/chatscreen');
         }

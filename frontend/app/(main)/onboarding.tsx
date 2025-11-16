@@ -12,8 +12,6 @@ import MultiStepProgressBar from '@/components/MultiStepProgressBar';
 import LottieView from 'lottie-react-native';
 import successAnimation from '@/assets/images/animations/Success.json';
 import botChatAnimation from '@/assets/images/animations/Bot_chat.json';
-import { userApi } from '@/utils/api';
-import { API_URL} from '@/utils/config';
 
 type OnboardingStep = 'intro' | 'goal' | 'experience' | 'preference' | 'details' | 'success';
 
@@ -75,6 +73,7 @@ const STEP_CONFIG: StepConfig[] = [
   },
 ];
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 
 const GOAL_OPTIONS: GoalOption[] = [
   { label: 'Build muscle 💪', value: 'build muscle' },
@@ -112,10 +111,6 @@ const Onboarding = () => {
   const [detailsNote, setDetailsNote] = useState('');
   const [showResponse, setShowResponse] = useState(false);
   const [responseMessage, setResponseMessage] = useState<string>('');
-
-  // Add state for completion message
-  const [completionMessage, setCompletionMessage] = useState<string | null>(null);
-  const [isLoadingCompletion, setIsLoadingCompletion] = useState(false);
 
   const successAnimationRef = useRef<LottieView>(null);
   const hasNavigatedToChat = useRef(false);
@@ -289,40 +284,6 @@ const Onboarding = () => {
     else {
       // For intro or details (skipped), navigate directly
       if (currentIndex === STEP_CONFIG.length - 1) {
-        /* Mark onboarding as completed via discover endpoint
-        if (userId && authToken) {
-          try {
-            await userApi.discoverData(
-              'onboarding_completed',
-              true,
-              'User completed onboarding'
-            );
-          } catch (error) {
-            console.warn('Failed to mark onboarding as completed:', error);
-            // Non-critical, continue anyway
-          }
-
-          //fetch completion message before navigating
-          try {
-            const completionData = await userApi.getCompletionMessage(userId);
-            if (completionData?.message) {
-              // Store completion message to show in chat screen
-              // You can pass it via navigation params or store in AsyncStorage
-              router.replace({
-                pathname: '/chatscreen',
-                params: { initialMessage: completionData.message }
-              } as any)
-            } else {
-              router.replace('/chatscreen');
-            }
-          } catch (error) {
-            console.warn('Failed to get completion message:', error);
-            // Continue to chat screen anyway
-            router.replace('/chatscreen');
-          }
-        } else {
-          router.replace('/chatscreen');
-        }*/
         router.replace('/chatscreen');
         return;
       }
@@ -338,25 +299,6 @@ const Onboarding = () => {
       return;
     }
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
-  };
-
-  // NEW: Navigate to chat screen with completion message
-  const navigateToChat = () => {
-    if (hasNavigatedToChat.current) {
-      return; // Prevent double navigation
-    }
-    hasNavigatedToChat.current = true;
-
-    if (completionMessage) {
-      // Navigate with completion message
-      router.replace({
-        pathname: '/chatscreen',
-        params: { initialMessage: completionMessage }
-      } as any);
-    } else {
-      // Navigate without completion message if not available
-      router.replace('/chatscreen');
-    }
   };
 
   const renderOptions = () => {
@@ -534,38 +476,19 @@ const Onboarding = () => {
               loop={false}
               style={styles.successAnimation}
               onAnimationFinish={() => {
-                // Wait for completion message or navigate after timeout
-                if (completionMessage) {
-                  // Message is ready, navigate immediately
-                  navigateToChat();
-                } else if (!isLoadingCompletion) {
-                  // Loading finished but no message, navigate anyway
-                  navigateToChat();
-                } else {
-                  // Still loading, wait up to 3 seconds for completion message
-                  let attempts = 0;
-                  const checkInterval = setInterval(() => {
-                    attempts++;
-                    if (completionMessage || !isLoadingCompletion || attempts >= 15) {
-                      clearInterval(checkInterval);
-                      navigateToChat();
-                    }
-                  }, 200); // Check every 200ms, max 3 seconds (15 * 200ms)
+                if (!hasNavigatedToChat.current) {
+                  hasNavigatedToChat.current = true;
+                  router.replace('/chatscreen');
                 }
               }}
             />
 
             <Typo size={30} fontWeight="700" color={colors.primaryDark} style={{ textAlign: 'center' }}>
-              You're all set!
+              You’re all set!
             </Typo>
 
             <Typo size={16} color={colors.neutral600} style={styles.successSubtext}>
-              {isLoadingCompletion 
-                ? 'Preparing your personalized welcome...' 
-                : completionMessage
-                ? 'Ready to chat!'
-                : 'Stitched together your personalized fitness journey. Jumping into chat…'
-              }
+              We’ve stitched together your personalized fitness journey. Jumping into chat…
             </Typo>
           </View>
         );
@@ -591,76 +514,27 @@ const Onboarding = () => {
     )
   }
 
-  // Fetch completion message when success step is reached
-  useEffect(() => {
-    const step = STEP_CONFIG[currentIndex];
-
-    // Only fetch when we reach the success step
-    if (step.id === 'success' && userId && authToken && !completionMessage && !isLoadingCompletion) {
-      console.log('[Onboarding] Fetching completion message...');
-      setIsLoadingCompletion(true);
-
-      // Mark onboarding as completed (non-blocking)
-      userApi.discoverData(
-        'onboarding_completed',
-        true,
-        'User completed onboarding'
-      ).catch(error => {
-        console.warn('[Onboarding] Failed to mark onboarding as completed:', error);
-        // Non-critical, continue anyway
-      });
-
-      // Fetch completion message
-      userApi.getCompletionMessage(userId)
-        .then(data => {
-          if (data?.message) {
-            console.log('[Onboarding] Completion message received:', data.message);
-            setCompletionMessage(data.message);
-          } else {
-            console.log('[Onboarding] No completion message returned');
-          }
-        })
-        .catch(error => {
-          console.warn('[Onboarding] Failed to get completion message:', error);
-          // Non-critical - continue without completion message
-        })
-        .finally(() => {
-          setIsLoadingCompletion(false);
-          console.log('[Onboarding] Completion message fetch finished');
-        });
-    }
-  }, [currentIndex, userId, authToken, completionMessage, isLoadingCompletion]);
-
-  // Reset navigation flag when leaving success step
   useEffect(() => {
     if (step.id !== 'success') {
       hasNavigatedToChat.current = false;
     }
   }, [step.id]);
 
-  // Update response timer to properly handle navigation to success step
+  // response timer
   useEffect(() => {
     if (showResponse) {
       const timer = setTimeout(() => {
         setShowResponse(false);
-        
-        // Check if we're on the last step before success (details step)
-        if (currentIndex === STEP_CONFIG.length - 2) {
-          // Move to success step (last step)
-          setCurrentIndex((prev) => Math.min(prev + 1, STEP_CONFIG.length - 1));
-        } else if (currentIndex === STEP_CONFIG.length - 1) {
-          // Already on success step, this shouldn't happen but handle it
-          navigateToChat();
+        if (currentIndex === STEP_CONFIG.length - 1) {
+          router.replace('/chatscreen');
         } else {
-          // Move to next step
           setCurrentIndex((prev) => Math.min(prev + 1, STEP_CONFIG.length - 1));
         }
       }, 1500); // Show for 1.5 seconds
 
       return () => clearTimeout(timer);
     }
-  }, [showResponse, currentIndex, completionMessage]);
-
+  }, [showResponse, currentIndex, router]);
 
   return (
     <KeyboardAvoidingView
@@ -763,7 +637,7 @@ const styles = StyleSheet.create({
   },
 
   progressContainer: {
-
+    
     marginBottom: spacingY._20,
     maxWidth: '100%',
   },

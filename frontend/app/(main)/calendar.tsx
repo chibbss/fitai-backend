@@ -236,10 +236,10 @@ const CalendarScreen = () => {
                                     stats={[
                                         { label: 'Total volume this week', value: `${(stats.stats.volume.total_volume_week / 1000).toFixed(1)} kg` },
 
-                                         {
+                                        {
                                             label: 'Volume trend',
                                             value: stats.stats.volume.volume_trend,
-                                            highlight: stats.stats.volume.volume_trend?.startsWith('+') ?? false
+                                            highlight: stats.stats.volume.volume_trend.startsWith('+')
                                         },
                                         { label: 'Avg session', value: `${(stats.stats.volume.avg_session_volume / 1000).toFixed(1)}kg` },
                                         {
@@ -290,7 +290,7 @@ const CalendarScreen = () => {
                                         {
                                             label: 'Strength progression',
                                             value: stats.stats.progress.strength_progression,
-                                            highlight: stats.stats.progress.strength_progression?.startsWith('+') ?? false
+                                            highlight: stats.stats.progress.strength_progression.startsWith('+')
                                         },
                                         ...(stats.stats.progress.plateaus.length > 0
                                             ? stats.stats.progress.plateaus.map(plateau => ({
