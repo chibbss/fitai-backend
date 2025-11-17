@@ -443,6 +443,7 @@ async def on_shutdown() -> None:
 # -------------------------------------------------
 # Health Endpoint
 # -------------------------------------------------
+@app.head("/health")
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(status="ok")
@@ -454,6 +455,8 @@ class ReadinessResponse(BaseModel):
     gen_ok: bool
 
 
+@app.head("/readiness")
+@app.head("/readiness")
 @app.get("/readiness", response_model=ReadinessResponse)
 async def readiness() -> ReadinessResponse:
     db_ok = False
