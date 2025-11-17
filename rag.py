@@ -10,13 +10,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone, timedelta
 from collections import deque
 
-import torch
-from sentence_transformers import SentenceTransformer
-try:
-    from sentence_transformers import CrossEncoder  # type: ignore
-except Exception:  # pragma: no cover
-    CrossEncoder = None  # type: ignore
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, StoppingCriteria, StoppingCriteriaList
+# Lazy imports for memory optimization - only import when using local backends
+# These are heavy libraries that consume significant memory even when just imported
+# We'll import them only when needed (local backends), not at module level
 
 from sqlalchemy import (
     create_engine,
@@ -206,6 +202,9 @@ class RAGService:
         
         # Embeddings: Only load locally if using local provider
         if self.config.embedding_provider == "local":
+            # Lazy import to save memory when using remote backends
+            from sentence_transformers import SentenceTransformer
+            import torch
             device_str = self._resolve_torch_device()
             self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
             try:
@@ -256,6 +255,9 @@ class RAGService:
             self.generator_pipe = None
         else:
             # Local transformers - only load if gen_backend is "local"
+            # Lazy import torch only when needed
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
             device_str = self._resolve_torch_device()
             self.logger.info("Loading LOCAL generation model %s on %s", self.config.hf_model_id, device_str)
             use_half = (
@@ -319,12 +321,16 @@ class RAGService:
         # Reranker: Only load locally if using local backend
         if self.config.reranker_backend == "local":
             try:
-                if CrossEncoder is None:
+                # Lazy import only when using local reranker
+                try:
+                    from sentence_transformers import CrossEncoder
+                except Exception:
                     self.logger.warning(
                         "Reranker backend is 'local' but CrossEncoder not available; skipping reranker"
                     )
                     self._reranker_model = None
                 else:
+                    import torch
                     device_str = self._resolve_torch_device()
                     self.logger.info(
                         "Loading reranker model %s on %s",
@@ -363,6 +369,8 @@ class RAGService:
             self._redis = None
 
     def _resolve_torch_device(self) -> str:
+        # Lazy import torch only when needed (local backends)
+        import torch
         d = self.config.device.lower()
         if d == "cuda" and torch.cuda.is_available():
             return "cuda"
@@ -1266,6 +1274,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 self.logger.debug("Generation params: max_new_tokens=120, temperature=0.5, pad_token_id=%s, eos_token_id=%s", 
                                  pad_token_id, eos_token_id)
                 
+                import torch
                 with torch.no_grad():
                     try:
                         outputs = self.generator_model.generate(
