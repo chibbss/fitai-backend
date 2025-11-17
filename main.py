@@ -17,6 +17,7 @@ from auth import AuthUser, get_current_user, get_optional_user, ensure_user_owns
 import os
 import io
 import asyncio
+import time
 from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -70,6 +71,106 @@ app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.state.limiter = limiter
+
+
+# -------------------------------
+# Middleware: Request Timing & Logging
+# -------------------------------
+class RequestTimingMiddleware(BaseHTTPMiddleware):
+    """Log request duration and add timing context to Sentry."""
+    
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        correlation_id = request.headers.get("X-Request-ID", "unknown")
+        method = request.method
+        path = request.url.path
+        
+        # Skip timing for health/readiness/metrics endpoints (too noisy)
+        skip_paths = ["/health", "/readiness", "/metrics", "/docs", "/redoc", "/openapi.json"]
+        should_log = path not in skip_paths
+        
+        # Extract user ID from request if available (for Sentry context)
+        user_id = None
+        try:
+            # Try to get user from request state (set by auth dependency)
+            if hasattr(request.state, "user"):
+                user_id = getattr(request.state.user, "user_id", None)
+        except Exception:
+            pass
+        
+        # Set Sentry context
+        if os.getenv("SENTRY_DSN"):
+            with sentry_sdk.push_scope() as scope:
+                scope.set_tag("correlation_id", correlation_id)
+                scope.set_tag("method", method)
+                scope.set_tag("path", path)
+                if user_id:
+                    scope.set_user({"id": user_id})
+                
+                try:
+                    response = await call_next(request)
+                except Exception as e:
+                    # Log error with context
+                    duration_ms = (time.time() - start_time) * 1000
+                    logger.error(
+                        "Request failed: %s %s (duration=%.2fms, correlation_id=%s, user_id=%s)",
+                        method, path, duration_ms, correlation_id, user_id or "anonymous",
+                        exc_info=True
+                    )
+                    raise
+                else:
+                    duration_ms = (time.time() - start_time) * 1000
+                    status_code = response.status_code
+                    
+                    # Log slow requests (>1s) or errors
+                    if duration_ms > 1000 or status_code >= 400:
+                        log_level = "error" if status_code >= 500 else "warning" if status_code >= 400 else "info"
+                        getattr(logger, log_level)(
+                            "Request: %s %s -> %d (duration=%.2fms, correlation_id=%s, user_id=%s)",
+                            method, path, status_code, duration_ms, correlation_id, user_id or "anonymous"
+                        )
+                    elif should_log:
+                        logger.info(
+                            "Request: %s %s -> %d (duration=%.2fms, correlation_id=%s)",
+                            method, path, status_code, duration_ms, correlation_id
+                        )
+                    
+                    # Add timing to response headers
+                    response.headers["X-Response-Time-Ms"] = f"{duration_ms:.2f}"
+                    return response
+        else:
+            # No Sentry, just timing logs
+            try:
+                response = await call_next(request)
+            except Exception as e:
+                duration_ms = (time.time() - start_time) * 1000
+                logger.error(
+                    "Request failed: %s %s (duration=%.2fms, correlation_id=%s, user_id=%s)",
+                    method, path, duration_ms, correlation_id, user_id or "anonymous",
+                    exc_info=True
+                )
+                raise
+            else:
+                duration_ms = (time.time() - start_time) * 1000
+                status_code = response.status_code
+                
+                if duration_ms > 1000 or status_code >= 400:
+                    log_level = "error" if status_code >= 500 else "warning" if status_code >= 400 else "info"
+                    getattr(logger, log_level)(
+                        "Request: %s %s -> %d (duration=%.2fms, correlation_id=%s, user_id=%s)",
+                        method, path, status_code, duration_ms, correlation_id, user_id or "anonymous"
+                    )
+                elif should_log:
+                    logger.info(
+                        "Request: %s %s -> %d (duration=%.2fms, correlation_id=%s)",
+                        method, path, status_code, duration_ms, correlation_id
+                    )
+                
+                response.headers["X-Response-Time-Ms"] = f"{duration_ms:.2f}"
+                return response
+
+
+app.add_middleware(RequestTimingMiddleware)
 
 
 # -------------------------------
@@ -287,8 +388,15 @@ async def on_startup() -> None:
     try:
         # Observability (env-gated)
         if os.getenv("SENTRY_DSN"):
-            sentry_sdk.init(dsn=os.getenv("SENTRY_DSN"), traces_sample_rate=float(os.getenv("SENTRY_TRACES", "0.1")))
+            sentry_sdk.init(
+                dsn=os.getenv("SENTRY_DSN"),
+                traces_sample_rate=float(os.getenv("SENTRY_TRACES", "0.1")),
+                environment=os.getenv("ENVIRONMENT", "development"),
+                release=os.getenv("SENTRY_RELEASE"),  # Optional: git commit hash
+                before_send=lambda event, hint: event,  # Can add filtering here if needed
+            )
             app.add_middleware(SentryAsgiMiddleware)
+            logger.info("Sentry initialized for error tracking")
 
         try:
             FastAPIInstrumentor.instrument_app(app)
@@ -1141,7 +1249,7 @@ async def get_onboarding_completion_message(
             message_parts = [f"Hey there! 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
             if constraints:
                 message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
-        message_parts.append("Want me to help plan your next session or log your last one?")
+            message_parts.append("Want me to help plan your next session or log your last one?")
             message = " ".join(message_parts)
         
         # Save as first memory summary (in background, non-blocking)
