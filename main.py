@@ -1141,7 +1141,7 @@ async def get_onboarding_completion_message(
             message_parts = [f"Hey there! 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
             if constraints:
                 message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
-            message_parts.append("Want me to help plan your next session or log your last one?")
+        message_parts.append("Want me to help plan your next session or log your last one?")
             message = " ".join(message_parts)
         
         # Save as first memory summary (in background, non-blocking)
