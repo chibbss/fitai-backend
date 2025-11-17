@@ -38,6 +38,18 @@ rag_service = RAGService()
 _scheduler: Optional[BackgroundScheduler] = None
 limiter = Limiter(key_func=get_remote_address)
 
+# Initialize Sentry before app starts (middleware must be added before startup)
+if os.getenv("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.getenv("SENTRY_DSN"),
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES", "0.1")),
+        environment=os.getenv("ENVIRONMENT", "development"),
+        release=os.getenv("SENTRY_RELEASE"),  # Optional: git commit hash
+        before_send=lambda event, hint: event,  # Can add filtering here if needed
+    )
+    app.add_middleware(SentryAsgiMiddleware)
+    logger.info("Sentry initialized for error tracking")
+
 
 # -------------------------------
 # Middleware: Body size limit
@@ -386,18 +398,7 @@ class RebuildResponse(BaseModel):
 @app.on_event("startup")
 async def on_startup() -> None:
     try:
-        # Observability (env-gated)
-        if os.getenv("SENTRY_DSN"):
-            sentry_sdk.init(
-                dsn=os.getenv("SENTRY_DSN"),
-                traces_sample_rate=float(os.getenv("SENTRY_TRACES", "0.1")),
-                environment=os.getenv("ENVIRONMENT", "development"),
-                release=os.getenv("SENTRY_RELEASE"),  # Optional: git commit hash
-                before_send=lambda event, hint: event,  # Can add filtering here if needed
-            )
-            app.add_middleware(SentryAsgiMiddleware)
-            logger.info("Sentry initialized for error tracking")
-
+        # Observability (OpenTelemetry and Prometheus - Sentry already initialized above)
         try:
             FastAPIInstrumentor.instrument_app(app)
         except Exception:
