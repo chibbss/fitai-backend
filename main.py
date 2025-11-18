@@ -86,13 +86,12 @@ app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
 class NormalizePathMiddleware(BaseHTTPMiddleware):
     """Normalize double slashes in paths (proxy/load balancer issue)."""
     async def dispatch(self, request: Request, call_next):
-        # Normalize double slashes to single slash
+        # Normalize double slashes to single slash by rewriting the path internally
         if "//" in request.url.path and request.url.path != "//":
-            from starlette.responses import RedirectResponse
+            # Rewrite the path in the request scope (no redirect needed)
             normalized_path = request.url.path.replace("//", "/")
-            # Reconstruct URL with normalized path
-            new_url = request.url.replace(path=normalized_path)
-            return RedirectResponse(url=str(new_url), status_code=301)
+            # Modify the request scope directly
+            request.scope["path"] = normalized_path
         return await call_next(request)
 
 app.add_middleware(NormalizePathMiddleware)
