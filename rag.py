@@ -695,8 +695,8 @@ class RAGService:
                 "profile": u.profile or {},
                 "goals": u.goals or {},
                 "metadata": u.meta_data or {},
-                "created_at": u.created_at,
-                "updated_at": u.updated_at,
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+                "updated_at": u.updated_at.isoformat() if u.updated_at else None,
             }
 
     def upsert_user(
@@ -3516,7 +3516,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 try:
                     text = self.tokenizer.decode(recent_tokens, skip_special_tokens=True)
                     # Only check stop strings that might appear in recent text
-                    return any(s in text for s in self.stop_strings)
+                return any(s in text for s in self.stop_strings)
                 except Exception:
                     return False
 
