@@ -81,6 +81,21 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
+
+# Normalize double slashes in paths (proxy/load balancer issue)
+class NormalizePathMiddleware(BaseHTTPMiddleware):
+    """Normalize double slashes in paths (proxy/load balancer issue)."""
+    async def dispatch(self, request: Request, call_next):
+        # Normalize double slashes to single slash
+        if "//" in request.url.path and request.url.path != "//":
+            from starlette.responses import RedirectResponse
+            normalized_path = request.url.path.replace("//", "/")
+            # Reconstruct URL with normalized path
+            new_url = request.url.replace(path=normalized_path)
+            return RedirectResponse(url=str(new_url), status_code=301)
+        return await call_next(request)
+
+app.add_middleware(NormalizePathMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.state.limiter = limiter
 
@@ -455,7 +470,6 @@ class ReadinessResponse(BaseModel):
     gen_ok: bool
 
 
-@app.head("/readiness")
 @app.head("/readiness")
 @app.get("/readiness", response_model=ReadinessResponse)
 async def readiness() -> ReadinessResponse:
@@ -1159,8 +1173,8 @@ async def get_onboarding_completion_message(
         
         # Create prompt for AI to generate welcome message
         system_prompt = (
-            "You are FitAI, a warm and friendly AI fitness coach. You're welcoming a new user who just completed onboarding. "
-            "Generate a warm, personalized welcome message (2-3 sentences) that:\n"
+            "You are fit.ai, a warm and friendly AI fitness coach. You're welcoming a new user who just completed onboarding. "
+            "Generate a unique, warm, personalized welcome message (2-3 sentences) that:\n"
             "1. Acknowledges what they shared during onboarding (goal, experience, preference)\n"
             "2. Shows you remember and care about their goals\n"
             "3. Ends with a helpful follow-up question to get the conversation started\n\n"
