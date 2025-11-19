@@ -11,6 +11,24 @@ import { useRouter } from 'expo-router'
 import Button from '@/components/Button'
 import Loading from '@/components/Loading'
 import { supabase, getAuthRedirectUrl } from '@/utils/supabase'
+import { alert } from '@/utils/alert'
+import Constants from 'expo-constants';
+import { API_URL, MOCK_MODE } from '@/utils/config';
+import Animated, {
+    SlideInDown,
+    SlideInUp,
+    SlideOutDown,
+    useSharedValue,
+    withTiming,
+    useAnimatedStyle,
+    runOnJS
+} from 'react-native-reanimated'
+import { useFocusEffect } from '@react-navigation/native'
+import { useTheme } from '@/context/ThemeContext'
+
+import { LinearGradient } from 'expo-linear-gradient'
+import MaskedView from '@react-native-masked-view/masked-view'
+
 
 
 const Register = () => {
@@ -20,12 +38,58 @@ const Register = () => {
     const passwordRef = useRef('');
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
+
     const router = useRouter();
+    const { mode, colors: themeColors, setPreference } = useTheme();
+    const opacity = useSharedValue(1);
+    const translateY = useSharedValue(0);
+
+    const [isNavigating, setIsNavigating] = useState(false);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            opacity.value = 1;
+            translateY.value = 0;
+        }, [])
+    );
+
+    const navigateToLogin = () => {
+        router.push("/login");
+    };
+
+    const handleNavigateToLogin = () => {
+        setIsNavigating(true);
+        opacity.value = withTiming(0, { duration: 300 });
+
+        setTimeout(() => {
+            navigateToLogin();
+        }, 150)
+    };
+
+    const navigateToOnboarding = () => {
+        router.replace('/onboarding');
+    };
 
     const validateEmail = (email: string): boolean => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
     };
+
+    const handleNavigateToOnboarding = () => {
+        opacity.value = withTiming(0, { duration: 250 }, (finished) => {
+            if (finished) {
+                runOnJS(navigateToOnboarding)();
+            }
+        });
+    };
+
+    // Animated style for slide and fade
+    const animatedStyle = useAnimatedStyle(() => {
+        return {
+            opacity: opacity.value,
+            transform: [{ translateY: translateY.value }],
+        };
+    });
 
     const handleSubmit = async () => {
         //Validation
@@ -78,33 +142,177 @@ const Register = () => {
                 return;
             }
 
+            // 🚨 MOCK MODE: Skip backend verification and allow navigation
+            if (MOCK_MODE) {
+                console.log('🤖 MOCK MODE: Skipping backend verification for sign up');
+                setLoadingMessage('Mock mode: Backend offline');
+
+                // Small delay for UX
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                setIsLoading(false);
+
+                // Navigate directly to onboarding without blocking
+                handleNavigateToOnboarding();
+                return;
+            }
+
             setLoadingMessage('Sending verification email...');
 
             // 2. Create backend profile immediately (for testing without email verification)
             const token = data.session?.access_token;
-            if (token) {
+
+            // DEBUG: Log all relevant info
+            console.log('🔍 REGISTRATION DEBUG:');
+            console.log('  - User ID:', data.user?.id);
+            console.log('  - Session exists:', !!data.session);
+            console.log('  - Token exists:', !!token);
+            console.log('  - EXPO_PUBLIC_API_URL from env:', process.env.EXPO_PUBLIC_API_URL);
+
+            const apiUrl = API_URL.replace(/\/+$/, '');
+            console.log('🔍 CONFIG DEBUG:');
+            console.log('  - Constants.expoConfig exists:', !!Constants.expoConfig);
+            console.log('  - Constants.expoConfig?.extra exists:', !!Constants.expoConfig?.extra);
+            console.log('  - Constants.expoConfig?.extra?.apiUrl:', Constants.expoConfig?.extra?.apiUrl);
+            console.log('  - process.env.EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL);
+            console.log('  - API_URL from config.ts:', API_URL);
+            console.log('  - Final apiUrl being used:', apiUrl);
+
+            console.log('  - Final apiUrl being used (normalized):', apiUrl);
+
+            if (!token) {
+                console.error('❌ No token available - session is null');
+                Alert.alert(
+                    'Session Error',
+                    'No session available. Please check:\n\n1. Email confirmation is disabled in Supabase\n2. You can log in to get a session',
+                    [{ text: 'OK' }]
+                );
+                setIsLoading(false);
+                return;
+            }
+
+            try {
+                setLoadingMessage('Connecting to backend...');
+
+                // First, test the backend connection with a simple health check
+                console.log('🔍 Testing backend connection...');
+                const healthUrl = `${apiUrl}/health`;
+                console.log('  - Health check URL:', healthUrl);
+
+                // Add timeout to health check
+                const healthController = new AbortController();
+                const healthTimeout = setTimeout(() => healthController.abort(), 5000); // 5 second timeout
+
+                let healthCheck;
                 try {
-                    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
-                    await fetch(`${apiUrl}/users/${data.user.id}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            email: data.user.email,
-                            name: nameRef.current,
-                            profile: {},
-                            goals: {},
-                            metadata: {
-                                signup_source: 'mobile',
-                            },
-                        }),
+                    healthCheck = await fetch(healthUrl, {
+                        method: 'GET',
+                        signal: healthController.signal,
                     });
-                } catch (apiError) {
-                    console.error('Backend API error:', apiError);
-                    // Continue anyway
+                    clearTimeout(healthTimeout);
+                } catch (fetchError: any) {
+                    clearTimeout(healthTimeout);
+                    if (fetchError.name === 'AbortError') {
+                        throw new Error('Backend health check timed out after 5 seconds');
+                    }
+                    throw fetchError;
                 }
+
+                console.log('  - Health check status:', healthCheck.status);
+
+                if (!healthCheck.ok) {
+                    const healthText = await healthCheck.text();
+                    console.error('❌ Health check failed:', healthText);
+                    throw new Error(`Backend health check failed: ${healthCheck.status} - ${healthText}`);
+                }
+
+                const healthData = await healthCheck.json();
+                console.log('✅ Backend is reachable:', healthData);
+
+                // Now create the user profile
+                setLoadingMessage('Creating your profile...');
+                const createUserUrl = `${apiUrl}/users/${data.user.id}`;
+                console.log('🔍 Creating user profile...');
+                console.log('  - URL:', createUserUrl);
+                console.log('  - User ID:', data.user.id);
+
+                const createResponse = await fetch(createUserUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: data.user.email,
+                        name: nameRef.current,
+                        profile: {},
+                        goals: {},
+                        metadata: {
+                            signup_source: 'mobile',
+                        },
+                    }),
+                });
+
+                console.log('  - Create user status:', createResponse.status);
+                console.log('  - Create user ok:', createResponse.ok);
+
+                if (!createResponse.ok) {
+                    const errorText = await createResponse.text();
+                    console.error('❌ Failed to create user profile:', errorText);
+                    throw new Error(`Failed to create profile: ${createResponse.status} - ${errorText}`);
+                }
+
+                const userData = await createResponse.json();
+                console.log('✅ User profile created:', userData);
+
+                // ⚡ Pre-load FitAI context (non-blocking)
+                setLoadingMessage('Loading FitAI...');
+                fetch(`${apiUrl}/users/${data.user.id}/preload-context`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                })
+                    .then(() => {
+                        console.log('✅ Context pre-loaded for new user');
+                    })
+                    .catch(err => {
+                        console.warn('⚠️ Context pre-load failed (non-critical):', err);
+                    });
+
+            } catch (apiError: any) {
+                console.error('❌ Backend API error details:');
+                console.error('  - Error name:', apiError?.name);
+                console.error('  - Error message:', apiError?.message);
+                console.error('  - Error stack:', apiError?.stack);
+                console.error('  - API URL attempted:', apiUrl);
+
+                let errorMessage = 'Failed to connect to backend. ';
+
+                if (apiError?.message?.includes('network request failed') ||
+                    apiError?.message?.includes('Failed to fetch') ||
+                    apiError?.message?.includes('NetworkError')) {
+                    errorMessage += `\n\nCannot reach: ${apiUrl}\n\nPlease check:\n`;
+                    errorMessage += `1. Backend is running on ${apiUrl}\n`;
+                    errorMessage += `2. Backend is accessible from your phone\n`;
+                    errorMessage += `3. Both devices are on the same Wi-Fi\n`;
+                    errorMessage += `4. Firewall allows port 8000\n`;
+                    errorMessage += `5. Test in phone browser: ${apiUrl}/health`;
+                } else {
+                    errorMessage += apiError?.message || 'Unknown error';
+                }
+
+                Alert.alert('Backend Connection Error', errorMessage, [
+                    {
+                        text: 'Continue Anyway', onPress: () => {
+                            setIsLoading(false);
+                            router.replace('/onboarding');
+                        }
+                    },
+                    { text: 'Retry', style: 'cancel' }
+                ]);
+                return;
             }
 
             // Small delay for UX
@@ -117,8 +325,8 @@ const Register = () => {
                 params: { email: emailRef.current.trim() }
             })*/
 
-                // Navigate directly to onboarding (FOR TESTING - bypasses email verification)
-            router.replace('/onboarding');
+            // Navigate directly to onboarding (FOR TESTING - bypasses email verification)
+            handleNavigateToOnboarding();
         }
 
         catch (error: any) {
@@ -140,17 +348,17 @@ const Register = () => {
     };
 
     const handleGoogleSignIn = () => {
-        Alert.alert('Coming Soon', 'Google Sign-In will be available in future updates!');
+        alert.success('Google Sign-In will be available in future updates!', 'Coming Soon');
     };
 
     const handleAppleSignIn = () => {
-        Alert.alert('Coming Soon', 'Apple Sign-In will be available in future updates!');
+        alert.warning('Coming Soon', 'Apple Sign-In will be available in future updates!');
     };
 
     //Show full screen loading while processing
     if (isLoading) {
         return (
-            <ScreenWrapper showPattern={false}>
+            <ScreenWrapper showPattern={false} >
                 <View style={styles.loadingContainer}>
                     <Typo size={18} color={colors.white}
                         style={{ marginTop: spacingY._20, textAlign: 'center' }}>
@@ -161,110 +369,146 @@ const Register = () => {
         )
     }
 
+    const GradientText = ({ text }: { text: string }) => (
+        <MaskedView
+            style={{ marginBottom: 2 }}
+            maskElement={
+                <Typo fontWeight={'bold'} size={20}>{text}</Typo>
+            }>
+            <LinearGradient
+                colors={themeColors.accentGradient}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+            >
+                <Typo fontWeight={'bold'} size={20} style={{ opacity: 0 }}>
+                    {text}
+                </Typo>
+            </LinearGradient>
+        </MaskedView>
+    );
+
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
             behavior={Platform.OS == 'ios' ? 'padding' : 'height'}
         >
-            <ScreenWrapper showPattern={false}>
-                <View style={styles.container}>
-                    <View style={styles.header}>
-                        <BackButton iconSize={38} />
-                        <Typo size={17} color={colors.white}>Need Help ?</Typo>
-                    </View>
+            <ScreenWrapper showPattern={false} bgOpacity={0.5} /*backgroundImage={require('@/assets/images/fitness-app-assets/welcome.png')}*/>
+                <Animated.View
+                    entering={SlideInDown.delay(300).springify()}
+                    style={[{ flex: 1 }, animatedStyle]}
+                >
 
-                    <View style={styles.content}>
-                        <ScrollView
-                            contentContainerStyle={styles.form}
-                            showsVerticalScrollIndicator={false}
-                            keyboardShouldPersistTaps="handled"
-                        >
-                            <View style={{ gap: spacingY._10, marginBottom: spacingY._15 }}>
-                                <Typo size={28} fontWeight={'600'}>
-                                    Getting Started
-                                </Typo>
 
-                                <Typo color={colors.neutral600}>
-                                    Create an Account
-                                </Typo>
+                    <View style={styles.container}>
+                        <View style={styles.header}>
+                            <BackButton iconSize={38} />
+                            <Typo size={17} color={colors.white}>Need Help ?</Typo>
+                        </View>
 
-                                <Input placeholder='Enter your Name'
-                                    onChangeText={(value: string) => nameRef.current = value}
-                                    icon={
-                                        <Icons.UserCircleIcon size={verticalScale(26)}
-                                            color={colors.neutral600}
-                                        />
-                                    }
-                                />
+                        <View style={styles.content}>
+                            <ScrollView
+                                contentContainerStyle={styles.form}
+                                showsVerticalScrollIndicator={false}
+                                keyboardShouldPersistTaps="handled"
+                            >
+                                <View style={{ gap: spacingY._10, marginBottom: spacingY._15 }}>
+                                    <Typo size={28} fontWeight={'600'}>
+                                        Getting Started
+                                    </Typo>
 
-                                <Input placeholder='Enter your Email'
-                                    onChangeText={(value: string) => emailRef.current = value}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                    icon={
-                                        <Icons.PasswordIcon size={verticalScale(26)}
-                                            color={colors.neutral600}
-                                        />
-                                    }
-                                />
+                                    <Typo color={colors.neutral600}>
+                                        Create an Account
+                                    </Typo>
 
-                                <Input placeholder='Enter your Password'
-                                    secureTextEntry
-                                    onChangeText={(value: string) => passwordRef.current = value}
-                                    icon={
-                                        <Icons.LockIcon size={verticalScale(26)}
-                                            color={colors.neutral600}
-                                        />
-                                    }
-                                />
+                                    <Input placeholder='Enter your Name'
+                                        onChangeText={(value: string) => nameRef.current = value}
+                                        icon={
+                                            <Icons.UserCircleIcon size={verticalScale(26)}
+                                                color={colors.neutral600}
+                                            />
+                                        }
+                                    />
 
-                                <View style={{ marginTop: spacingY._25, gap: spacingY._15 }}>
-                                    <Button loading={isLoading} onPress={handleSubmit} >
-                                        <Typo fontWeight={'bold'} color={colors.black} size={20}>Sign Up</Typo>
-                                    </Button>
+                                    <Input placeholder='Enter your Email'
+                                        onChangeText={(value: string) => emailRef.current = value}
+                                        keyboardType="email-address"
+                                        autoCapitalize="none"
+                                        autoCorrect={false}
+                                        icon={
+                                            <Icons.PasswordIcon size={verticalScale(26)}
+                                                color={colors.neutral600}
+                                            />
+                                        }
+                                    />
 
-                                    <View style={styles.footer}>
-                                        <Typo>Already have an account?</Typo>
-                                        <Pressable onPress={() => router.push("/login")}>
-                                            <Typo fontWeight={'bold'} color={colors.primaryDark}>
-                                                Login
-                                            </Typo>
-                                        </Pressable>
+                                    <Input placeholder='Enter your Password'
+                                        secureTextEntry
+                                        onChangeText={(value: string) => passwordRef.current = value}
+                                        icon={
+                                            <Icons.LockIcon size={verticalScale(26)}
+                                                color={colors.neutral600}
+                                            />
+                                        }
+                                    />
+
+                                    <View style={{ marginTop: spacingY._25, gap: spacingY._15 }}>
+                                        <LinearGradient
+                                            colors={themeColors.accentGradient}
+                                            start={{ x: 0, y: 0.5 }}
+                                            end={{ x: 1, y: 0.5 }}
+                                            style={styles.buttonGradient}
+                                        >
+                                            <Button 
+                                                loading={isLoading} 
+                                                onPress={handleSubmit}
+                                                style={{ backgroundColor: 'transparent' }}
+                                            >
+                                                <Typo fontWeight={'bold'} color={themeColors.background} size={20}>Sign Up</Typo>
+                                            </Button>
+                                        </LinearGradient>
+
+
+                                        <View style={styles.footer}>
+                                            <Typo>Already have an account?</Typo>
+                                            <Pressable onPress={handleNavigateToLogin}>
+                                                <GradientText text="Login" />
+                                            </Pressable>
+                                        </View>
+
                                     </View>
 
+
+                                </View>
+                                <View style={styles.dividerContainer}>
+                                    <View style={styles.line} />
+                                    <Typo color={colors.neutral500}>or</Typo>
+                                    <View style={styles.line} />
                                 </View>
 
+                                <Button style={styles.googleButton} onPress={handleGoogleSignIn}>
+                                    <Image
+                                        source={require('../../assets/images/images/google.png')}
+                                        style={styles.googleIcon}
+                                    />
+                                    <Typo fontWeight={'bold'} color={colors.black}>
+                                        Continue with Google
+                                    </Typo>
+                                </Button>
 
-                            </View>
-                            <View style={styles.dividerContainer}>
-                                <View style={styles.line} />
-                                <Typo color={colors.neutral500}>or</Typo>
-                                <View style={styles.line} />
-                            </View>
-
-                            <Button style={styles.googleButton} onPress={handleGoogleSignIn}>
-                                <Image
-                                    source={require('../../assets/images/images/google.png')}
-                                    style={styles.googleIcon}
-                                />
-                                <Typo fontWeight={'bold'} color={colors.black}>
-                                    Continue with Google
-                                </Typo>
-                            </Button>
-
-                            <Button style={styles.googleButton} onPress={handleAppleSignIn}>
-                                <Image
-                                    source={require('../../assets/images/images/apple.png')}
-                                    style={styles.googleIcon}
-                                />
-                                <Typo fontWeight={'bold'} color={colors.black}>
-                                    Continue with Apple
-                                </Typo>
-                            </Button>
-                        </ScrollView>
+                                <Button style={styles.googleButton} onPress={handleAppleSignIn}>
+                                    <Image
+                                        source={require('../../assets/images/images/apple.png')}
+                                        style={styles.googleIcon}
+                                    />
+                                    <Typo fontWeight={'bold'} color={colors.black}>
+                                        Continue with Apple
+                                    </Typo>
+                                </Button>
+                            </ScrollView>
+                        </View>
                     </View>
-                </View>
+
+                </Animated.View>
 
 
             </ScreenWrapper>
@@ -348,5 +592,15 @@ const styles = StyleSheet.create({
     googleIcon: {
         width: 22,
         height: 22,
+    },
+    buttonGradient: {
+        borderRadius: radius.full,
+        overflow: 'hidden',
+    },
+
+    signUpButton: {
+        width: '100%',
+        paddingVertical: spacingY._12,
+        borderRadius: radius.full,
     },
 });

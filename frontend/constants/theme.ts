@@ -22,6 +22,58 @@ export const colors = {
   neutral700: "#44403c",
   neutral800: "#292524",
   neutral900: "#1c1917",
+  electricTeal: "#00ffc8",
+  aquaGlow: "#00e4ff",
+  deepCharcoal: "#0a0a0a",
+  vibrantCoral: "#ff3366",
+  pulseGradientStart: "#00ffc8",
+  pulseGradientEnd: "#00e4ff",
+  lightSky: "#0ea5e9",
+  mintGlow: "#00c4b4",
+  sunriseCoral: "#f97316",
+  inkText: "#0f172a",
+  cloudWhite: "#f8fafc",
+  doveGray: "#f1f5f9",
+  slate: "#475569",
+};
+
+export const brandPalette = {
+  dark: {
+    background: "#020202",
+    surface: "#111827",
+    border: "rgba(0,255,200,0.15)",
+    textPrimary: "#f8fafc",
+    textSecondary: "#e5e5e5",
+    accentPrimary: "#00ffc8",
+    accentSecondary: "#00e4ff",
+    accentWarm: "#ff3366",
+    accentGradient: ['#00ffc8', '#00e4ff'],
+    shadowAccent: "rgba(0,255,200,0.25)",
+  },
+  
+  light: {
+    background: "#f8fafc",
+    surface: "#f1f5f9",
+    border: "rgba(15,118,110,0.18)",
+    textPrimary: "#020202",
+    textSecondary: "#475569",
+    accentPrimary: "#0ea5e9",
+    accentSecondary: "#00e4ff",
+    accentGradient: ['#00ffc8', '#00e4ff'],
+    accentWarm: "#f97316",
+    shadowAccent: "rgba(14,165,233,0.25)",
+  },
+};
+
+export const themes = {
+  dark: {
+    mode: "dark" as const,
+    colors: brandPalette.dark,
+  },
+  light: {
+    mode: "light" as const,
+    colors: brandPalette.light,
+  },
 };
 
 export const spacingX = {

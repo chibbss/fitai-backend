@@ -4,6 +4,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { ScreenWrapperProps } from '@/types';
 import { colors } from '@/constants/theme';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
+import { useTheme } from '@/context/ThemeContext';
 
 const { height } = Dimensions.get('window');
 
@@ -14,6 +15,8 @@ const ScreenWrapperChat = ({
   isModal = false,
   bgOpacity = 1,
 }: ScreenWrapperProps) => {
+  const { colors: themeColors, isDarkMode } = useTheme();
+  
   // ✅ Load video player
   const player = useVideoPlayer(require('../assets/images/videos/day_animated.mp4'), (player) => {
     player.loop = true;
@@ -47,10 +50,10 @@ const ScreenWrapperChat = ({
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: !showPattern ? colors.white : colors.neutral900 }}>
+    <View style={{ flex: 1, backgroundColor: themeColors.background }}>
       <StatusBar 
-        barStyle={showPattern ? "light-content" : "dark-content"} 
-        backgroundColor={!showPattern ? colors.white : "transparent"} 
+        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={themeColors.background} 
         translucent={false}
       />
       {/* ✅ Background looping video (fades in) */}

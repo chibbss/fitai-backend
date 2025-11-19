@@ -10,6 +10,8 @@ import Typo from '@/components/Typo';
 import { supabase } from '@/utils/supabase';
 import { colors, spacingY } from '@/constants/theme';
 import { verticalScale } from '@/utils/styling';
+import Constants from 'expo-constants';
+import { API_URL } from '@/utils/config';
 
 const Callback = () => {
   const router = useRouter();
@@ -94,7 +96,9 @@ const Callback = () => {
         }
 
         setStatus('Creating your profile...');
-        const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = API_URL;
+        console.log('  - API URL from Constants:', Constants.expoConfig?.extra?.apiUrl);
+        console.log('  - Final API_URL being used:', apiUrl);
 
         try {
           const response = await fetch(`${apiUrl}/users/${user.id}`, {

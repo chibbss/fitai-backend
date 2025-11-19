@@ -67,6 +67,7 @@ export type ScreenWrapperProps = {
   isModal?: boolean;
   showPattern?: boolean;
   bgOpacity?: number;
+  backgroundImage?: any;
 };
 
 export type ResponseProps = {

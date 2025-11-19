@@ -1,5 +1,5 @@
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native'
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 // @ts-ignore
 import Hamburger from 'react-native-animated-hamburger';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -11,6 +11,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Input from './Input';
 import { verticalScale } from '@/utils/styling';
 import { useRouter } from 'expo-router';
+import {supabase} from "@/utils/supabase";
+import { getAccentColor, getGradientColors } from '@/utils/settings';
+import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '@/context/ThemeContext';
+
 
 const { width } = Dimensions.get("window");
 const screenHeight = Dimensions.get('screen').height;
@@ -42,12 +47,46 @@ const HISTORY_ITEMS = [
 
 
 const SlidingPanel = () => {
+    const { colors: themeColors } = useTheme(); 
     const [isOpen, setIsOpen] = useState(false);
     const translateX = useSharedValue(-width * 0.8);
     const overlayOpacity = useSharedValue(0);
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
     const router = useRouter();
+    const [gradientColors, setGradientColors] = useState<[string, string]>(['#fafaf9', '#e7e5e4']);
+
+    const [userName, setUserName] = useState<string>('User Name');
+    const [userEmail, setUserEmail] = useState<string>('user@example.com');
+
+    // Load accent color and generate gradient
+    useFocusEffect(
+        React.useCallback(() => {
+            const loadAccentColor = async () => {
+                const accentColor = await getAccentColor();
+                setGradientColors(getGradientColors(accentColor));
+            };
+            loadAccentColor();
+        }, [])
+    );
+
+    // Add useEffect to fetch user data (after state declarations):
+    useEffect(() => {
+        const fetchUserData = async () => {
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser();
+                if (user && !error) {
+                    const name = user.user_metadata?.name || user.email?.split('@')[0] || 'User';
+                    setUserName(name);
+                    setUserEmail(user.email || 'user@example.com');
+                }
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+            }
+        };
+
+        fetchUserData();
+    }, []);
 
     const togglePanel = () => {
         const newState = !isOpen;
@@ -124,20 +163,13 @@ const SlidingPanel = () => {
                 onPress={togglePanel}
                 activeOpacity={0.8}
             >
-                <LinearGradient
-                    colors={['#ffb347', '#ffcc33']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.gradientButton}
-                >
-                    <Hamburger
-                        type="cross"
-                        active={isOpen}
-                        onPress={togglePanel}
-                        color={colors.white}
-                        underlayColor="transparent"
-                    />
-                </LinearGradient>
+                <Hamburger
+                    type="cross"
+                    active={isOpen}
+                    onPress={togglePanel}
+                    color={themeColors.textPrimary}
+                    underlayColor="transparent"
+                />
             </TouchableOpacity>
 
 
@@ -321,6 +353,10 @@ const SlidingPanel = () => {
                         <TouchableOpacity
                             style={styles.userButton}
                             activeOpacity={0.7}
+                            onPress={() => {
+                                closePanel();
+                                router.push('/settings' as any);
+                            }}
                         >
                             <View style={styles.userIconContainer}>
                                 <Icons.UserCircle size={32} color={colors.white} weight="fill" />
@@ -333,7 +369,7 @@ const SlidingPanel = () => {
                                     fontWeight="600"
                                     textProps={{ numberOfLines: 1 }}
                                 >
-                                    User Name
+                                    {userName}
                                 </Typo>
                                 <Typo
                                     size={13}
@@ -341,7 +377,7 @@ const SlidingPanel = () => {
                                     fontWeight="400"
                                     textProps={{ numberOfLines: 1 }}
                                 >
-                                    user@example.com
+                                    {userEmail}
                                 </Typo>
                             </View>
                         </TouchableOpacity>
@@ -393,8 +429,12 @@ const styles = StyleSheet.create({
         left: 20,
         zIndex: 901,
         borderRadius: 25,
-        elevation: 4,
+        
         overflow: 'hidden',
+        
+        padding: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     gradientButton: {
         padding: 8,

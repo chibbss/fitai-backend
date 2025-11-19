@@ -25,9 +25,20 @@ export const alert = {
      * Show a custom alert
      */
     show: (options: AlertOptions) => {
+        console.log('[Alert] show called:', options);
+        console.log('[Alert] alertFunction exists:', !!alertFunction);
+        
         if (alertFunction) {
-            alertFunction(options);
+            try {
+                alertFunction(options);
+            } catch (error) {
+                console.error('[Alert] Error calling alertFunction:', error);
+                // Fallback to native alert
+                const { Alert } = require('react-native');
+                Alert.alert(options.title || '', options.message, options.buttons);
+            }
         } else {
+            console.warn('[Alert] alertFunction not set, falling back to native Alert');
             // Fallback to native alert if provider not initialized
             const { Alert } = require('react-native');
             Alert.alert(options.title || '', options.message, options.buttons);

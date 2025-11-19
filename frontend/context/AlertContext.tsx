@@ -26,17 +26,26 @@ export const AlertProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [alert, setAlert] = useState<AlertOptions & { visible: boolean } | null>(null);
 
     const showAlert = useCallback((options: AlertOptions) => {
+        console.log('[AlertProvider] showAlert called:', options);
         setAlert({ ...options, visible: true });
     }, []);
 
     // Set the alert function for the utility
     React.useEffect(() => {
+        console.log('[AlertProvider] Setting alertFunction');
         setAlertFunction(showAlert);
+        // Verify it was set
+        setTimeout(() => {
+            console.log('[AlertProvider] alertFunction set:', !!showAlert);
+        }, 100);
     }, [showAlert]);
 
     const hideAlert = useCallback(() => {
+        console.log('[AlertProvider] hideAlert called');
         setAlert(null);
     }, []);
+
+    console.log('[AlertProvider] Current alert state:', alert);
 
     return (
         <AlertContext.Provider value={{ showAlert, hideAlert }}>
@@ -53,8 +62,6 @@ export const AlertProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             )}
         </AlertContext.Provider>
     );
-
-    
 };
 
 export const useAlert = () => {

@@ -3,6 +3,9 @@ import { TouchableOpacity, Alert, ActivityIndicator, View, StyleSheet } from 're
 import { Audio } from 'expo-av';
 import * as Icons from 'phosphor-react-native';
 import LottieView from 'lottie-react-native';
+import { colors } from '@/constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
 
 type MicButtonProps = {
   onRecordingDone: (uri: string) => void;
@@ -10,6 +13,7 @@ type MicButtonProps = {
 };
 
 const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
+  const { colors: themeColors } = useTheme();
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -96,26 +100,33 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
   return (
     <TouchableOpacity
       onPress={handleToggle}
-      style={styles.micButton}
+      style={styles.micButtonContainer}
       activeOpacity={0.8}
     >
-      {loading ? (
-        <ActivityIndicator color="white" />
-      ) : isRecording && recordingAnimation ? (
-        <View style={styles.animationWrapper}>
-          <LottieView
-            source={recordingAnimation}
-            autoPlay
-            loop
-            style={styles.animation}
-            colorFilters={[
-              { keypath: '*', color: '#FFFFFF' }, // ✅ Force white color
-            ]}
-          />
-        </View>
-      ) : (
-        <Icons.Microphone size={28} color="white" weight="fill" />
-      )}
+      <LinearGradient
+        colors={themeColors.accentGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.micButton}
+      >
+        {loading ? (
+          <ActivityIndicator color="white" />
+        ) : isRecording && recordingAnimation ? (
+          <View style={styles.animationWrapper}>
+            <LottieView
+              source={recordingAnimation}
+              autoPlay
+              loop
+              style={styles.animation}
+              colorFilters={[
+                { keypath: '*', color: '#FFFFFF' },
+              ]}
+            />
+          </View>
+        ) : (
+          <Icons.Microphone size={22} color={colors.white} weight="fill" />
+        )}
+      </LinearGradient>
     </TouchableOpacity>
   );
 };
@@ -123,13 +134,16 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
 export default MicButton;
 
 const styles = StyleSheet.create({
+  micButtonContainer: {
+    borderRadius: 28,
+    overflow: 'hidden',
+  },
   micButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
   },
   animationWrapper: {
     width: 32, // ✅ same visual size as icon

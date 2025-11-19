@@ -3,30 +3,35 @@ import React, { useState } from 'react'
 import { InputProps } from '@/types'
 import { colors, radius, spacingX } from '@/constants/theme'
 import { verticalScale } from '@/utils/styling'
-
+import { useTheme } from '@/context/ThemeContext'
+import { LinearGradient } from 'expo-linear-gradient'
 
 const Input = (props: InputProps) => {
+    const { mode, colors: themeColors, setPreference } = useTheme();
     const [isFocused, setIsFocused] = useState(false)
+    
     return (
-        <View
-            style={[
-                styles.container,
-                props.containerStyle && props.containerStyle,
-                isFocused && styles.primaryBorder
-            ]}
-        >
-            {props.icon && props.icon}
-
-            <TextInput
-                style={[styles.input, props.inputStyle]}
-                placeholderTextColor={colors.neutral400}
-                ref={props.inputRef && props.inputRef}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                {...props}
-            />
-
-
+        <View style={styles.wrapper}>
+            {isFocused && (
+                <LinearGradient
+                    colors={themeColors.accentGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[StyleSheet.absoluteFill, styles.gradientBorder]}
+                    pointerEvents="none"
+                />
+            )}
+            <View style={[styles.container, isFocused && styles.containerInner]}>
+                {props.icon && props.icon}
+                <TextInput
+                    style={[styles.input, props.inputStyle]}
+                    placeholderTextColor={colors.neutral400}
+                    ref={props.inputRef && props.inputRef}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    {...props}
+                />
+            </View>
         </View>
     )
 }
@@ -34,6 +39,10 @@ const Input = (props: InputProps) => {
 export default Input
 
 const styles = StyleSheet.create({
+    wrapper: {
+        width: '100%',
+        position: 'relative',
+    },
     container: {
         flexDirection: 'row',
         height: verticalScale(56),
@@ -45,17 +54,22 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
         paddingHorizontal: spacingX._15,
         backgroundColor: colors.neutral100,
-        gap: spacingX._10
+        gap: spacingX._10,
+        zIndex: 1,
     },
-
-    primaryBorder: {
-        borderColor: colors.primary
+    gradientBorder: {
+        borderRadius: radius.full,
+        padding: 1.5,
+        zIndex: 0,
     },
-
+    containerInner: {
+        borderWidth: 0,
+        backgroundColor: colors.neutral100,
+        margin: 1.5,
+    },
     input: {
         flex: 1,
         color: colors.text,
         fontSize: verticalScale(14),
     },
 })
-

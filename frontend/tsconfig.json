@@ -11,7 +11,9 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "**/*.d.ts",
+    "components/Slider.js",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-, "components/Slider.js"  ]
+  ]
 }

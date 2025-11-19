@@ -5,13 +5,18 @@ import Typo from '@/components/Typo';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import { colors, radius, spacingX, spacingY } from '@/constants/theme';
 import Button from '@/components/Button';
-import Animated, { FadeIn, FadeInDown, FadeInLeft, FadeInUp, SlideInLeft, SlideInRight } from 'react-native-reanimated'
+import Animated, { FadeIn, FadeInDown, FadeInLeft, FadeInUp, SlideInDown, SlideInLeft, SlideInRight, SlideInUp } from 'react-native-reanimated'
 import { verticalScale } from '@/utils/styling';
 import { supabase } from '@/utils/supabase';
 import MultiStepProgressBar from '@/components/MultiStepProgressBar';
 import LottieView from 'lottie-react-native';
 import successAnimation from '@/assets/images/animations/Success.json';
 import botChatAnimation from '@/assets/images/animations/Bot_chat.json';
+import { userApi } from '@/utils/api';
+import { API_URL, MOCK_MODE } from '@/utils/config';
+import { useTheme } from '@/context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import PulseLogo from '@/components/PulseLogo';
 
 type OnboardingStep = 'intro' | 'goal' | 'experience' | 'preference' | 'details' | 'success';
 
@@ -73,7 +78,6 @@ const STEP_CONFIG: StepConfig[] = [
   },
 ];
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 
 const GOAL_OPTIONS: GoalOption[] = [
   { label: 'Build muscle 💪', value: 'build muscle' },
@@ -105,12 +109,20 @@ const Onboarding = () => {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
+  //theme hooks
+  const { mode, colors: themeColors } = useTheme();
+  const isDarkMode = mode === 'dark';
+
   const [goal, setGoal] = useState<GoalOption | null>(null);
   const [experience, setExperience] = useState<ExperienceOption | null>(null);
   const [preference, setPreference] = useState<PreferenceOption | null>(null);
   const [detailsNote, setDetailsNote] = useState('');
   const [showResponse, setShowResponse] = useState(false);
   const [responseMessage, setResponseMessage] = useState<string>('');
+
+  // Add state for completion message
+  const [completionMessage, setCompletionMessage] = useState<string | null>(null);
+  const [isLoadingCompletion, setIsLoadingCompletion] = useState(false);
 
   const successAnimationRef = useRef<LottieView>(null);
   const hasNavigatedToChat = useRef(false);
@@ -223,6 +235,12 @@ const Onboarding = () => {
         return true;
     }
 
+    // 🚨 MOCK MODE: Skip backend submission
+    if (MOCK_MODE) {
+      console.log('🤖 MOCK MODE: Skipping onboarding step submission');
+      return true;
+    }
+
     try {
       //3rd place to comment out for testing
       setIsSubmitting(true);
@@ -246,7 +264,7 @@ const Onboarding = () => {
 
       return true;
     } catch (error: any) {
-      console.error('Onboarding step error:', error);
+      // console.error('Onboarding step error:', error);
       Alert.alert('Save Failed', error?.message || 'Please try again.');
       return false;
     } finally {
@@ -284,6 +302,40 @@ const Onboarding = () => {
     else {
       // For intro or details (skipped), navigate directly
       if (currentIndex === STEP_CONFIG.length - 1) {
+        /* Mark onboarding as completed via discover endpoint
+        if (userId && authToken) {
+          try {
+            await userApi.discoverData(
+              'onboarding_completed',
+              true,
+              'User completed onboarding'
+            );
+          } catch (error) {
+            console.warn('Failed to mark onboarding as completed:', error);
+            // Non-critical, continue anyway
+          }
+
+          //fetch completion message before navigating
+          try {
+            const completionData = await userApi.getCompletionMessage(userId);
+            if (completionData?.message) {
+              // Store completion message to show in chat screen
+              // You can pass it via navigation params or store in AsyncStorage
+              router.replace({
+                pathname: '/chatscreen',
+                params: { initialMessage: completionData.message }
+              } as any)
+            } else {
+              router.replace('/chatscreen');
+            }
+          } catch (error) {
+            console.warn('Failed to get completion message:', error);
+            // Continue to chat screen anyway
+            router.replace('/chatscreen');
+          }
+        } else {
+          router.replace('/chatscreen');
+        }*/
         router.replace('/chatscreen');
         return;
       }
@@ -299,6 +351,25 @@ const Onboarding = () => {
       return;
     }
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
+  };
+
+  // NEW: Navigate to chat screen with completion message
+  const navigateToChat = () => {
+    if (hasNavigatedToChat.current) {
+      return; // Prevent double navigation
+    }
+    hasNavigatedToChat.current = true;
+
+    if (completionMessage) {
+      // Navigate with completion message
+      router.replace({
+        pathname: '/chatscreen',
+        params: { initialMessage: completionMessage }
+      } as any);
+    } else {
+      // Navigate without completion message if not available
+      router.replace('/chatscreen');
+    }
   };
 
   const renderOptions = () => {
@@ -324,7 +395,7 @@ const Onboarding = () => {
               </Typo>
             </Animated.Text>
 
-            {/* Bot Chat Animation */}
+            {/* Bot Chat Animation 
             <View style={styles.animationContainer}>
               <LottieView
                 source={botChatAnimation}
@@ -333,6 +404,10 @@ const Onboarding = () => {
                 style={styles.animation}
 
               />
+            </View>*/}
+            {/* Pulse Logo Animation */}
+            <View style={styles.animationContainer}>
+              <PulseLogo  />
             </View>
           </View>
         );
@@ -350,13 +425,16 @@ const Onboarding = () => {
               onPress={() => setGoal(option)}
               style={[
                 styles.optionButton,
-                goal?.value === option.value && styles.optionButtonActive,
+                goal?.value === option.value && {
+                  backgroundColor: themeColors.accentPrimary,
+                  borderColor: themeColors.accentPrimary,
+                },
               ]}
             >
               <Typo
                 size={18}
                 fontWeight={goal?.value === option.value ? '700' : '500'}
-                color={goal?.value === option.value ? colors.black : colors.neutral700}
+                color={goal?.value === option.value ? themeColors.background : colors.neutral700}
                 style={{ textAlign: 'center' }}
               >
                 {option.label}
@@ -377,13 +455,16 @@ const Onboarding = () => {
               onPress={() => setExperience(option)}
               style={[
                 styles.optionButton,
-                experience?.value === option.value && styles.optionButtonActive,
+                experience?.value === option.value && {
+                  backgroundColor: themeColors.accentPrimary,
+                  borderColor: themeColors.accentPrimary,
+                },
               ]}
             >
               <Typo
                 size={18}
                 fontWeight={experience?.value === option.value ? '700' : '500'}
-                color={experience?.value === option.value ? colors.black : colors.neutral700}
+                color={experience?.value === option.value ? themeColors.background : colors.neutral700}
                 style={{ textAlign: 'center' }}
               >
                 {option.label}
@@ -405,13 +486,16 @@ const Onboarding = () => {
               onPress={() => setPreference(option)}
               style={[
                 styles.optionButton,
-                preference?.value === option.value && styles.optionButtonActive,
+                preference?.value === option.value && {
+                  backgroundColor: themeColors.accentPrimary,
+                  borderColor: themeColors.accentPrimary,
+                },
               ]}
             >
               <Typo
                 size={18}
                 fontWeight={preference?.value === option.value ? '700' : '500'}
-                color={preference?.value === option.value ? colors.black : colors.neutral700}
+                color={preference?.value === option.value ? themeColors.background : colors.neutral700}
                 style={{ textAlign: 'center' }}
               >
                 {option.label}
@@ -476,19 +560,38 @@ const Onboarding = () => {
               loop={false}
               style={styles.successAnimation}
               onAnimationFinish={() => {
-                if (!hasNavigatedToChat.current) {
-                  hasNavigatedToChat.current = true;
-                  router.replace('/chatscreen');
+                // Wait for completion message or navigate after timeout
+                if (completionMessage) {
+                  // Message is ready, navigate immediately
+                  navigateToChat();
+                } else if (!isLoadingCompletion) {
+                  // Loading finished but no message, navigate anyway
+                  navigateToChat();
+                } else {
+                  // Still loading, wait up to 3 seconds for completion message
+                  let attempts = 0;
+                  const checkInterval = setInterval(() => {
+                    attempts++;
+                    if (completionMessage || !isLoadingCompletion || attempts >= 15) {
+                      clearInterval(checkInterval);
+                      navigateToChat();
+                    }
+                  }, 200); // Check every 200ms, max 3 seconds (15 * 200ms)
                 }
               }}
             />
 
-            <Typo size={30} fontWeight="700" color={colors.primaryDark} style={{ textAlign: 'center' }}>
-              You’re all set!
+            <Typo size={30} fontWeight="700" color={themeColors.background} style={{ textAlign: 'center' }}>
+              You're all set!
             </Typo>
 
             <Typo size={16} color={colors.neutral600} style={styles.successSubtext}>
-              We’ve stitched together your personalized fitness journey. Jumping into chat…
+              {isLoadingCompletion
+                ? 'Preparing your personalized welcome...'
+                : completionMessage
+                  ? 'Ready to chat!'
+                  : 'Stitched together your personalized fitness journey. Jumping into chat…'
+              }
             </Typo>
           </View>
         );
@@ -514,27 +617,84 @@ const Onboarding = () => {
     )
   }
 
+  // Fetch completion message when success step is reached
+  useEffect(() => {
+    const step = STEP_CONFIG[currentIndex];
+
+    // Only fetch when we reach the success step
+    if (step.id === 'success' && userId && authToken && !completionMessage && !isLoadingCompletion) {
+      console.log('[Onboarding] Fetching completion message...');
+      setIsLoadingCompletion(true);
+
+      // 🚨 MOCK MODE: Skip backend calls
+      if (MOCK_MODE) {
+        console.log('🤖 MOCK MODE: Skipping completion message fetch');
+        setIsLoadingCompletion(false);
+        // Still allow navigation to chat screen
+        return;
+      }
+
+      // Mark onboarding as completed (non-blocking)
+      userApi.discoverData(
+        'onboarding_completed',
+        true,
+        'User completed onboarding'
+      ).catch(error => {
+        console.warn('[Onboarding] Failed to mark onboarding as completed:', error);
+        // Non-critical, continue anyway
+      });
+
+      // Fetch completion message
+      userApi.getCompletionMessage(userId)
+        .then(data => {
+          if (data?.message) {
+            console.log('[Onboarding] Completion message received:', data.message);
+            setCompletionMessage(data.message);
+          } else {
+            console.log('[Onboarding] No completion message returned');
+          }
+        })
+        .catch(error => {
+          console.warn('[Onboarding] Failed to get completion message:', error);
+          // Non-critical - continue without completion message
+        })
+        .finally(() => {
+          setIsLoadingCompletion(false);
+          console.log('[Onboarding] Completion message fetch finished');
+        });
+    }
+  }, [currentIndex, userId, authToken, completionMessage, isLoadingCompletion]);
+
+  // Reset navigation flag when leaving success step
   useEffect(() => {
     if (step.id !== 'success') {
       hasNavigatedToChat.current = false;
     }
   }, [step.id]);
 
-  // response timer
+  // Update response timer to properly handle navigation to success step
   useEffect(() => {
     if (showResponse) {
       const timer = setTimeout(() => {
         setShowResponse(false);
-        if (currentIndex === STEP_CONFIG.length - 1) {
-          router.replace('/chatscreen');
+
+        // Check if we're on the last step before success (details step)
+        if (currentIndex === STEP_CONFIG.length - 2) {
+          // Move to success step (last step)
+          setCurrentIndex((prev) => Math.min(prev + 1, STEP_CONFIG.length - 1));
+        } else if (currentIndex === STEP_CONFIG.length - 1) {
+          // Already on success step, this shouldn't happen but handle it
+          navigateToChat();
         } else {
+          // Move to next step
           setCurrentIndex((prev) => Math.min(prev + 1, STEP_CONFIG.length - 1));
         }
       }, 1500); // Show for 1.5 seconds
 
       return () => clearTimeout(timer);
     }
-  }, [showResponse, currentIndex, router]);
+  }, [showResponse, currentIndex, completionMessage]);
+
 
   return (
     <KeyboardAvoidingView
@@ -542,7 +702,10 @@ const Onboarding = () => {
       behavior={Platform.select({ ios: 'padding', android: undefined })}
     >
       <ScreenWrapper showPattern={false}>
-        <View style={styles.container}>
+        <Animated.View
+          entering={SlideInDown.delay(300).springify()}
+          style={styles.container}
+        >
           <View style={styles.progressContainer}>
             <MultiStepProgressBar
               steps={STEP_CONFIG.map((cfg) => cfg.title)}
@@ -593,21 +756,27 @@ const Onboarding = () => {
                       style={[styles.navButton, styles.backButton]}
                       disabled={isSubmitting}
                     >
-                      <Typo fontWeight="700" color={colors.black}>
+                      <Typo fontWeight="500" color={themeColors.background}>
                         {currentIndex === 0 ? 'Back to welcome' : 'Back'}
                       </Typo>
                     </Button>
-
-                    <Button
-                      onPress={handleContinue}
-                      loading={isSubmitting}
-                      style={styles.navButton}
-                      disabled={continueDisabled}
+                    <LinearGradient
+                      colors={themeColors.accentGradient}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                      style={styles.buttonGradient}
                     >
-                      <Typo fontWeight="700" color={colors.black}>
-                        {step.id === 'details' ? "Let's go!" : 'Continue'}
-                      </Typo>
-                    </Button>
+                      <Button
+                        onPress={handleContinue}
+                        loading={isSubmitting}
+                        style={[styles.navButton, { backgroundColor: 'transparent' }]}
+                        disabled={continueDisabled}
+                      >
+                        <Typo fontWeight="700" color={themeColors.background}>
+                          {step.id === 'details' ? "Let's go!" : 'Continue'}
+                        </Typo>
+                      </Button>
+                    </LinearGradient>
                   </View>
                 )}
               </>
@@ -615,7 +784,7 @@ const Onboarding = () => {
           </View>
 
 
-        </View>
+        </Animated.View>
       </ScreenWrapper>
     </KeyboardAvoidingView>
   )
@@ -637,7 +806,7 @@ const styles = StyleSheet.create({
   },
 
   progressContainer: {
-    
+
     marginBottom: spacingY._20,
     maxWidth: '100%',
   },
@@ -663,10 +832,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  optionButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryDark,
-  },
   actions: {
     flexDirection: 'row',
     gap: spacingX._12,
@@ -677,10 +842,18 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: spacingY._12,
   },
+
+  buttonGradient: {
+    flex: 1,
+    borderRadius: radius.full,
+    overflow: 'hidden',
+    minHeight: verticalScale(56),
+  },
+
   backButton: {
     backgroundColor: colors.white,
     borderWidth: 2,
-    borderColor: colors.neutral300,
+    borderColor: colors.neutral500,
   },
   skipButton: {
     backgroundColor: '#EEF1F6',
