@@ -1237,13 +1237,11 @@ class RAGService:
     def get_weekly_summary(
         self,
         user_id: str,
-        week_start: Optional[datetime] = None,
-        weeks_back: int = 2,
-        weeks_forward: int = 2,
+        start_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
-        Get weekly summaries for horizontal scrolling strip.
-        Returns multiple weeks (past, current, future) for scrollable view.
+        Get 7 individual days (Mon-Sun) for horizontal scrolling strip.
+        Returns one week of days. Frontend swipes to get next/previous week.
         """
         from datetime import timedelta
         
@@ -1268,8 +1266,8 @@ class RAGService:
                     continue
             return vol
         
-        def check_has_pr_in_week(session_id: str, user_id: str, exercises: List[ExerciseLogModel]) -> bool:
-            """Check if session has any PRs (simplified version for weekly summary)."""
+        def check_has_pr(session_id: str, user_id: str, exercises: List[ExerciseLogModel]) -> bool:
+            """Check if session has any PRs."""
             with self.SessionLocal() as session:
                 for ex in exercises:
                     exercise_name = ex.exercise_name
@@ -1296,7 +1294,7 @@ class RAGService:
                     if curr_max == 0:
                         continue
                     
-                    # Quick check: find previous max
+                    # Find previous max for this exercise
                     prev_ex = session.execute(
                         select(ExerciseLogModel, WorkoutSessionModel)
                         .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
@@ -1331,68 +1329,136 @@ class RAGService:
                             return True
             return False
         
-        # Calculate current week start (Monday)
+        def calculate_intensity_level(volume_kg: float, avg_session_volume: Optional[float] = None) -> str:
+            """Calculate intensity level based on volume."""
+            if volume_kg == 0:
+                return "light"
+            
+            if avg_session_volume and avg_session_volume > 0:
+                ratio = volume_kg / avg_session_volume
+                if ratio >= 1.5:
+                    return "very_heavy"
+                elif ratio >= 1.2:
+                    return "heavy"
+                elif ratio >= 0.8:
+                    return "medium"
+                else:
+                    return "light"
+            
+            # Fallback: absolute thresholds
+            if volume_kg >= 3000:
+                return "very_heavy"
+            elif volume_kg >= 2000:
+                return "heavy"
+            elif volume_kg >= 1000:
+                return "medium"
+            else:
+                return "light"
+        
+        # Calculate week start (Monday)
         now = datetime.now(timezone.utc)
-        if week_start is None:
+        if start_date is None:
             # Get Monday of current week
             days_since_monday = now.weekday()
             week_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
         else:
-            # Ensure week_start is Monday
-            days_since_monday = week_start.weekday()
-            week_start = (week_start - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+            # Ensure start_date is Monday
+            days_since_monday = start_date.weekday()
+            week_start = (start_date - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
         
-        weeks = []
-        current_week_index = None
+        week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+        is_current_week = (week_start <= now <= week_end)
         
-        # Generate weeks (past, current, future)
-        for i in range(-weeks_back, weeks_forward + 1):
-            week_start_date = week_start + timedelta(weeks=i)
-            week_end_date = week_start_date + timedelta(days=6, hours=23, minutes=59, seconds=59)
+        # Get all workouts for this week
+        with self.SessionLocal() as session:
+            workouts = session.execute(
+                select(WorkoutSessionModel)
+                .where(WorkoutSessionModel.user_id == user_id)
+                .where(WorkoutSessionModel.occurred_at >= week_start)
+                .where(WorkoutSessionModel.occurred_at <= week_end)
+                .order_by(WorkoutSessionModel.occurred_at.asc())
+            ).scalars().all()
             
-            is_current_week = (week_start_date <= now <= week_end_date)
-            if is_current_week:
-                current_week_index = len(weeks)
+            # Get average session volume for intensity calculation
+            all_workouts = session.execute(
+                select(WorkoutSessionModel).where(WorkoutSessionModel.user_id == user_id)
+            ).scalars().all()
             
-            # Get workouts for this week
-            with self.SessionLocal() as session:
-                workouts = session.execute(
-                    select(WorkoutSessionModel)
-                    .where(WorkoutSessionModel.user_id == user_id)
-                    .where(WorkoutSessionModel.occurred_at >= week_start_date)
-                    .where(WorkoutSessionModel.occurred_at <= week_end_date)
-                    .order_by(WorkoutSessionModel.occurred_at.asc())
-                ).scalars().all()
+            avg_volume = None
+            if all_workouts:
+                total_vol = 0.0
+                count = 0
+                for w in all_workouts[:30]:  # Last 30 sessions for average
+                    exercises = session.execute(
+                        select(ExerciseLogModel).where(ExerciseLogModel.session_id == w.id)
+                    ).scalars().all()
+                    vol = sum(calc_volume(e) for e in exercises)
+                    if vol > 0:
+                        total_vol += vol
+                        count += 1
+                if count > 0:
+                    avg_volume = total_vol / count
+        
+        # Create a map of workouts by date (day of week)
+        workouts_by_date = {}
+        for workout in workouts:
+            if workout.occurred_at:
+                day_key = workout.occurred_at.date()
+                workouts_by_date[day_key] = workout
+        
+        # Generate 7 days (Mon-Sun)
+        days = []
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        
+        for i in range(7):
+            current_date = week_start + timedelta(days=i)
+            day_date = current_date.date()
             
-            # Calculate week stats
-            sessions_count = len(workouts)
-            total_volume_kg = 0.0
-            prs_count = 0
+            # Check if there's a workout on this day
+            workout = workouts_by_date.get(day_date)
             
-            with self.SessionLocal() as week_session:
-                for workout in workouts:
-                    exercises = week_session.execute(
+            if workout:
+                # Get exercises for this workout
+                with self.SessionLocal() as day_session:
+                    exercises = day_session.execute(
                         select(ExerciseLogModel).where(ExerciseLogModel.session_id == workout.id)
                     ).scalars().all()
-                    
-                    volume = sum(calc_volume(e) for e in exercises)
-                    total_volume_kg += volume
-                    
-                    if check_has_pr_in_week(workout.id, user_id, exercises):
-                        prs_count += 1
-            
-            weeks.append({
-                "week_start": week_start_date.isoformat(),
-                "week_end": week_end_date.isoformat(),
-                "is_current_week": is_current_week,
-                "sessions_count": sessions_count,
-                "total_volume_kg": round(total_volume_kg, 1),
-                "prs_count": prs_count,
-            })
+                
+                volume_kg = round(sum(calc_volume(e) for e in exercises), 1)
+                exercise_count = len(exercises)
+                has_pr = check_has_pr(workout.id, user_id, exercises)
+                intensity_level = calculate_intensity_level(volume_kg, avg_volume)
+                
+                days.append({
+                    "date": current_date.isoformat(),
+                    "day_name": day_names[i],
+                    "day_number": current_date.day,
+                    "has_workout": True,
+                    "session_id": workout.id,
+                    "volume_kg": volume_kg,
+                    "intensity_level": intensity_level,
+                    "has_pr": has_pr,
+                    "exercise_count": exercise_count,
+                })
+            else:
+                # No workout on this day
+                days.append({
+                    "date": current_date.isoformat(),
+                    "day_name": day_names[i],
+                    "day_number": current_date.day,
+                    "has_workout": False,
+                    "session_id": None,
+                    "volume_kg": 0.0,
+                    "intensity_level": "light",
+                    "has_pr": False,
+                    "exercise_count": 0,
+                })
         
         return {
-            "weeks": weeks,
-            "current_week_index": current_week_index if current_week_index is not None else weeks_back,
+            "days": days,
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+            "is_current_week": is_current_week,
         }
 
     def get_recent_workout_insights_hooks(self, user_id: str, limit: int = 2) -> List[str]:

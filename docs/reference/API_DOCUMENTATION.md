@@ -905,70 +905,99 @@ calendar.items.forEach(session => {
 
 ### **GET** `/workouts/weekly-summary` (NEW - Phase 1)
 
-Get weekly summaries for horizontal scrolling strip above calendar.
+Get 7 individual days (Mon-Sun) for horizontal scrolling strip. Apple Calendar style - swipe to see next/previous 7 days.
 
 **Authentication:** Required
 
 **Query Parameters:**
-- `week_start` (optional) - ISO date for week start (Monday). Defaults to current week.
-- `weeks_back` (optional) - Number of weeks back from current week (default: 2, max: 10)
-- `weeks_forward` (optional) - Number of weeks forward from current week (default: 2, max: 10)
+- `start_date` (optional) - ISO date for week start (Monday). Defaults to current week. Use this to navigate between weeks.
 
 **Response:**
 ```json
 {
-  "weeks": [
+  "days": [
     {
-      "week_start": "2025-11-18T00:00:00Z",
-      "week_end": "2025-11-24T23:59:59Z",
-      "is_current_week": true,
-      "sessions_count": 4,
-      "total_volume_kg": 8400.0,
-      "prs_count": 2
+      "date": "2025-11-11T00:00:00Z",
+      "day_name": "Mon",
+      "day_number": 11,
+      "has_workout": true,
+      "session_id": "abc-123",
+      "volume_kg": 2100.0,
+      "intensity_level": "heavy",
+      "has_pr": true,
+      "exercise_count": 5
     },
     {
-      "week_start": "2025-11-11T00:00:00Z",
-      "week_end": "2025-11-17T23:59:59Z",
-      "is_current_week": false,
-      "sessions_count": 3,
-      "total_volume_kg": 6200.0,
-      "prs_count": 1
+      "date": "2025-11-12T00:00:00Z",
+      "day_name": "Tue",
+      "day_number": 12,
+      "has_workout": false,
+      "session_id": null,
+      "volume_kg": 0.0,
+      "intensity_level": "light",
+      "has_pr": false,
+      "exercise_count": 0
+    },
+    {
+      "date": "2025-11-13T00:00:00Z",
+      "day_name": "Wed",
+      "day_number": 13,
+      "has_workout": true,
+      "session_id": "def-456",
+      "volume_kg": 800.0,
+      "intensity_level": "light",
+      "has_pr": false,
+      "exercise_count": 3
     }
+    // ... 4 more days (Thu, Fri, Sat, Sun)
   ],
-  "current_week_index": 0
+  "week_start": "2025-11-11T00:00:00Z",
+  "week_end": "2025-11-17T23:59:59Z",
+  "is_current_week": true
 }
 ```
 
 **Frontend Usage:**
 ```javascript
-const getWeeklySummary = async (token, weeksBack = 2, weeksForward = 2) => {
-  const response = await fetch(
-    `http://localhost:8000/workouts/weekly-summary?weeks_back=${weeksBack}&weeks_forward=${weeksForward}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+// Initial load - current week
+const getWeeklySummary = async (token, startDate = null) => {
+  let url = 'http://localhost:8000/workouts/weekly-summary'
+  if (startDate) {
+    url += `?start_date=${startDate.toISOString()}`
+  }
+  
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`
     }
-  )
+  })
   return await response.json()
 }
 
-// Get weekly strip data
-const weeklyData = await getWeeklySummary(token)
+// Load current week
+const weekData = await getWeeklySummary(token)
 
-// Auto-scroll to current week
-const currentIndex = weeklyData.current_week_index
-scrollToWeek(currentIndex)
-
-// Render week cards
-weeklyData.weeks.forEach((week, index) => {
-  renderWeekCard({
-    sessions: week.sessions_count,
-    volume: week.total_volume_kg,
-    prs: week.prs_count,
-    isCurrent: week.is_current_week
+// Render 7-day strip
+weekData.days.forEach((day) => {
+  renderDayCard({
+    dayName: day.day_name,
+    dayNumber: day.day_number,
+    hasWorkout: day.has_workout,
+    volume: day.volume_kg,
+    intensity: day.intensity_level,
+    hasPR: day.has_pr
   })
 })
+
+// Swipe LEFT → Next week
+const nextWeekStart = new Date(weekData.week_end)
+nextWeekStart.setDate(nextWeekStart.getDate() + 1)
+const nextWeek = await getWeeklySummary(token, nextWeekStart)
+
+// Swipe RIGHT → Previous week
+const prevWeekStart = new Date(weekData.week_start)
+prevWeekStart.setDate(prevWeekStart.getDate() - 7)
+const prevWeek = await getWeeklySummary(token, prevWeekStart)
 ```
 
 ---

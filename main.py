@@ -1466,18 +1466,23 @@ async def get_session_volume(
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
-class WeeklySummaryWeekItem(BaseModel):
-    week_start: str
-    week_end: str
-    is_current_week: bool
-    sessions_count: int
-    total_volume_kg: float
-    prs_count: int
+class WeeklySummaryDayItem(BaseModel):
+    date: str
+    day_name: str  # "Mon", "Tue", etc.
+    day_number: int
+    has_workout: bool
+    session_id: Optional[str] = None
+    volume_kg: float = 0.0
+    intensity_level: str = "light"  # light | medium | heavy | very_heavy
+    has_pr: bool = False
+    exercise_count: int = 0
 
 
 class WeeklySummaryResponse(BaseModel):
-    weeks: List[WeeklySummaryWeekItem]
-    current_week_index: int
+    days: List[WeeklySummaryDayItem]  # Always 7 days (Mon-Sun)
+    week_start: str
+    week_end: str
+    is_current_week: bool
 
 
 @app.get("/workouts/weekly-summary", response_model=WeeklySummaryResponse)
@@ -1485,35 +1490,34 @@ class WeeklySummaryResponse(BaseModel):
 async def get_weekly_summary(
     request: Request,
     user: AuthUser = Depends(get_current_user),
-    week_start: Optional[str] = Query(None, description="ISO date for week start (Monday). Defaults to current week."),
-    weeks_back: int = Query(2, ge=0, le=10, description="Number of weeks back from current week"),
-    weeks_forward: int = Query(2, ge=0, le=10, description="Number of weeks forward from current week"),
+    start_date: Optional[str] = Query(None, description="ISO date for week start (Monday). Defaults to current week. Swipe to get next/previous week."),
 ) -> WeeklySummaryResponse:
     """
-    Get weekly summaries for horizontal scrolling strip.
-    Returns multiple weeks (past, current, future) for scrollable view.
+    Get 7 individual days (Mon-Sun) for horizontal scrolling strip.
+    Returns one week of days. Frontend swipes to get next/previous week.
     
-    Each week includes:
-    - Sessions count
-    - Total volume (kg)
-    - PRs count
-    - Week start/end dates
-    - Current week indicator
+    Each day includes:
+    - Date, day name (Mon/Tue/etc.), day number
+    - Workout status (has_workout, session_id)
+    - Volume, intensity level, PR flag, exercise count
+    
+    Usage:
+    - Initial load: GET /workouts/weekly-summary (returns current week)
+    - Swipe left (next week): GET /workouts/weekly-summary?start_date=2025-11-18
+    - Swipe right (previous week): GET /workouts/weekly-summary?start_date=2025-11-04
     """
     try:
         from datetime import datetime
-        week_start_dt = None
-        if week_start:
+        start_dt = None
+        if start_date:
             try:
-                week_start_dt = datetime.fromisoformat(week_start.replace("Z", "+00:00"))
+                start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
             except Exception:
                 pass
         
         result = rag_service.get_weekly_summary(
             user_id=user.user_id,
-            week_start=week_start_dt,
-            weeks_back=weeks_back,
-            weeks_forward=weeks_forward,
+            start_date=start_dt,
         )
         return WeeklySummaryResponse(**result)
     except Exception as e:
