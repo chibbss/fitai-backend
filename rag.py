@@ -1024,7 +1024,142 @@ class RAGService:
         end_date: Optional[datetime] = None,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        """Get workout sessions for calendar display."""
+        """Get workout sessions for calendar display with enhanced fields."""
+        def calc_volume(e: ExerciseLogModel) -> float:
+            """Calculate volume (sets × reps × weight) for an exercise."""
+            if not e.sets or not e.reps or not e.weights:
+                return 0.0
+            vol = 0.0
+            for i in range(min(len(e.reps), len(e.weights))):
+                try:
+                    weight_str = str(e.weights[i]).strip().upper()
+                    if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                        continue
+                    if "KG" in weight_str:
+                        weight_val = float(weight_str.replace("KG", "").strip())
+                    elif "LBS" in weight_str or "LB" in weight_str:
+                        weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                    else:
+                        weight_val = float(weight_str)
+                    vol += int(e.reps[i]) * weight_val
+                except (ValueError, IndexError):
+                    continue
+            return vol
+        
+        def extract_muscle_groups(exercise_name: str) -> List[str]:
+            """Extract muscle groups from exercise name."""
+            ex_lower = exercise_name.lower()
+            groups = []
+            if any(kw in ex_lower for kw in ["bench", "press", "chest", "push", "pec"]):
+                groups.append("chest")
+            if any(kw in ex_lower for kw in ["shoulder", "deltoid", "lateral", "front raise", "overhead"]):
+                groups.append("shoulders")
+            if any(kw in ex_lower for kw in ["tricep", "dip", "extension"]):
+                groups.append("triceps")
+            if any(kw in ex_lower for kw in ["pull", "row", "back", "lat", "pull-up", "chin-up"]):
+                groups.append("back")
+            if any(kw in ex_lower for kw in ["bicep", "curl"]):
+                groups.append("biceps")
+            if any(kw in ex_lower for kw in ["squat", "leg", "lunge", "calf", "quad", "hamstring", "leg press"]):
+                groups.append("legs")
+            if any(kw in ex_lower for kw in ["deadlift"]):
+                groups.append("back")
+                groups.append("legs")
+            return list(set(groups))  # Remove duplicates
+        
+        def check_has_pr(session_id: str, user_id: str, exercises: List[ExerciseLogModel]) -> bool:
+            """Check if session has any PRs."""
+            with self.SessionLocal() as session:
+                for ex in exercises:
+                    exercise_name = ex.exercise_name
+                    if not exercise_name:
+                        continue
+                    
+                    # Get max weight from current session
+                    curr_max = 0.0
+                    if ex.weights:
+                        for w_str in ex.weights:
+                            try:
+                                weight_str = str(w_str).strip().upper()
+                                if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                                    continue
+                                if "KG" in weight_str:
+                                    weight_val = float(weight_str.replace("KG", "").strip())
+                                elif "LBS" in weight_str or "LB" in weight_str:
+                                    weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                else:
+                                    weight_val = float(weight_str)
+                                curr_max = max(curr_max, weight_val)
+                            except (ValueError, AttributeError):
+                                continue
+                    
+                    if curr_max == 0:
+                        continue
+                    
+                    # Find previous max for this exercise
+                    prev_exercises = session.execute(
+                        select(ExerciseLogModel, WorkoutSessionModel)
+                        .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
+                        .where(
+                            ExerciseLogModel.user_id == user_id,
+                            ExerciseLogModel.exercise_name == exercise_name,
+                            ExerciseLogModel.session_id != session_id,
+                        )
+                        .order_by(WorkoutSessionModel.occurred_at.desc())
+                    ).all()
+                    
+                    prev_max = 0.0
+                    for prev_ex, prev_sess in prev_exercises:
+                        if prev_ex.weights:
+                            for w_str in prev_ex.weights:
+                                try:
+                                    weight_str = str(w_str).strip().upper()
+                                    if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                                        continue
+                                    if "KG" in weight_str:
+                                        weight_val = float(weight_str.replace("KG", "").strip())
+                                    elif "LBS" in weight_str or "LB" in weight_str:
+                                        weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                    else:
+                                        weight_val = float(weight_str)
+                                    prev_max = max(prev_max, weight_val)
+                                except (ValueError, AttributeError):
+                                    continue
+                        if prev_max > 0:
+                            break
+                    
+                    # If current max > previous max, it's a PR
+                    if curr_max > prev_max:
+                        return True
+            return False
+        
+        def calculate_intensity_level(volume_kg: float, avg_session_volume: Optional[float] = None) -> str:
+            """Calculate intensity level based on volume."""
+            if volume_kg == 0:
+                return "light"
+            
+            # If we have average, use relative comparison
+            if avg_session_volume and avg_session_volume > 0:
+                ratio = volume_kg / avg_session_volume
+                if ratio >= 1.5:
+                    return "very_heavy"
+                elif ratio >= 1.2:
+                    return "heavy"
+                elif ratio >= 0.8:
+                    return "medium"
+                else:
+                    return "light"
+            
+            # Fallback: absolute thresholds (kg)
+            if volume_kg >= 3000:
+                return "very_heavy"
+            elif volume_kg >= 2000:
+                return "heavy"
+            elif volume_kg >= 1000:
+                return "medium"
+            else:
+                return "light"
+        
         with self.SessionLocal() as session:
             stmt = select(WorkoutSessionModel).where(WorkoutSessionModel.user_id == user_id)
             if start_date:
@@ -1033,9 +1168,55 @@ class RAGService:
                 stmt = stmt.where(WorkoutSessionModel.occurred_at <= end_date)
             stmt = stmt.order_by(WorkoutSessionModel.occurred_at.desc()).limit(limit)
             rows = session.execute(stmt).scalars().all()
+            
+            # Get average session volume for intensity calculation
+            all_workouts = session.execute(
+                select(WorkoutSessionModel).where(WorkoutSessionModel.user_id == user_id)
+            ).scalars().all()
+            
+            avg_volume = None
+            if all_workouts:
+                total_vol = 0.0
+                count = 0
+                for w in all_workouts[:30]:  # Last 30 sessions for average
+                    exercises = session.execute(
+                        select(ExerciseLogModel).where(ExerciseLogModel.session_id == w.id)
+                    ).scalars().all()
+                    vol = sum(calc_volume(e) for e in exercises)
+                    if vol > 0:
+                        total_vol += vol
+                        count += 1
+                if count > 0:
+                    avg_volume = total_vol / count
         
         result = []
         for r in rows:
+            # Get exercises for this session
+            with self.SessionLocal() as session:
+                exercises = session.execute(
+                    select(ExerciseLogModel).where(ExerciseLogModel.session_id == r.id)
+                ).scalars().all()
+            
+            # Calculate volume
+            volume_kg = round(sum(calc_volume(e) for e in exercises), 1)
+            
+            # Count exercises
+            exercise_count = len(exercises)
+            
+            # Extract muscle groups
+            all_muscle_groups = []
+            for ex in exercises:
+                if ex.exercise_name:
+                    groups = extract_muscle_groups(ex.exercise_name)
+                    all_muscle_groups.extend(groups)
+            muscle_groups = list(set(all_muscle_groups))  # Remove duplicates
+            
+            # Check for PRs
+            has_pr = check_has_pr(r.id, user_id, exercises)
+            
+            # Calculate intensity
+            intensity_level = calculate_intensity_level(volume_kg, avg_volume)
+            
             result.append({
                 "session_id": r.id,
                 "session_name": r.session_name,
@@ -1044,8 +1225,175 @@ class RAGService:
                 "duration_minutes": r.duration_minutes,
                 "notes": r.notes,
                 "metadata": r.meta_data or {},
+                # Enhanced fields
+                "volume_kg": volume_kg,
+                "exercise_count": exercise_count,
+                "has_pr": has_pr,
+                "muscle_groups": muscle_groups,
+                "intensity_level": intensity_level,
             })
         return result
+
+    def get_weekly_summary(
+        self,
+        user_id: str,
+        week_start: Optional[datetime] = None,
+        weeks_back: int = 2,
+        weeks_forward: int = 2,
+    ) -> Dict[str, Any]:
+        """
+        Get weekly summaries for horizontal scrolling strip.
+        Returns multiple weeks (past, current, future) for scrollable view.
+        """
+        from datetime import timedelta
+        
+        def calc_volume(e: ExerciseLogModel) -> float:
+            """Calculate volume (sets × reps × weight) for an exercise."""
+            if not e.sets or not e.reps or not e.weights:
+                return 0.0
+            vol = 0.0
+            for i in range(min(len(e.reps), len(e.weights))):
+                try:
+                    weight_str = str(e.weights[i]).strip().upper()
+                    if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                        continue
+                    if "KG" in weight_str:
+                        weight_val = float(weight_str.replace("KG", "").strip())
+                    elif "LBS" in weight_str or "LB" in weight_str:
+                        weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                    else:
+                        weight_val = float(weight_str)
+                    vol += int(e.reps[i]) * weight_val
+                except (ValueError, IndexError):
+                    continue
+            return vol
+        
+        def check_has_pr_in_week(session_id: str, user_id: str, exercises: List[ExerciseLogModel]) -> bool:
+            """Check if session has any PRs (simplified version for weekly summary)."""
+            with self.SessionLocal() as session:
+                for ex in exercises:
+                    exercise_name = ex.exercise_name
+                    if not exercise_name:
+                        continue
+                    
+                    curr_max = 0.0
+                    if ex.weights:
+                        for w_str in ex.weights:
+                            try:
+                                weight_str = str(w_str).strip().upper()
+                                if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                                    continue
+                                if "KG" in weight_str:
+                                    weight_val = float(weight_str.replace("KG", "").strip())
+                                elif "LBS" in weight_str or "LB" in weight_str:
+                                    weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                else:
+                                    weight_val = float(weight_str)
+                                curr_max = max(curr_max, weight_val)
+                            except (ValueError, AttributeError):
+                                continue
+                    
+                    if curr_max == 0:
+                        continue
+                    
+                    # Quick check: find previous max
+                    prev_ex = session.execute(
+                        select(ExerciseLogModel, WorkoutSessionModel)
+                        .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
+                        .where(
+                            ExerciseLogModel.user_id == user_id,
+                            ExerciseLogModel.exercise_name == exercise_name,
+                            ExerciseLogModel.session_id != session_id,
+                        )
+                        .order_by(WorkoutSessionModel.occurred_at.desc())
+                        .limit(1)
+                    ).first()
+                    
+                    if prev_ex:
+                        prev_ex_model, _ = prev_ex
+                        prev_max = 0.0
+                        if prev_ex_model.weights:
+                            for w_str in prev_ex_model.weights:
+                                try:
+                                    weight_str = str(w_str).strip().upper()
+                                    if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                                        continue
+                                    if "KG" in weight_str:
+                                        weight_val = float(weight_str.replace("KG", "").strip())
+                                    elif "LBS" in weight_str or "LB" in weight_str:
+                                        weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                    else:
+                                        weight_val = float(weight_str)
+                                    prev_max = max(prev_max, weight_val)
+                                except (ValueError, AttributeError):
+                                    continue
+                        if curr_max > prev_max:
+                            return True
+            return False
+        
+        # Calculate current week start (Monday)
+        now = datetime.now(timezone.utc)
+        if week_start is None:
+            # Get Monday of current week
+            days_since_monday = now.weekday()
+            week_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            # Ensure week_start is Monday
+            days_since_monday = week_start.weekday()
+            week_start = (week_start - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        weeks = []
+        current_week_index = None
+        
+        # Generate weeks (past, current, future)
+        for i in range(-weeks_back, weeks_forward + 1):
+            week_start_date = week_start + timedelta(weeks=i)
+            week_end_date = week_start_date + timedelta(days=6, hours=23, minutes=59, seconds=59)
+            
+            is_current_week = (week_start_date <= now <= week_end_date)
+            if is_current_week:
+                current_week_index = len(weeks)
+            
+            # Get workouts for this week
+            with self.SessionLocal() as session:
+                workouts = session.execute(
+                    select(WorkoutSessionModel)
+                    .where(WorkoutSessionModel.user_id == user_id)
+                    .where(WorkoutSessionModel.occurred_at >= week_start_date)
+                    .where(WorkoutSessionModel.occurred_at <= week_end_date)
+                    .order_by(WorkoutSessionModel.occurred_at.asc())
+                ).scalars().all()
+            
+            # Calculate week stats
+            sessions_count = len(workouts)
+            total_volume_kg = 0.0
+            prs_count = 0
+            
+            with self.SessionLocal() as week_session:
+                for workout in workouts:
+                    exercises = week_session.execute(
+                        select(ExerciseLogModel).where(ExerciseLogModel.session_id == workout.id)
+                    ).scalars().all()
+                    
+                    volume = sum(calc_volume(e) for e in exercises)
+                    total_volume_kg += volume
+                    
+                    if check_has_pr_in_week(workout.id, user_id, exercises):
+                        prs_count += 1
+            
+            weeks.append({
+                "week_start": week_start_date.isoformat(),
+                "week_end": week_end_date.isoformat(),
+                "is_current_week": is_current_week,
+                "sessions_count": sessions_count,
+                "total_volume_kg": round(total_volume_kg, 1),
+                "prs_count": prs_count,
+            })
+        
+        return {
+            "weeks": weeks,
+            "current_week_index": current_week_index if current_week_index is not None else weeks_back,
+        }
 
     def get_recent_workout_insights_hooks(self, user_id: str, limit: int = 2) -> List[str]:
         """Get conversation hooks from recent workout insights for chatbot context.
@@ -1918,7 +2266,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                                     "status": "pr",
                                     "message": pr_message,
                                     "weight_increase": weight_increase,
-                            })
+                                })
                                 conversation_hooks.append(f"PR for {exercise_name}")
                     except Exception as e:
                         self.logger.warning("Enhanced PR detection failed for %s: %s", exercise_name, e)

@@ -31,6 +31,7 @@ const MAIN_MENU_ITEMS: MenuItem[] = [
     { id: 'home', label: 'Home', icon: 'House' },
     { id: 'calendar', label: 'Calendar', icon: 'Calendar' },
     { id: 'workout-log', label: 'Workout Log', icon: 'Barbell' },
+    { id: 'insights', label: 'Insights', icon: 'ChartLineUp' },
 ];
 
 // Mock history items - will be replaced with real data later
@@ -124,6 +125,9 @@ const SlidingPanel = () => {
                 break;
             case 'workout-log':
                 router.push('/workout-log' as any); // Use '/workout-log' or cast to any
+                break;
+            case 'insights':
+                router.push('/insights' as any);
                 break;
             default:
                 console.log('Menu item pressed:', itemId);

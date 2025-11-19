@@ -1397,6 +1397,12 @@ class WorkoutCalendarItem(BaseModel):
     duration_minutes: Optional[int] = None
     notes: Optional[str] = None
     metadata: Dict[str, Any]
+    # Enhanced fields for Phase 1
+    volume_kg: float = 0.0
+    exercise_count: int = 0
+    has_pr: bool = False
+    muscle_groups: List[str] = []
+    intensity_level: str = "light"  # light | medium | heavy | very_heavy
 
 
 class WorkoutCalendarResponse(BaseModel):
@@ -1457,6 +1463,61 @@ async def get_session_volume(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error("/workouts/{session_id}/volume error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
+class WeeklySummaryWeekItem(BaseModel):
+    week_start: str
+    week_end: str
+    is_current_week: bool
+    sessions_count: int
+    total_volume_kg: float
+    prs_count: int
+
+
+class WeeklySummaryResponse(BaseModel):
+    weeks: List[WeeklySummaryWeekItem]
+    current_week_index: int
+
+
+@app.get("/workouts/weekly-summary", response_model=WeeklySummaryResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_STATS", "120/minute"))
+async def get_weekly_summary(
+    request: Request,
+    user: AuthUser = Depends(get_current_user),
+    week_start: Optional[str] = Query(None, description="ISO date for week start (Monday). Defaults to current week."),
+    weeks_back: int = Query(2, ge=0, le=10, description="Number of weeks back from current week"),
+    weeks_forward: int = Query(2, ge=0, le=10, description="Number of weeks forward from current week"),
+) -> WeeklySummaryResponse:
+    """
+    Get weekly summaries for horizontal scrolling strip.
+    Returns multiple weeks (past, current, future) for scrollable view.
+    
+    Each week includes:
+    - Sessions count
+    - Total volume (kg)
+    - PRs count
+    - Week start/end dates
+    - Current week indicator
+    """
+    try:
+        from datetime import datetime
+        week_start_dt = None
+        if week_start:
+            try:
+                week_start_dt = datetime.fromisoformat(week_start.replace("Z", "+00:00"))
+            except Exception:
+                pass
+        
+        result = rag_service.get_weekly_summary(
+            user_id=user.user_id,
+            week_start=week_start_dt,
+            weeks_back=weeks_back,
+            weeks_forward=weeks_forward,
+        )
+        return WeeklySummaryResponse(**result)
+    except Exception as e:
+        logger.error("/workouts/weekly-summary error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 

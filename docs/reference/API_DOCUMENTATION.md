@@ -1,6 +1,6 @@
 `# FitAI API Documentation for Frontend Developers
 
-**Last Updated:** October 28, 2025  
+**Last Updated:** November 18, 2025  
 **Base URL:** `http://localhost:8000` (local) or `https://your-domain.com` (production)  
 **Authentication:** JWT Bearer Token (from Supabase)
 
@@ -40,10 +40,11 @@ const token = session?.access_token
 3. [Workout Logging (V2 - Structured)](#workout-logging-v2---structured)
 4. [Workout Insights](#workout-insights)
 5. [Workout Calendar](#workout-calendar)
-6. [Chat (AI Coach)](#chat-ai-coach)
-7. [Chat Streaming](#chat-streaming)
-8. [Training Logs (Legacy)](#training-logs-legacy)
-9. [User Memories](#user-memories)
+6. [Weekly Summary](#weekly-summary) (NEW - Phase 1)
+7. [Chat (AI Coach)](#chat-ai-coach)
+8. [Chat Streaming](#chat-streaming)
+9. [Training Logs (Legacy)](#training-logs-legacy)
+10. [User Memories](#user-memories)
 
 ---
 
@@ -811,7 +812,7 @@ const handleWorkoutComplete = async (workoutData, token) => {
 
 ### **GET** `/workouts/calendar`
 
-Get workout session history for calendar display.
+Get workout session history for calendar display with enhanced fields for Phase 1.
 
 **Authentication:** Required
 
@@ -831,7 +832,12 @@ Get workout session history for calendar display.
       "occurred_at": "2025-10-28T10:00:00Z",
       "duration_minutes": 60,
       "notes": "Felt strong today!",
-      "metadata": {}
+      "metadata": {},
+      "volume_kg": 2450.5,
+      "exercise_count": 6,
+      "has_pr": true,
+      "muscle_groups": ["chest", "shoulders", "triceps"],
+      "intensity_level": "heavy"
     },
     {
       "session_id": "def-456",
@@ -840,11 +846,23 @@ Get workout session history for calendar display.
       "occurred_at": "2025-10-26T11:00:00Z",
       "duration_minutes": 75,
       "notes": "Tough squats",
-      "metadata": {}
+      "metadata": {},
+      "volume_kg": 1800.0,
+      "exercise_count": 5,
+      "has_pr": false,
+      "muscle_groups": ["legs"],
+      "intensity_level": "medium"
     }
   ]
 }
 ```
+
+**Enhanced Fields (Phase 1):**
+- `volume_kg` (float) - Total volume in kg for intensity coloring
+- `exercise_count` (int) - Number of exercises in session
+- `has_pr` (bool) - Whether session contains any personal records
+- `muscle_groups` (List[str]) - Muscle groups trained (e.g., ["chest", "shoulders"])
+- `intensity_level` (str) - "light" | "medium" | "heavy" | "very_heavy"
 
 **Frontend Usage:**
 ```javascript
@@ -869,10 +887,87 @@ const getWorkoutCalendar = async (token, startDate = null, endDate = null) => {
 // Get last 30 days
 const calendar = await getWorkoutCalendar(token)
 
-// Render calendar
+// Render calendar with enhanced fields
 calendar.items.forEach(session => {
-  // Add to calendar UI
-  addToCalendar(session.occurred_at, session.session_name)
+  // Add to calendar UI with intensity colors
+  const intensityColor = getIntensityColor(session.intensity_level)
+  addToCalendar(session.occurred_at, {
+    name: session.session_name,
+    volume: session.volume_kg,
+    hasPR: session.has_pr,
+    intensity: session.intensity_level,
+    muscleGroups: session.muscle_groups
+  })
+})
+```
+
+---
+
+### **GET** `/workouts/weekly-summary` (NEW - Phase 1)
+
+Get weekly summaries for horizontal scrolling strip above calendar.
+
+**Authentication:** Required
+
+**Query Parameters:**
+- `week_start` (optional) - ISO date for week start (Monday). Defaults to current week.
+- `weeks_back` (optional) - Number of weeks back from current week (default: 2, max: 10)
+- `weeks_forward` (optional) - Number of weeks forward from current week (default: 2, max: 10)
+
+**Response:**
+```json
+{
+  "weeks": [
+    {
+      "week_start": "2025-11-18T00:00:00Z",
+      "week_end": "2025-11-24T23:59:59Z",
+      "is_current_week": true,
+      "sessions_count": 4,
+      "total_volume_kg": 8400.0,
+      "prs_count": 2
+    },
+    {
+      "week_start": "2025-11-11T00:00:00Z",
+      "week_end": "2025-11-17T23:59:59Z",
+      "is_current_week": false,
+      "sessions_count": 3,
+      "total_volume_kg": 6200.0,
+      "prs_count": 1
+    }
+  ],
+  "current_week_index": 0
+}
+```
+
+**Frontend Usage:**
+```javascript
+const getWeeklySummary = async (token, weeksBack = 2, weeksForward = 2) => {
+  const response = await fetch(
+    `http://localhost:8000/workouts/weekly-summary?weeks_back=${weeksBack}&weeks_forward=${weeksForward}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    }
+  )
+  return await response.json()
+}
+
+// Get weekly strip data
+const weeklyData = await getWeeklySummary(token)
+
+// Auto-scroll to current week
+const currentIndex = weeklyData.current_week_index
+scrollToWeek(currentIndex)
+
+// Render week cards
+weeklyData.weeks.forEach((week, index) => {
+  renderWeekCard({
+    sessions: week.sessions_count,
+    volume: week.total_volume_kg,
+    prs: week.prs_count,
+    isCurrent: week.is_current_week
+  })
 })
 ```
 
