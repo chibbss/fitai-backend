@@ -95,6 +95,57 @@ export const workoutApi = {
         return await response.json();
     },
 
+    //Get workout details (for editing)
+    async getWorkoutDetails(sessionId: string) {
+        const token = await getAuthToken();
+        if (!token) throw new Error('Authentication required');
+
+        const response = await fetch(`${API_URL}/workouts/${sessionId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            if (response.status === 401) {
+                Alert.alert('Session Expired', 'Please log in again.');
+                router.replace('/login');
+                throw new Error('Unauthorized');
+            }
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        }
+
+        return await response.json();
+    },
+
+    //Update workout
+    async updateWorkout(sessionId: string, workoutData: any) {
+        const token = await getAuthToken();
+        if (!token) throw new Error('Authentication required');
+
+        const response = await fetch(`${API_URL}/workouts/${sessionId}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(workoutData),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            if (response.status === 401) {
+                Alert.alert('Session Expired', 'Please log in again.');
+                router.replace('/login');
+                throw new Error('Unauthorized');
+            }
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        }
+
+        return await response.json();
+    },
+
     //get stats
     async getStats(sessionId: string) {
         const token = await getAuthToken();

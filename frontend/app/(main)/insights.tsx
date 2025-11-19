@@ -122,7 +122,19 @@ const InsightsScreen = () => {
                     <Typo size={20} fontWeight="600" color={colors.black}>
                         Workout Insights
                     </Typo>
-                    <View style={styles.placeholder} />
+                    <TouchableOpacity
+                        onPress={() => {
+                            if (sessionId) {
+                                router.push({
+                                    pathname: '/workout-log' as any,
+                                    params: { sessionId },
+                                });
+                            }
+                        }}
+                        style={styles.editButton}
+                    >
+                        <Icons.PencilSimple size={20} color={colors.primary} weight="bold" />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView
@@ -257,6 +269,9 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.neutral100,
     },
     backButton: {
+        padding: spacingX._5,
+    },
+    editButton: {
         padding: spacingX._5,
     },
     placeholder: {

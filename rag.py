@@ -22,6 +22,7 @@ from sqlalchemy import (
     ForeignKey,
     select,
     or_,
+    delete,
     text as sql_text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, Session
@@ -1101,6 +1102,195 @@ class RAGService:
             "session_id": session_id,
             "exercise_count": len(exercises),
             "inserted": True,
+        }
+
+    def get_workout_session(
+        self,
+        user_id: str,
+        session_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get full workout session details including all exercises.
+        Returns None if session not found or user doesn't own it.
+        """
+        with self.SessionLocal() as session:
+            workout = session.get(WorkoutSessionModel, session_id)
+            if not workout or workout.user_id != user_id:
+                return None
+            
+            # Get all exercises for this session
+            exercises = session.execute(
+                select(ExerciseLogModel)
+                .where(ExerciseLogModel.session_id == session_id)
+                .order_by(ExerciseLogModel.created_at.asc())
+            ).scalars().all()
+            
+            exercise_list = []
+            for ex in exercises:
+                exercise_list.append({
+                    "exercise_name": ex.exercise_name,
+                    "exercise_category": ex.exercise_category,
+                    "sets": ex.sets,
+                    "reps": ex.reps,
+                    "weights": ex.weights,
+                    "duration_seconds": ex.duration_seconds,
+                    "distance_meters": ex.distance_meters,
+                    "notes": ex.notes,
+                    "metadata": ex.meta_data or {},
+                })
+            
+            return {
+                "session_id": workout.id,
+                "session_name": workout.session_name,
+                "session_type": workout.session_type,
+                "occurred_at": workout.occurred_at.isoformat() if workout.occurred_at else None,
+                "duration_minutes": workout.duration_minutes,
+                "notes": workout.notes,
+                "metadata": workout.meta_data or {},
+                "exercises": exercise_list,
+            }
+
+    def update_workout_session(
+        self,
+        user_id: str,
+        session_id: str,
+        session_name: Optional[str],
+        session_type: Optional[str],
+        exercises: List[Dict[str, Any]],
+        occurred_at: Optional[datetime] = None,
+        duration_minutes: Optional[int] = None,
+        notes: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Update an existing workout session.
+        - Verifies user owns the session
+        - Deletes old exercises and inserts new ones
+        - Updates session metadata
+        - Updates training log embedding for RAG
+        """
+        with self.SessionLocal() as session:
+            with session.begin():
+                # Verify session exists and user owns it
+                workout = session.get(WorkoutSessionModel, session_id)
+                if not workout:
+                    raise ValueError("Workout session not found")
+                if workout.user_id != user_id:
+                    raise ValueError("Access denied: You don't own this workout")
+                
+                # Update workout session fields
+                if session_name is not None:
+                    workout.session_name = session_name
+                if session_type is not None:
+                    workout.session_type = session_type
+                if occurred_at is not None:
+                    workout.occurred_at = occurred_at
+                if duration_minutes is not None:
+                    workout.duration_minutes = duration_minutes
+                if notes is not None:
+                    workout.notes = notes
+                if metadata is not None:
+                    workout.meta_data = metadata
+                
+                # Delete old exercises (cascade will handle this, but explicit is clearer)
+                session.execute(
+                    delete(ExerciseLogModel).where(ExerciseLogModel.session_id == session_id)
+                )
+                
+                # Insert new exercises
+                exercise_ids = []
+                for ex in exercises:
+                    ex_id = str(uuid.uuid4())
+                    exercise = ExerciseLogModel(
+                        id=ex_id,
+                        session_id=session_id,
+                        user_id=user_id,
+                        exercise_name=ex.get("exercise_name", "Unknown"),
+                        exercise_category=ex.get("exercise_category"),
+                        sets=ex.get("sets"),
+                        reps=ex.get("reps"),
+                        weights=ex.get("weights"),
+                        duration_seconds=ex.get("duration_seconds"),
+                        distance_meters=ex.get("distance_meters"),
+                        notes=ex.get("notes"),
+                        meta_data=ex.get("metadata") or {},
+                    )
+                    session.add(exercise)
+                    exercise_ids.append(ex_id)
+                
+                # Update training log entry for RAG retrieval
+                # Find the training log associated with this session
+                training_log = session.execute(
+                    select(TrainingLogModel)
+                    .where(
+                        TrainingLogModel.user_id == user_id,
+                        TrainingLogModel.meta_data["session_id"].astext == session_id
+                    )
+                ).scalar_one_or_none()
+                
+                if training_log:
+                    # Update training log summary
+                    summary_parts = []
+                    if session_name:
+                        summary_parts.append(f"Workout: {session_name}")
+                    if session_type:
+                        summary_parts.append(f"Type: {session_type}")
+                    
+                    ex_names = [e.get("exercise_name", "") for e in exercises if e.get("exercise_name")]
+                    if ex_names:
+                        summary_parts.append(f"Exercises: {', '.join(ex_names[:5])}")
+                    
+                    if notes:
+                        summary_parts.append(f"Notes: {notes}")
+                    
+                    summary_text = "; ".join(summary_parts) if summary_parts else "Workout session completed"
+                    
+                    # Update embedding
+                    try:
+                        embedding = self._embed([summary_text])[0].tolist()
+                        training_log.notes = summary_text
+                        training_log.embedding = embedding
+                        training_log.tags = ex_names[:10]
+                        if occurred_at:
+                            training_log.occurred_at = occurred_at
+                    except Exception as e:
+                        self.logger.warning("Failed to update training log embedding: %s", e)
+                        # Continue without embedding update - non-critical
+                
+                session.flush()
+        
+        # Invalidate caches (same as log_workout_session)
+        try:
+            cache_key = f"workout_hooks:{user_id}"
+            if self._redis:
+                try:
+                    self._redis.delete(cache_key)
+                    self.logger.debug("Invalidated workout hooks cache for user %s", user_id)
+                except Exception as e:
+                    self.logger.debug("Cache invalidation failed: %s", e)
+            
+            if user_id in self._workout_hooks_cache:
+                del self._workout_hooks_cache[user_id]
+                self.logger.debug("Invalidated in-memory workout hooks cache for user %s", user_id)
+            
+            if user_id in self._fitness_overview_cache:
+                del self._fitness_overview_cache[user_id]
+                self.logger.debug("Invalidated fitness overview cache for user %s", user_id)
+            
+            if user_id in self._patterns_cache:
+                del self._patterns_cache[user_id]
+                self.logger.debug("Invalidated patterns cache for user %s", user_id)
+            
+            if user_id in self._user_context_cache:
+                del self._user_context_cache[user_id]
+                self.logger.debug("Invalidated pre-loaded context cache for user %s", user_id)
+        except Exception as e:
+            self.logger.debug("Cache invalidation check failed: %s", e)
+        
+        return {
+            "session_id": session_id,
+            "exercise_count": len(exercises),
+            "updated": True,
         }
 
     def get_workout_calendar(

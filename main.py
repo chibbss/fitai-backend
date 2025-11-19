@@ -1466,6 +1466,99 @@ async def get_session_volume(
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
+class WorkoutDetailsResponse(BaseModel):
+    session_id: str
+    session_name: Optional[str] = None
+    session_type: Optional[str] = None
+    occurred_at: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    notes: Optional[str] = None
+    metadata: Dict[str, Any] = {}
+    exercises: List[ExerciseLogItem]
+
+
+@app.get("/workouts/{session_id}", response_model=WorkoutDetailsResponse)
+async def get_workout_details(
+    session_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> WorkoutDetailsResponse:
+    """
+    Get full workout session details including all exercises.
+    Used for editing workouts.
+    """
+    try:
+        workout = rag_service.get_workout_session(user_id=user.user_id, session_id=session_id)
+        if not workout:
+            raise HTTPException(status_code=404, detail="Workout session not found")
+        return WorkoutDetailsResponse(**workout)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/workouts/{session_id} GET error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
+@app.put("/workouts/{session_id}", response_model=LogWorkoutResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_LOGS", "120/minute"))
+async def update_workout(
+    request: Request,
+    session_id: str,
+    body: LogWorkoutRequest,
+    user: AuthUser = Depends(get_current_user),
+) -> LogWorkoutResponse:
+    """
+    Update an existing workout session.
+    Replaces all exercises (delete old, insert new).
+    
+    Example:
+    {
+      "session_name": "Push Day",
+      "session_type": "strength",
+      "occurred_at": "2025-10-28T10:00:00Z",
+      "duration_minutes": 75,
+      "notes": "Felt strong today",
+      "exercises": [
+        {
+          "exercise_name": "Bench Press",
+          "exercise_category": "chest",
+          "sets": 3,
+          "reps": [8, 8, 6],
+          "weights": ["80kg", "80kg", "85kg"]
+        }
+      ]
+    }
+    """
+    try:
+        from datetime import datetime
+        occurred = None
+        if body.occurred_at:
+            try:
+                occurred = datetime.fromisoformat(body.occurred_at.replace("Z", "+00:00"))
+            except Exception:
+                occurred = None
+        
+        exercises = [ex.model_dump() for ex in body.exercises]
+        
+        result = rag_service.update_workout_session(
+            user_id=user.user_id,
+            session_id=session_id,
+            session_name=body.session_name,
+            session_type=body.session_type,
+            exercises=exercises,
+            occurred_at=occurred,
+            duration_minutes=body.duration_minutes,
+            notes=body.notes,
+            metadata=body.metadata,
+        )
+        
+        return LogWorkoutResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("/workouts/{session_id} PUT error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
 class WeeklySummaryDayItem(BaseModel):
     date: str
     day_name: str  # "Mon", "Tue", etc.

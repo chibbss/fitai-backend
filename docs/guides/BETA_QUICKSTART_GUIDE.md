@@ -259,7 +259,7 @@ A: Deep Memory system stores your conversations, workouts, and preferences in a 
 A: Data export is coming soon! For now, all your data is stored securely and accessible through the app.
 
 ### **Q: What if I make a mistake logging a workout?**
-A: You can edit workouts after logging. Tap the workout in your calendar → Edit.
+A: You can edit workouts after logging! Tap any workout in your calendar or insights page, then tap the edit icon (pencil) in the top right. You can update exercise names, weights, reps, sets, notes, and more.
 
 ### **Q: How accurate is PR detection?**
 A: PR detection compares your current workout to your historical data. It's automatic and gets smarter as you log more workouts.

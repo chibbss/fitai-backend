@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     ScrollView,
@@ -10,7 +10,7 @@ import {
     Platform,
     Dimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import { colors, radius, spacingX, spacingY } from '@/constants/theme';
@@ -44,10 +44,42 @@ interface WorkoutData {
 
 const WorkoutLogScreen = () => {
     const router = useRouter();
+    const params = useLocalSearchParams<{ sessionId?: string }>();
+    const sessionId = params.sessionId;
+    const isEditMode = !!sessionId;
+    
     const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingWorkout, setIsLoadingWorkout] = useState(isEditMode);
     const [workoutData, setWorkoutData] = useState<WorkoutData>({
         exercises: [],
     });
+
+    // Load workout data if in edit mode
+    useEffect(() => {
+        if (isEditMode && sessionId) {
+            const loadWorkout = async () => {
+                setIsLoadingWorkout(true);
+                try {
+                    const workout = await workoutApi.getWorkoutDetails(sessionId);
+                    setWorkoutData({
+                        session_name: workout.session_name || undefined,
+                        session_type: workout.session_type || undefined,
+                        occurred_at: workout.occurred_at || undefined,
+                        duration_minutes: workout.duration_minutes || undefined,
+                        notes: workout.notes || undefined,
+                        exercises: workout.exercises || [],
+                        metadata: workout.metadata || {},
+                    });
+                } catch (error: any) {
+                    Alert.alert('Error', error.message || 'Failed to load workout');
+                    router.back();
+                } finally {
+                    setIsLoadingWorkout(false);
+                }
+            };
+            loadWorkout();
+        }
+    }, [isEditMode, sessionId]);
 
     const handleAddExercise = () => {
         setWorkoutData(prev => ({
@@ -97,18 +129,30 @@ const WorkoutLogScreen = () => {
 
         setIsLoading(true);
         try {
-            const result = await workoutApi.logWorkout({
-                ...workoutData,
-                occurred_at: workoutData.occurred_at || new Date().toISOString(),
-            });
+            if (isEditMode && sessionId) {
+                // Update existing workout
+                await workoutApi.updateWorkout(sessionId, {
+                    ...workoutData,
+                    occurred_at: workoutData.occurred_at || new Date().toISOString(),
+                });
+                Alert.alert('Success', 'Workout updated successfully', [
+                    { text: 'OK', onPress: () => router.back() },
+                ]);
+            } else {
+                // Create new workout
+                const result = await workoutApi.logWorkout({
+                    ...workoutData,
+                    occurred_at: workoutData.occurred_at || new Date().toISOString(),
+                });
 
-            // Navigate to insights screen with session_id
-            router.push({
-                pathname: '/insights' as any,
-                params: { sessionId: result.session_id },
-            });
+                // Navigate to insights screen with session_id
+                router.push({
+                    pathname: '/insights' as any,
+                    params: { sessionId: result.session_id },
+                });
+            }
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to log workout');
+            Alert.alert('Error', error.message || (isEditMode ? 'Failed to update workout' : 'Failed to log workout'));
             setIsLoading(false);
         }
     };
@@ -130,11 +174,19 @@ const WorkoutLogScreen = () => {
                                 <Icons.CaretLeft size={26} color={colors.primary} weight="bold" />
                             </TouchableOpacity>
                             <Typo size={24} fontWeight="700" color={colors.black}>
-                                Log Workout
+                                {isEditMode ? 'Edit Workout' : 'Log Workout'}
                             </Typo>
                             <View style={styles.placeholder} />
                         </View>
 
+                        {isLoadingWorkout ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color={colors.primary} />
+                                <Typo size={14} color={colors.neutral600} style={styles.loadingText}>
+                                    Loading workout...
+                                </Typo>
+                            </View>
+                        ) : (
                         <ScrollView
                             style={styles.content}
                             showsVerticalScrollIndicator={false}
@@ -247,6 +299,7 @@ const WorkoutLogScreen = () => {
                                 />
                             </View>
                         </ScrollView>
+                        )}
 
                         {/* Submit Button */}
                         <View style={styles.footer}>
@@ -263,7 +316,7 @@ const WorkoutLogScreen = () => {
                                 ) : (
                                     <>
                                         <Typo size={16} color={colors.white} fontWeight="600">
-                                            Log Workout
+                                            {isEditMode ? 'Update Workout' : 'Log Workout'}
                                         </Typo>
                                         <Icons.CheckCircle size={20} color={colors.white} weight="fill" />
                                     </>
@@ -389,6 +442,15 @@ const styles = StyleSheet.create({
     },
     submitButtonDisabled: {
         opacity: 0.5,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: spacingY._40,
+    },
+    loadingText: {
+        marginTop: spacingY._15,
     },
 });
 
