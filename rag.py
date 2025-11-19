@@ -87,10 +87,19 @@ class RAGService:
         self._patterns_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (patterns, timestamp)}
         # Cache for pre-loaded user context (10 minute TTL)
         self._user_context_cache: Dict[str, Tuple[Dict[str, Any], float]] = {}  # {user_id: (context_dict, timestamp)}
+        
+        # Circuit breaker state for Modal services
+        # Format: {service_name: {"failures": int, "last_failure": float, "state": "closed"|"open"|"half_open"}}
+        self._circuit_breaker: Dict[str, Dict[str, Any]] = {}
+        self._circuit_breaker_config = {
+            "failure_threshold": int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD", "5")),  # Open after 5 failures
+            "timeout_seconds": int(os.getenv("CIRCUIT_BREAKER_TIMEOUT", "60")),  # Stay open for 60s
+            "half_open_max_attempts": int(os.getenv("CIRCUIT_BREAKER_HALF_OPEN_ATTEMPTS", "2")),  # Try 2 requests in half-open
+        }
     
-    def _call_modal_with_timing(self, service_name: str, url: str, payload: Dict[str, Any], timeout: float, fallback_callback=None):
+    def _call_modal_with_timing(self, service_name: str, url: str, payload: Dict[str, Any], timeout: float, fallback_callback=None, max_retries: int = 3):
         """
-        Wrapper for Modal API calls with timing, logging, and fallback handling.
+        Wrapper for Modal API calls with timing, logging, retry/backoff, circuit breaker, and fallback handling.
         
         Args:
             service_name: Name of the service (e.g., "embed", "generation", "reranker")
@@ -98,6 +107,7 @@ class RAGService:
             payload: Request payload
             timeout: Request timeout in seconds
             fallback_callback: Optional callback function if Modal call fails
+            max_retries: Maximum number of retry attempts (default: 3)
         
         Returns:
             Response JSON data
@@ -105,40 +115,116 @@ class RAGService:
         Raises:
             Exception if call fails and no fallback available
         """
-        start_time = time.time()
-        try:
-            if not self._remote_session:
-                import requests
-                self._remote_session = requests.Session()
-            
-            self.logger.debug("Calling Modal %s service at %s", service_name, url)
-            resp = self._remote_session.post(url, json=payload, timeout=timeout)
-            resp.raise_for_status()
-            data = resp.json()
-            
-            duration_ms = (time.time() - start_time) * 1000
-            self.logger.info("Modal %s call succeeded (duration=%.2fms, url=%s)", service_name, duration_ms, url)
-            
-            return data
-            
-        except Exception as e:
-            duration_ms = (time.time() - start_time) * 1000
-            self.logger.error(
-                "Modal %s call failed (duration=%.2fms, url=%s, error=%s)",
-                service_name, duration_ms, url, str(e),
-                exc_info=True
-            )
-            
-            # Try fallback if available
-            if fallback_callback:
-                self.logger.warning("Falling back to local %s after Modal failure", service_name)
-                try:
-                    return fallback_callback()
-                except Exception as fallback_error:
-                    self.logger.error("Fallback %s also failed: %s", service_name, fallback_error, exc_info=True)
-                    raise RuntimeError(f"Modal {service_name} failed and fallback failed: {fallback_error}") from e
-            
-            raise RuntimeError(f"Modal {service_name} call failed: {e}") from e
+        import time as time_module
+        import random
+        
+        # Check circuit breaker state
+        cb_state = self._circuit_breaker.get(service_name, {"failures": 0, "last_failure": 0, "state": "closed", "half_open_attempts": 0})
+        current_time = time_module.time()
+        
+        # Circuit breaker logic
+        if cb_state["state"] == "open":
+            # Check if timeout has passed, transition to half-open
+            if current_time - cb_state["last_failure"] >= self._circuit_breaker_config["timeout_seconds"]:
+                cb_state["state"] = "half_open"
+                cb_state["half_open_attempts"] = 0
+                self.logger.info("Circuit breaker for %s: transitioning to half-open", service_name)
+            else:
+                # Circuit is open, fail fast
+                self.logger.warning("Circuit breaker for %s is OPEN, failing fast", service_name)
+                if fallback_callback:
+                    self.logger.warning("Using fallback for %s due to open circuit breaker", service_name)
+                    try:
+                        return fallback_callback()
+                    except Exception as fallback_error:
+                        self.logger.error("Fallback %s also failed: %s", service_name, fallback_error, exc_info=True)
+                        raise RuntimeError(f"Modal {service_name} circuit breaker open and fallback failed: {fallback_error}")
+                raise RuntimeError(f"Modal {service_name} circuit breaker is open")
+        
+        # Initialize session if needed
+        if not self._remote_session:
+            import requests
+            self._remote_session = requests.Session()
+        
+        # Retry loop with exponential backoff
+        last_exception = None
+        overall_start_time = time_module.time()
+        for attempt in range(max_retries):
+            start_time = time_module.time()
+            try:
+                self.logger.debug("Calling Modal %s service at %s (attempt %d/%d)", service_name, url, attempt + 1, max_retries)
+                resp = self._remote_session.post(url, json=payload, timeout=timeout)
+                resp.raise_for_status()
+                data = resp.json()
+                
+                duration_ms = (time_module.time() - start_time) * 1000
+                self.logger.info("Modal %s call succeeded (duration=%.2fms, url=%s, attempt=%d)", service_name, duration_ms, url, attempt + 1)
+                
+                # Success - reset circuit breaker
+                if cb_state["state"] == "half_open":
+                    cb_state["state"] = "closed"
+                    cb_state["half_open_attempts"] = 0
+                    self.logger.info("Circuit breaker for %s: transitioning to closed (recovered)", service_name)
+                cb_state["failures"] = 0
+                self._circuit_breaker[service_name] = cb_state
+                
+                return data
+                
+            except Exception as e:
+                duration_ms = (time_module.time() - start_time) * 1000
+                last_exception = e
+                
+                # Update circuit breaker state
+                cb_state["failures"] += 1
+                cb_state["last_failure"] = time_module.time()
+                
+                # Check if we should open the circuit
+                if cb_state["failures"] >= self._circuit_breaker_config["failure_threshold"]:
+                    cb_state["state"] = "open"
+                    self.logger.warning(
+                        "Circuit breaker for %s: OPENING after %d failures",
+                        service_name, cb_state["failures"]
+                    )
+                
+                # Handle half-open state
+                if cb_state["state"] == "half_open":
+                    cb_state["half_open_attempts"] += 1
+                    if cb_state["half_open_attempts"] >= self._circuit_breaker_config["half_open_max_attempts"]:
+                        cb_state["state"] = "open"
+                        self.logger.warning("Circuit breaker for %s: re-opening after half-open attempts failed", service_name)
+                
+                self._circuit_breaker[service_name] = cb_state
+                
+                # If this is the last attempt, don't retry
+                if attempt == max_retries - 1:
+                    break
+                
+                # Exponential backoff with jitter
+                backoff_seconds = (2 ** attempt) + random.uniform(0, 1)
+                self.logger.warning(
+                    "Modal %s call failed (attempt %d/%d, duration=%.2fms, error=%s), retrying in %.2fs",
+                    service_name, attempt + 1, max_retries, duration_ms, str(e), backoff_seconds
+                )
+                time_module.sleep(backoff_seconds)
+        
+        # All retries exhausted
+        total_duration_ms = (time_module.time() - overall_start_time) * 1000
+        self.logger.error(
+            "Modal %s call failed after %d attempts (total_duration=%.2fms, url=%s, error=%s)",
+            service_name, max_retries, total_duration_ms, url, str(last_exception),
+            exc_info=True
+        )
+        
+        # Try fallback if available
+        if fallback_callback:
+            self.logger.warning("Falling back to local %s after Modal failure (all retries exhausted)", service_name)
+            try:
+                return fallback_callback()
+            except Exception as fallback_error:
+                self.logger.error("Fallback %s also failed: %s", service_name, fallback_error, exc_info=True)
+                raise RuntimeError(f"Modal {service_name} failed after {max_retries} retries and fallback failed: {fallback_error}") from last_exception
+        
+        raise RuntimeError(f"Modal {service_name} call failed after {max_retries} retries: {last_exception}") from last_exception
 
     # ------------------------
     # Initialization
