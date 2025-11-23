@@ -949,7 +949,7 @@ class RAGService:
                     kind=kind or "event",
                     topic=topic,
                     tags=tags or [],
-                    occurred_at=occurred_at or datetime.utcnow(),
+                    occurred_at=occurred_at or datetime.now(timezone.utc),
                     notes=text,
                     meta_data=metadata or {},
                     embedding=embedding,  # Can be None if embedding failed
@@ -1031,7 +1031,7 @@ class RAGService:
     ) -> Dict[str, Any]:
         """Log a complete workout session with exercises."""
         session_id = str(uuid.uuid4())
-        occurred = occurred_at or datetime.utcnow()
+        occurred = occurred_at or datetime.now(timezone.utc)
         
         with self.SessionLocal() as session:
             with session.begin():

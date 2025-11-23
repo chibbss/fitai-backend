@@ -4,7 +4,7 @@ import argparse
 import glob
 import os
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 import requests
 import re
@@ -264,7 +264,7 @@ def build_enriched_doc(
         "credibility_score": credibility,
         
         # Processing metadata
-        "ingested_at": datetime.utcnow().isoformat(),
+        "ingested_at": datetime.now(timezone.utc).isoformat(),
         "extraction_method": "pypdf" if path.endswith('.pdf') else "text",
     }
     
