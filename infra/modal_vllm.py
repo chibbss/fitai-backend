@@ -56,6 +56,7 @@ def get_model_max_length(model_name: str, hf_token: str | None) -> int:
     image=image,
     gpu="A10G",
     timeout=60 * 60 * 24,
+    container_idle_timeout=300,
     secrets=[modal.Secret.from_name("hf-token")],
 )
 @modal.asgi_app()

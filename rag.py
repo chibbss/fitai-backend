@@ -58,8 +58,9 @@ class RAGService:
 
         # Database (SQLAlchemy) with production-grade connection pooling
         # Pool settings optimized for production workloads (hundreds/thousands of concurrent users)
-        pool_size = int(os.getenv("DB_POOL_SIZE", "10"))  # Connections per process
-        max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "20"))  # Additional connections beyond pool_size
+        # Increased for 100+ concurrent users: 20 base + 40 overflow = 60 total connections per process
+        pool_size = int(os.getenv("DB_POOL_SIZE", "20"))  # Connections per process (increased from 10)
+        max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "40"))  # Additional connections beyond pool_size (increased from 20)
         pool_timeout = int(os.getenv("DB_POOL_TIMEOUT", "30"))  # Seconds to wait for connection
         pool_recycle = int(os.getenv("DB_POOL_RECYCLE", "3600"))  # Recycle connections after 1 hour
         
@@ -1095,6 +1096,34 @@ class RAGService:
             if user_id in self._user_context_cache:
                 del self._user_context_cache[user_id]
                 self.logger.debug("Invalidated pre-loaded context cache for user %s", user_id)
+            
+            # Invalidate calendar and weekly summary caches (workout data changed)
+            if self._redis:
+                try:
+                    # Delete all calendar caches for this user (pattern: fitai:calendar:*)
+                    # Use SCAN to find matching keys
+                    pattern = f"{self.config.redis_prefix}:calendar:*"
+                    cursor = 0
+                    while True:
+                        cursor, keys = self._redis.scan(cursor, match=pattern, count=100)
+                        if keys:
+                            self._redis.delete(*keys)
+                        if cursor == 0:
+                            break
+                    self.logger.debug("Invalidated calendar caches for user %s", user_id)
+                    
+                    # Delete all weekly summary caches for this user
+                    pattern = f"{self.config.redis_prefix}:weekly_summary:*"
+                    cursor = 0
+                    while True:
+                        cursor, keys = self._redis.scan(cursor, match=pattern, count=100)
+                        if keys:
+                            self._redis.delete(*keys)
+                        if cursor == 0:
+                            break
+                    self.logger.debug("Invalidated weekly summary caches for user %s", user_id)
+                except Exception as e:
+                    self.logger.debug("Calendar/weekly summary cache invalidation failed: %s", e)
         except Exception as e:
             self.logger.debug("Cache invalidation check failed: %s", e)
         
@@ -1284,6 +1313,33 @@ class RAGService:
             if user_id in self._user_context_cache:
                 del self._user_context_cache[user_id]
                 self.logger.debug("Invalidated pre-loaded context cache for user %s", user_id)
+            
+            # Invalidate calendar and weekly summary caches (workout data changed)
+            if self._redis:
+                try:
+                    # Delete all calendar caches for this user (pattern: fitai:calendar:*)
+                    pattern = f"{self.config.redis_prefix}:calendar:*"
+                    cursor = 0
+                    while True:
+                        cursor, keys = self._redis.scan(cursor, match=pattern, count=100)
+                        if keys:
+                            self._redis.delete(*keys)
+                        if cursor == 0:
+                            break
+                    self.logger.debug("Invalidated calendar caches for user %s", user_id)
+                    
+                    # Delete all weekly summary caches for this user
+                    pattern = f"{self.config.redis_prefix}:weekly_summary:*"
+                    cursor = 0
+                    while True:
+                        cursor, keys = self._redis.scan(cursor, match=pattern, count=100)
+                        if keys:
+                            self._redis.delete(*keys)
+                        if cursor == 0:
+                            break
+                    self.logger.debug("Invalidated weekly summary caches for user %s", user_id)
+                except Exception as e:
+                    self.logger.debug("Calendar/weekly summary cache invalidation failed: %s", e)
         except Exception as e:
             self.logger.debug("Cache invalidation check failed: %s", e)
         
@@ -1300,7 +1356,41 @@ class RAGService:
         end_date: Optional[datetime] = None,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        """Get workout sessions for calendar display with enhanced fields."""
+        """Get workout sessions for calendar display with enhanced fields.
+        
+        Cached for 5 minutes (300 seconds) to reduce database load for high-traffic endpoint.
+        Cache is invalidated when workouts are logged or updated.
+        """
+        import json
+        import hashlib
+        
+        # Build cache key based on parameters
+        cache_params = {
+            "user_id": user_id,
+            "start_date": start_date.isoformat() if start_date else None,
+            "end_date": end_date.isoformat() if end_date else None,
+            "limit": limit,
+        }
+        cache_key_str = json.dumps(cache_params, sort_keys=True)
+        cache_key_hash = hashlib.md5(cache_key_str.encode('utf-8')).hexdigest()
+        cache_key = f"{self.config.redis_prefix}:calendar:{cache_key_hash}"
+        
+        # Try to get from cache (Redis or in-memory)
+        cached_result = None
+        
+        # Check Redis first
+        if self._redis:
+            try:
+                cached = self._redis.get(cache_key)
+                if cached:
+                    cached_result = json.loads(cached)
+                    self.logger.debug("Retrieved workout calendar from Redis cache for user %s", user_id)
+            except Exception as e:
+                self.logger.debug("Redis cache lookup failed: %s", e)
+        
+        # If cached, return it
+        if cached_result is not None:
+            return cached_result
         def calc_volume(e: ExerciseLogModel) -> float:
             """Calculate volume (sets × reps × weight) for an exercise."""
             if not e.sets or not e.reps or not e.weights:
@@ -1508,6 +1598,15 @@ class RAGService:
                 "muscle_groups": muscle_groups,
                 "intensity_level": intensity_level,
             })
+        
+        # Cache the result for 5 minutes (300 seconds)
+        if self._redis:
+            try:
+                self._redis.setex(cache_key, 300, json.dumps(result))
+                self.logger.debug("Cached workout calendar for user %s (expires in 5 min)", user_id)
+            except Exception as e:
+                self.logger.debug("Redis cache store failed: %s", e)
+        
         return result
 
     def get_weekly_summary(
@@ -1518,8 +1617,39 @@ class RAGService:
         """
         Get 7 individual days (Mon-Sun) for horizontal scrolling strip.
         Returns one week of days. Frontend swipes to get next/previous week.
+        
+        Cached for 5 minutes (300 seconds) to reduce database load for high-traffic endpoint.
+        Cache is invalidated when workouts are logged or updated.
         """
+        import json
+        import hashlib
         from datetime import timedelta
+        
+        # Build cache key based on parameters
+        cache_params = {
+            "user_id": user_id,
+            "start_date": start_date.isoformat() if start_date else None,
+        }
+        cache_key_str = json.dumps(cache_params, sort_keys=True)
+        cache_key_hash = hashlib.md5(cache_key_str.encode('utf-8')).hexdigest()
+        cache_key = f"{self.config.redis_prefix}:weekly_summary:{cache_key_hash}"
+        
+        # Try to get from cache (Redis)
+        cached_result = None
+        
+        # Check Redis first
+        if self._redis:
+            try:
+                cached = self._redis.get(cache_key)
+                if cached:
+                    cached_result = json.loads(cached)
+                    self.logger.debug("Retrieved weekly summary from Redis cache for user %s", user_id)
+            except Exception as e:
+                self.logger.debug("Redis cache lookup failed: %s", e)
+        
+        # If cached, return it
+        if cached_result is not None:
+            return cached_result
         
         def calc_volume(e: ExerciseLogModel) -> float:
             """Calculate volume (sets × reps × weight) for an exercise."""
@@ -1730,12 +1860,22 @@ class RAGService:
                     "exercise_count": 0,
                 })
         
-        return {
+        result = {
             "days": days,
             "week_start": week_start.isoformat(),
             "week_end": week_end.isoformat(),
             "is_current_week": is_current_week,
         }
+        
+        # Cache the result for 5 minutes (300 seconds)
+        if self._redis:
+            try:
+                self._redis.setex(cache_key, 300, json.dumps(result))
+                self.logger.debug("Cached weekly summary for user %s (expires in 5 min)", user_id)
+            except Exception as e:
+                self.logger.debug("Redis cache store failed: %s", e)
+        
+        return result
 
     def get_recent_workout_insights_hooks(self, user_id: str, limit: int = 2) -> List[str]:
         """Get conversation hooks from recent workout insights for chatbot context.
