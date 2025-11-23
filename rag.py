@@ -311,13 +311,29 @@ class RAGService:
         elif self.config.embedding_provider == "modal":
             self.logger.info("Using REMOTE embedding provider (Modal) at %s", self.config.remote_embed_url)
             if not self.config.remote_embed_url:
-                self.logger.warning("REMOTE_EMBED_URL not set - embeddings will fail at runtime")
+                self.logger.warning("REMOTE_EMBED_URL not set - will use local fallback")
             if self.config.remote_embed_api_key:
                 self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
-            # No local model loading needed for embeddings
-            self.embedding_model = None
-            # Skip tokenizer download to keep startup fast; fallback to character-based chunking
-            self.embedding_tokenizer = None
+            # Load local model as fallback for "never forgets" - ensures workouts always searchable
+            try:
+                from sentence_transformers import SentenceTransformer
+                import torch
+                device_str = self._resolve_torch_device()
+                self.logger.info("Loading local embedding model as fallback: %s on %s", self.config.embedding_model_name, device_str)
+                self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
+                # Load tokenizer for chunking
+                try:
+                    from transformers import AutoTokenizer as HFTokenizer
+                    self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                        self.config.embedding_model_name, use_fast=True
+                    )
+                except Exception:
+                    self.embedding_tokenizer = None
+                self.logger.info("Local embedding model loaded as fallback - workouts will always be searchable (never forgets)")
+            except Exception as e:
+                self.logger.error("CRITICAL: Failed to load local embedding fallback: %s - Modal must work for embeddings", e)
+                self.embedding_model = None
+                self.embedding_tokenizer = None
         elif self.config.embedding_provider == "openai":
             self.logger.info("Using OpenAI embedding provider")
             if not self.config.openai_api_key:
@@ -638,39 +654,37 @@ class RAGService:
                 pass
         if self.config.embedding_provider == "local":
             assert self.embedding_model is not None
-            vectors = self.embedding_model.encode(
-                texts,
-                batch_size=64,
-                show_progress_bar=False,
-                convert_to_numpy=True,
-                normalize_embeddings=True,
-            )
-            out = vectors.astype("float32")
-            if self._redis is not None:
-                try:
-                    self._redis.setex(
-                        f"{self.config.redis_prefix}:embed:{hashlib.md5(('||'.join([t.strip() for t in texts])).encode('utf-8')).hexdigest()}",
-                        self.config.redis_ttl_embeddings_sec,
-                        out.tobytes(),
-                    )
-                except Exception:
-                    pass
-            return out
+            return self._embed_local(texts)
+        
         if self.config.embedding_provider == "modal":
             import requests
             if not self._remote_session:
                 self._remote_session = requests.Session()
                 if self.config.remote_embed_api_key:
                     self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
-            if not self.config.remote_embed_url:
-                raise RuntimeError("REMOTE_EMBED_URL not configured for remote embeddings")
-            resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
-            resp.raise_for_status()
-            data = resp.json()
-            vecs = data.get("embeddings") or data.get("data")
-            if not vecs:
-                raise RuntimeError("Remote embed response missing 'embeddings'")
-            return np.array(vecs, dtype="float32")
+            
+            # Try Modal first (preferred - faster, GPU)
+            if self.config.remote_embed_url:
+                try:
+                    resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    vecs = data.get("embeddings") or data.get("data")
+                    if not vecs:
+                        raise RuntimeError("Remote embed response missing 'embeddings'")
+                    return np.array(vecs, dtype="float32")
+                except Exception as e:
+                    # Fallback to local embeddings if Modal fails - ensures "never forgets"
+                    if self.embedding_model is not None:
+                        self.logger.warning("Modal embedding failed (%s), falling back to local embeddings to ensure workout is searchable", e)
+                        return self._embed_local(texts)
+                    raise RuntimeError(f"Modal embedding failed and no local fallback available: {e}")
+            else:
+                # No Modal URL configured - use local fallback
+                if self.embedding_model is not None:
+                    self.logger.warning("Modal embed URL not configured, using local embeddings")
+                    return self._embed_local(texts)
+                raise RuntimeError("REMOTE_EMBED_URL not configured and no local fallback available")
         elif self.config.embedding_provider == "openai":
             try:
                 from openai import OpenAI  # type: ignore
@@ -686,7 +700,32 @@ class RAGService:
                 emb = resp.data[0].embedding  # type: ignore
                 out.append(emb)
             return np.array(out, dtype="float32")
+        
         raise RuntimeError(f"Unknown embedding provider: {self.config.embedding_provider}")
+    
+    def _embed_local(self, texts: List[str]) -> np.ndarray:
+        """Generate embeddings using local model (fallback for Modal failures)."""
+        assert self.embedding_model is not None, "Local embedding model not loaded"
+        vectors = self.embedding_model.encode(
+            texts,
+            batch_size=64,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+        )
+        out = vectors.astype("float32")
+        # Cache in Redis if available
+        if self._redis is not None:
+            try:
+                import hashlib
+                self._redis.setex(
+                    f"{self.config.redis_prefix}:embed:{hashlib.md5(('||'.join([t.strip() for t in texts])).encode('utf-8')).hexdigest()}",
+                    self.config.redis_ttl_embeddings_sec,
+                    out.tobytes(),
+                )
+            except Exception:
+                pass
+        return out
 
     # ------------------------
     # Public operations
@@ -892,14 +931,15 @@ class RAGService:
             except Exception:
                 occurred_at = None
         
-        # Embedding is optional - only needed for semantic search in chat
+        # Embedding is required for "never forgets" - always generated (Modal with local fallback)
         embedding = None
         try:
             embedding = self._embed([text])[0].tolist()
         except Exception as e:
-            # Embedding is optional - training log works without it
-            self.logger.warning("Failed to generate embedding for training log (non-critical): %s", e)
-            self.logger.info("Training log created successfully without embedding - semantic search in chat may be limited")
+            # This should never happen with fallback
+            self.logger.error("CRITICAL: Failed to generate embedding for training log even with fallback: %s", e, exc_info=True)
+            self.logger.error("Training log created without embedding - breaks 'never forgets' feature")
+            # Still create log, but investigate why fallback failed
         
         with self.SessionLocal() as session:
             with session.begin():
@@ -1045,15 +1085,16 @@ class RAGService:
                 
                 summary_text = "; ".join(summary_parts) if summary_parts else "Workout session completed"
                 
-                # Create training log for semantic retrieval (embedding optional - only needed for AI chat search)
-                embedding = None
+                # Create training log for semantic retrieval - REQUIRED for "never forgets"
+                # Embedding is always generated (Modal with local fallback ensures this)
                 try:
                     embedding = self._embed([summary_text])[0].tolist()
                 except Exception as e:
-                    # Embedding is optional - workout logging works without it
-                    # Embedding is only used for semantic search in chat, which is optional
-                    self.logger.warning("Failed to generate embedding for workout log (non-critical): %s", e)
-                    self.logger.info("Workout logged successfully without embedding - will work for calendar/stats, but semantic search in chat may be limited")
+                    # This should never happen with fallback, but log if it does
+                    self.logger.error("CRITICAL: Failed to generate embedding even with fallback: %s", e, exc_info=True)
+                    # Still log workout, but this breaks "never forgets" - investigate immediately
+                    self.logger.error("Workout logged without embedding - this breaks 'never forgets' feature! Investigation required.")
+                    embedding = None  # Last resort - but this should never happen
                 
                 log = TrainingLogModel(
                     id=str(uuid.uuid4()),
@@ -1291,7 +1332,7 @@ class RAGService:
                     
                     summary_text = "; ".join(summary_parts) if summary_parts else "Workout session completed"
                     
-                    # Update embedding (optional - only needed for AI chat search)
+                    # Update embedding - REQUIRED for "never forgets"
                     try:
                         embedding = self._embed([summary_text])[0].tolist()
                         training_log.notes = summary_text
@@ -1300,14 +1341,15 @@ class RAGService:
                         if occurred_at:
                             training_log.occurred_at = occurred_at
                     except Exception as e:
-                        # Embedding is optional - workout update works without it
-                        self.logger.warning("Failed to update training log embedding (non-critical): %s", e)
-                        self.logger.info("Workout updated successfully without embedding - will work for calendar/stats, but semantic search in chat may be limited")
+                        # This should never happen with fallback
+                        self.logger.error("CRITICAL: Failed to update training log embedding even with fallback: %s", e, exc_info=True)
                         # Continue without embedding - update other fields
                         training_log.notes = summary_text
                         training_log.tags = ex_names[:10]
                         if occurred_at:
                             training_log.occurred_at = occurred_at
+                        # Log warning but don't fail - workout update still succeeds
+                        self.logger.warning("Workout updated but embedding failed - may break 'never forgets' for this workout")
                 
                 session.flush()
         
