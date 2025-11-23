@@ -394,6 +394,8 @@ Capture each onboarding step incrementally. This allows for progressive onboardi
 
 **Authentication:** Required
 
+**⚠️ Important:** This endpoint works **without Modal services**. Onboarding only stores user data in the database. No AI/embeddings required.
+
 **Supported Step Names:**
 - `"why"` → Stores in `goals.primary_goal` (e.g., "build muscle", "lose fat")
 - `"experience"` → Stores in `profile.experience_level` (e.g., "beginner", "intermediate", "advanced")
@@ -597,6 +599,8 @@ Log a complete workout session with exercises, sets, reps, and weights.
 **⭐ This is the MAIN endpoint for workout tracking!**
 
 **Authentication:** Required
+
+**⚠️ Important:** This endpoint works **without Modal services**. Workout logging only requires database access. Embeddings (used for AI chat search) are optional and will be skipped if Modal is unavailable. The workout will still be logged successfully and available for calendar/stats views.
 
 **Request Body:**
 ```json

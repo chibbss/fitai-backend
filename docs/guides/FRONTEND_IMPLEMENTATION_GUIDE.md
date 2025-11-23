@@ -36,6 +36,25 @@ This guide covers implementing the complete stats and insights visualization sys
 
 ## 📊 Available Data from Backend
 
+### ⚠️ **Important: Modal Services Requirements**
+
+**Endpoints that work WITHOUT Modal (always available):**
+- ✅ `POST /log/workout` - Workout logging (embeddings optional)
+- ✅ `GET /workouts/calendar` - Calendar view
+- ✅ `GET /workouts/weekly-summary` - Weekly strip
+- ✅ `GET /workouts/{session_id}` - Workout details
+- ✅ `PUT /workouts/{session_id}` - Edit workout
+- ✅ `POST /onboarding_step` - Onboarding
+- ✅ `GET /users/{user_id}` - User profile
+
+**Endpoints that REQUIRE Modal (AI features):**
+- ❌ `POST /chat` - AI chat (needs vLLM)
+- ❌ `POST /chat_stream` - Streaming chat (needs vLLM)
+- ❌ `GET /insights/{session_id}` - Workout insights (needs vLLM)
+- ❌ `GET /onboarding/completion_message/{user_id}` - Welcome message (needs vLLM)
+
+**Note:** Workout logging creates an optional embedding for semantic search in chat. If Modal is unavailable, the workout still logs successfully - it just won't be searchable in chat until Modal is deployed.
+
 ### 1. Calendar Data (`GET /workouts/calendar`)
 
 **Endpoint:** `GET /workouts/calendar?start_date={ISO}&end_date={ISO}`

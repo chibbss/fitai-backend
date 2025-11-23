@@ -891,7 +891,16 @@ class RAGService:
                 occurred_at = datetime.fromisoformat(occurred_at)
             except Exception:
                 occurred_at = None
-        embedding = self._embed([text])[0].tolist()
+        
+        # Embedding is optional - only needed for semantic search in chat
+        embedding = None
+        try:
+            embedding = self._embed([text])[0].tolist()
+        except Exception as e:
+            # Embedding is optional - training log works without it
+            self.logger.warning("Failed to generate embedding for training log (non-critical): %s", e)
+            self.logger.info("Training log created successfully without embedding - semantic search in chat may be limited")
+        
         with self.SessionLocal() as session:
             with session.begin():
                 log = TrainingLogModel(
@@ -903,7 +912,7 @@ class RAGService:
                     occurred_at=occurred_at or datetime.utcnow(),
                     notes=text,
                     meta_data=metadata or {},
-                    embedding=embedding,
+                    embedding=embedding,  # Can be None if embedding failed
                 )
                 session.add(log)
         return {"inserted": 1}
@@ -1036,8 +1045,16 @@ class RAGService:
                 
                 summary_text = "; ".join(summary_parts) if summary_parts else "Workout session completed"
                 
-                # Create training log for semantic retrieval
-                embedding = self._embed([summary_text])[0].tolist()
+                # Create training log for semantic retrieval (embedding optional - only needed for AI chat search)
+                embedding = None
+                try:
+                    embedding = self._embed([summary_text])[0].tolist()
+                except Exception as e:
+                    # Embedding is optional - workout logging works without it
+                    # Embedding is only used for semantic search in chat, which is optional
+                    self.logger.warning("Failed to generate embedding for workout log (non-critical): %s", e)
+                    self.logger.info("Workout logged successfully without embedding - will work for calendar/stats, but semantic search in chat may be limited")
+                
                 log = TrainingLogModel(
                     id=str(uuid.uuid4()),
                     user_id=user_id,
@@ -1047,7 +1064,7 @@ class RAGService:
                     occurred_at=occurred,
                     notes=summary_text,
                     meta_data={"session_id": session_id, "exercise_count": len(exercises)},
-                    embedding=embedding,
+                    embedding=embedding,  # Can be None if embedding failed
                 )
                 session.add(log)
         
@@ -1274,7 +1291,7 @@ class RAGService:
                     
                     summary_text = "; ".join(summary_parts) if summary_parts else "Workout session completed"
                     
-                    # Update embedding
+                    # Update embedding (optional - only needed for AI chat search)
                     try:
                         embedding = self._embed([summary_text])[0].tolist()
                         training_log.notes = summary_text
@@ -1283,8 +1300,14 @@ class RAGService:
                         if occurred_at:
                             training_log.occurred_at = occurred_at
                     except Exception as e:
-                        self.logger.warning("Failed to update training log embedding: %s", e)
-                        # Continue without embedding update - non-critical
+                        # Embedding is optional - workout update works without it
+                        self.logger.warning("Failed to update training log embedding (non-critical): %s", e)
+                        self.logger.info("Workout updated successfully without embedding - will work for calendar/stats, but semantic search in chat may be limited")
+                        # Continue without embedding - update other fields
+                        training_log.notes = summary_text
+                        training_log.tags = ex_names[:10]
+                        if occurred_at:
+                            training_log.occurred_at = occurred_at
                 
                 session.flush()
         
