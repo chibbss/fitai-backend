@@ -2,6 +2,7 @@
 
 **Purpose:** Redis is used for caching high-traffic endpoints (calendar, weekly summary) to support 100+ concurrent users.
 
+**Service Used:** Redis Cloud (redis.io)  
 **Last Updated:** November 19, 2025
 
 ---
@@ -9,11 +10,10 @@
 ## 📋 Table of Contents
 
 1. [Why Redis?](#why-redis)
-2. [Quick Setup Options](#quick-setup-options)
+2. [Redis Cloud Setup](#redis-cloud-setup)
 3. [Render Environment Setup](#render-environment-setup)
 4. [Verification](#verification)
 5. [Troubleshooting](#troubleshooting)
-6. [Cost Considerations](#cost-considerations)
 
 ---
 
@@ -32,106 +32,32 @@
 
 ---
 
-## 🚀 Quick Setup Options
+## 🚀 Redis Cloud Setup
 
-### Option 1: Upstash Redis (Recommended - Free Tier Available)
+### Step 1: Sign Up for Redis Cloud
 
-**Best for:** Beta testing, cost-conscious
+1. **Go to:** https://redis.io/try-free/
+2. **Sign up** for a free account (or log in if you have one)
+3. **Create a free database** (30 MB free tier available)
 
-1. **Sign up:** https://upstash.com/
-2. **Create Redis Database:**
-   - Click "Create Database"
-   - Choose "Regional" (closest to your Render region)
+### Step 2: Create Database
+
+1. **In Redis Cloud Dashboard:**
+   - Click **"New Database"** or **"Create Database"**
+   - Choose **"Fixed"** plan (free tier)
+   - Select **region** closest to your Render service (e.g., AWS us-east-1)
    - Name: `fitai-redis`
-   - Click "Create"
+   - Click **"Activate"** or **"Create"**
 
-3. **Get Connection String:**
-   - Click on your database
-   - Copy the "REST URL" or "Redis URL"
+### Step 3: Get Connection String
+
+1. **Click on your database** in the dashboard
+2. **Find "Public Endpoint"** or **"Endpoint"** section
+3. **Copy the connection string:**
    - Format: `redis://default:password@host:port`
+   - Example: `redis://default:AbCdEf123456@redis-12345.c123.us-east-1-1.ec2.cloud.redislabs.com:12345`
 
-4. **Add to Render:**
-   - Go to Render Dashboard → Your Service → Environment
-   - Add: `REDIS_URL=redis://default:password@host:port`
-   - Save and redeploy
-
-**Free Tier Limits:**
-- 10,000 commands/day
-- 256 MB storage
-- Perfect for beta testing
-
----
-
-### Option 2: Render Redis (Easiest)
-
-**Best for:** Simple setup, already using Render
-
-1. **Create Redis Instance:**
-   - Render Dashboard → "New +" → "Redis"
-   - Name: `fitai-redis`
-   - Plan: Free tier (or paid if needed)
-   - Region: Same as your backend service
-   - Click "Create Redis"
-
-2. **Get Connection String:**
-   - Click on your Redis instance
-   - Copy "Internal Redis URL" (for same region) or "External Redis URL"
-   - Format: `redis://:password@host:port`
-
-3. **Add to Backend Service:**
-   - Go to your backend service → Environment
-   - Add: `REDIS_URL=redis://:password@host:port`
-   - Save and redeploy
-
-**Note:** Render Redis free tier has limits. Check pricing.
-
----
-
-### Option 3: Railway Redis
-
-**Best for:** If you're using Railway for other services
-
-1. **Create Redis:**
-   - Railway Dashboard → "New" → "Database" → "Add Redis"
-   - Name: `fitai-redis`
-
-2. **Get Connection String:**
-   - Click on Redis service
-   - Copy "REDIS_URL" from Variables tab
-
-3. **Add to Render:**
-   - Render Dashboard → Your Service → Environment
-   - Add: `REDIS_URL=<railway-redis-url>`
-   - Save and redeploy
-
----
-
-### Option 4: Self-Hosted (Advanced)
-
-**Best for:** Full control, existing infrastructure
-
-1. **Install Redis:**
-   ```bash
-   # Ubuntu/Debian
-   sudo apt update
-   sudo apt install redis-server
-   
-   # macOS
-   brew install redis
-   ```
-
-2. **Start Redis:**
-   ```bash
-   redis-server
-   ```
-
-3. **Get Connection String:**
-   - Default: `redis://localhost:6379`
-   - With password: `redis://:password@localhost:6379`
-
-4. **Add to Render:**
-   - Use external IP if hosting on separate server
-   - Format: `redis://:password@your-server-ip:6379`
+**Note:** The password is shown in the database details. Make sure to copy the full connection string including the password.
 
 ---
 
@@ -147,6 +73,7 @@
    Key: REDIS_URL
    Value: redis://default:password@host:port
    ```
+   (Use the connection string from Redis Cloud)
 5. Click **"Save Changes"**
 
 ### Step 2: Redeploy
@@ -202,23 +129,24 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 
 **Possible causes:**
 1. **Wrong URL format:**
-   - ✅ Correct: `redis://default:password@host:6379`
-   - ❌ Wrong: `redis://host:6379` (missing password)
-   - ❌ Wrong: `redis://password@host:6379` (missing username)
+   - ✅ Correct: `redis://default:password@host:port`
+   - ❌ Wrong: `redis://host:port` (missing password)
+   - ❌ Wrong: `redis://password@host:port` (missing username)
 
 2. **Network/firewall:**
-   - Check if Redis allows external connections
-   - Check firewall rules
-   - For Render Redis, use "Internal URL" if same region
+   - Redis Cloud allows public connections by default
+   - Check if your Render region can reach Redis Cloud
+   - Verify the endpoint URL is correct
 
-3. **Redis not running:**
-   - Check Redis service status
-   - Verify Redis is accessible from Render's network
+3. **Redis Cloud database not active:**
+   - Check Redis Cloud dashboard
+   - Ensure database is "Active" (not paused)
+   - Free tier databases may pause after inactivity
 
 **Fix:**
 ```bash
 # Test connection locally
-redis-cli -u redis://default:password@host:6379 ping
+redis-cli -u redis://default:password@host:port ping
 # Should return: PONG
 ```
 
@@ -226,7 +154,7 @@ redis-cli -u redis://default:password@host:6379 ping
 
 **Check:**
 1. Redis is connected (see logs)
-2. Cache keys are being set (check Redis directly)
+2. Cache keys are being set (check Redis Cloud dashboard)
 3. TTL is correct (5 minutes = 300 seconds)
 
 **Debug:**
@@ -253,33 +181,6 @@ Invalidated weekly summary caches for user ...
 
 ---
 
-## 💰 Cost Considerations
-
-### Upstash (Recommended for Beta)
-
-- **Free Tier:** 10,000 commands/day, 256 MB
-- **Paid:** $0.20 per 100K commands, $0.10/GB storage
-- **Estimated cost for 100 users:** ~$5-10/month
-
-### Render Redis
-
-- **Free Tier:** Limited (check current pricing)
-- **Paid:** ~$7-15/month
-- **Best for:** Simple setup, already on Render
-
-### Railway Redis
-
-- **Free Tier:** 512 MB, 5 GB egress
-- **Paid:** ~$5-10/month
-- **Best for:** If using Railway for other services
-
-### Self-Hosted
-
-- **Cost:** Server costs only
-- **Best for:** High volume, existing infrastructure
-
----
-
 ## 📊 Expected Performance Impact
 
 ### Without Redis:
@@ -295,10 +196,24 @@ Invalidated weekly summary caches for user ...
 
 ---
 
+## 💰 Redis Cloud Pricing
+
+### Free Tier:
+- **30 MB storage**
+- **No credit card required**
+- **Perfect for beta testing**
+
+### Paid Plans:
+- Start at ~$5-10/month for more storage
+- Scale as needed
+- Check https://redis.io/pricing for current rates
+
+---
+
 ## 🎯 Next Steps
 
-1. ✅ Choose a Redis provider (Upstash recommended)
-2. ✅ Create Redis instance
+1. ✅ Create Redis Cloud database
+2. ✅ Get connection string from Redis Cloud dashboard
 3. ✅ Add `REDIS_URL` to Render environment
 4. ✅ Redeploy backend
 5. ✅ Verify in logs: "Connected to Redis"
@@ -308,8 +223,8 @@ Invalidated weekly summary caches for user ...
 
 ## 📚 Additional Resources
 
-- **Upstash Docs:** https://docs.upstash.com/redis
-- **Render Redis:** https://render.com/docs/redis
+- **Redis Cloud Dashboard:** https://redis.com/try-free/
+- **Redis Cloud Docs:** https://docs.redis.com/
 - **Redis Commands:** https://redis.io/commands/
 
 ---
@@ -330,14 +245,16 @@ A: Yes! Currently used for:
 - Session storage (if enabled)
 
 **Q: How do I clear the cache?**  
-A: Cache auto-expires after 5 minutes. To manually clear:
+A: Cache auto-expires after 5 minutes. To manually clear via Redis Cloud dashboard or:
 ```bash
 redis-cli -u your-redis-url
 > KEYS fitai:calendar:*
 > DEL key1 key2 key3 ...
 ```
 
+**Q: What if my free tier database pauses?**  
+A: Redis Cloud free tier may pause after inactivity. Just reactivate it in the dashboard - it takes a few seconds.
+
 ---
 
 **Ready to set up?** Follow the steps above and you'll be caching in minutes! 🚀
-

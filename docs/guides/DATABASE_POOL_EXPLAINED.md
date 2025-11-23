@@ -142,6 +142,11 @@ SELECT count(*) FROM pg_stat_activity;
 - `pool_recycle=3600` - Recycles connections after 1 hour
 - `pool_timeout=30` - Waits 30s before timing out
 
+**4. Redis Cloud Caching:**
+- Calendar endpoint: 5 min cache (Redis Cloud)
+- Weekly summary: 5 min cache (Redis Cloud)
+- Reduces actual DB connections needed by 80-90%
+
 ---
 
 ## 📈 Expected Capacity After Optimizations
