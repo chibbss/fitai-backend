@@ -53,7 +53,7 @@ This guide covers implementing the complete stats and insights visualization sys
 - ❌ `GET /insights/{session_id}` - Workout insights (needs vLLM)
 - ❌ `GET /onboarding/completion_message/{user_id}` - Welcome message (needs vLLM)
 
-**Note:** Workout logging creates an optional embedding for semantic search in chat. If Modal is unavailable, the workout still logs successfully - it just won't be searchable in chat until Modal is deployed.
+**Note:** Workout logging always generates embeddings for semantic search in chat ("never forgets" feature). It tries Modal first (faster, GPU), but automatically falls back to local embeddings if Modal is unavailable. All workouts are always searchable.
 
 ### 1. Calendar Data (`GET /workouts/calendar`)
 

@@ -600,7 +600,7 @@ Log a complete workout session with exercises, sets, reps, and weights.
 
 **Authentication:** Required
 
-**⚠️ Important:** This endpoint works **without Modal services**. Workout logging only requires database access. Embeddings (used for AI chat search) are optional and will be skipped if Modal is unavailable. The workout will still be logged successfully and available for calendar/stats views.
+**⚠️ Important:** This endpoint works **without Modal services**. Workout logging uses Modal embeddings when available, but automatically falls back to local embeddings if Modal fails. This ensures all workouts are always searchable in chat ("never forgets" feature). The workout will always be logged successfully with embeddings.
 
 **Request Body:**
 ```json
