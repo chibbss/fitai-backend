@@ -11,6 +11,8 @@ from pydantic import BaseModel
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install(
+        "fastapi>=0.115.0",
+        "pydantic>=2.0.0",
         "sentence-transformers>=2.7.0",
         "torch>=2.1.0",
         "transformers>=4.44.2",
