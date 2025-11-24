@@ -26,7 +26,7 @@ image = (
 app = modal.App("fitai-embed")
 
 # Global model cache (loaded once per container)
-    _model = None
+_model = None
 _model_name = os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
 
 
@@ -44,7 +44,7 @@ def get_model():
     image=image,
     gpu="T4",  # Use T4 GPU for faster embeddings (cheaper than A10G)
     timeout=300,  # 5 minute timeout
-    container_idle_timeout=60,  # Keep container alive for 60s after last request
+    scaledown_window=60,  # Scale to zero after 60s (Modal 1.0+ syntax)
 )
 @modal.asgi_app()
 def serve():
@@ -55,23 +55,21 @@ def serve():
     """
     fastapi_app = FastAPI(title="FitAI Embed Service", version="1.0.0")
 
-class EmbedRequest(BaseModel):
-    texts: List[str]
+    class EmbedRequest(BaseModel):
+        texts: List[str]
 
-class EmbedResponse(BaseModel):
-    embeddings: List[List[float]]
+    class EmbedResponse(BaseModel):
+        embeddings: List[List[float]]
 
     @fastapi_app.get("/health")
     async def health() -> Dict[str, Any]:
-        """Health check endpoint."""
-        try:
-            model = get_model()
-            return {"ok": True, "model": _model_name, "device": str(model.device) if hasattr(model, 'device') else "cuda"}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        """Health check endpoint - doesn't load model, just checks service is ready."""
+        # Don't load model on health check (lazy load on first /embed request)
+        # This prevents timeout errors and makes health checks fast
+        return {"ok": True, "model": _model_name, "status": "ready"}
 
     @fastapi_app.post("/embed", response_model=EmbedResponse)
-async def embed(req: EmbedRequest) -> EmbedResponse:
+    async def embed(req: EmbedRequest) -> EmbedResponse:
         """Generate embeddings for input texts."""
         if not req.texts:
             return EmbedResponse(embeddings=[])
@@ -86,6 +84,6 @@ async def embed(req: EmbedRequest) -> EmbedResponse:
             normalize_embeddings=True,
             convert_to_numpy=True,
         )
-    return EmbedResponse(embeddings=[v.tolist() for v in vecs])
+        return EmbedResponse(embeddings=[v.tolist() for v in vecs])
 
     return fastapi_app

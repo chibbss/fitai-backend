@@ -36,7 +36,9 @@ app = modal.App("fitai-vllm")
 
 def get_model_max_length(model_name: str, hf_token: str | None) -> int:
     """
-    Detect max model length from HF config.json. Default fallback: 2048.
+    Detect max model length from HF config.json, but cap at safe limit for A10G GPU.
+    A10G has ~24GB VRAM, but KV cache is limited. Safe max is 8192 tokens.
+    Model's native max (131072) requires 16GB KV cache, but A10G only has 3.66GB available.
     """
     try:
         # Attempt to read remote config.json from HuggingFace Hub
@@ -46,17 +48,22 @@ def get_model_max_length(model_name: str, hf_token: str | None) -> int:
         r.raise_for_status()
         config = r.json()
         max_len = config.get("max_position_embeddings") or config.get("model_max_length") or 2048
-        return int(max_len)
+        # Cap at 8192 for A10G GPU (safe limit, prevents KV cache OOM)
+        # Error message suggested max 29952, but 8192 is safer and sufficient for chat
+        capped_len = min(int(max_len), 8192)
+        if capped_len < int(max_len):
+            print(f"[vllm] Capping max_model_len from {max_len} to {capped_len} for A10G GPU compatibility")
+        return capped_len
     except Exception as e:
-        print(f"[vllm] Warning: Could not fetch model max length: {e}, using 2048")
-        return 2048
+        print(f"[vllm] Warning: Could not fetch model max length: {e}, using 8192")
+        return 8192
 
 
 @app.function(
     image=image,
     gpu="A10G",
     timeout=60 * 60 * 24,
-    container_idle_timeout=300,
+    scaledown_window=300,  # Scale to zero after 5 minutes (Modal 1.0+ syntax)
     secrets=[modal.Secret.from_name("hf-token")],
 )
 @modal.asgi_app()
