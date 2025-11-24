@@ -140,16 +140,16 @@ const WorkoutLogScreen = () => {
                 ]);
             } else {
                 // Create new workout
-                const result = await workoutApi.logWorkout({
-                    ...workoutData,
-                    occurred_at: workoutData.occurred_at || new Date().toISOString(),
-                });
+            const result = await workoutApi.logWorkout({
+                ...workoutData,
+                occurred_at: workoutData.occurred_at || new Date().toISOString(),
+            });
 
-                // Navigate to insights screen with session_id
-                router.push({
-                    pathname: '/insights' as any,
-                    params: { sessionId: result.session_id },
-                });
+            // Navigate to insights screen with session_id
+            router.push({
+                pathname: '/insights' as any,
+                params: { sessionId: result.session_id },
+            });
             }
         } catch (error: any) {
             Alert.alert('Error', error.message || (isEditMode ? 'Failed to update workout' : 'Failed to log workout'));

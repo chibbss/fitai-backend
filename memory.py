@@ -54,10 +54,10 @@ def summarize_texts(rag_service: RAGService, texts: List[str], summary_type: str
                     "Focus on what makes them unique. Avoid PII.\n\n" + joined
                 )
             else:  # workout
-                prompt = (
-                    "Summarize the following user's recent training logs into 2-4 short sentences. "
-                    "Capture habits, goals, preferences, and recent achievements. Avoid PII.\n\n" + joined
-                )
+            prompt = (
+                "Summarize the following user's recent training logs into 2-4 short sentences. "
+                "Capture habits, goals, preferences, and recent achievements. Avoid PII.\n\n" + joined
+            )
             payload = {
                 "model": rag_service.config.hf_model_id,
                 "prompt": prompt,
@@ -173,10 +173,10 @@ def refresh_user_workout_memory(rag_service: RAGService, user_id: str, n: int = 
             embedding=emb,
             source="workout_summary",
             meta_data=meta_data,
-        )
-        session.add(mem)
+            )
+            session.add(mem)
         session.commit()
-        mem_id = mem.id
+            mem_id = mem.id
     return {"user_id": user_id, "updated": True, "memory_id": mem_id, "summary": summary}
 
 

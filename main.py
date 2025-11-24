@@ -424,8 +424,8 @@ async def on_startup() -> None:
             pass
 
         try:
-            rag_service.startup()
-            logger.info("RAG service initialized")
+        rag_service.startup()
+        logger.info("RAG service initialized")
         except Exception as e:
             logger.error("RAG service startup failed: %s", e, exc_info=True)
             # Don't raise - allow app to start even if models fail to load
@@ -1247,8 +1247,8 @@ async def get_onboarding_completion_message(
             # Fallback to template if generation failed
             if not message or len(message) < 20:
                 message_parts = [f"Hey there! 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
-                if constraints:
-                    message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
+        if constraints:
+            message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
                 message_parts.append("Want me to help plan your next session or log your last one?")
                 message = " ".join(message_parts)
             
@@ -1266,7 +1266,7 @@ async def get_onboarding_completion_message(
             message_parts = [f"Hey there! 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
             if constraints:
                 message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
-            message_parts.append("Want me to help plan your next session or log your last one?")
+        message_parts.append("Want me to help plan your next session or log your last one?")
             message = " ".join(message_parts)
         
         # Save as first memory summary (in background, non-blocking)
