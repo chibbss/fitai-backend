@@ -235,20 +235,20 @@ class RAGService:
         with self._lock:
             self.logger.info("Starting up RAG service")
             try:
-            self._init_db()
+                self._init_db()
             except Exception as e:
                 self.logger.error("Failed to initialize database: %s", e)
                 raise  # Database is critical, fail if it doesn't work
             
             try:
-            self._init_models()
+                self._init_models()
             except Exception as e:
                 self.logger.error("Failed to initialize models: %s", e)
                 # Models are not critical for health check, but log the error
                 # The app can still start and health check will work
             
             try:
-            self._init_redis()
+                self._init_redis()
             except Exception as e:
                 self.logger.warning("Failed to initialize Redis: %s", e)
                 # Redis is optional, continue without it
@@ -293,18 +293,18 @@ class RAGService:
             # Lazy import to save memory when using remote backends
             from sentence_transformers import SentenceTransformer
             import torch
-        device_str = self._resolve_torch_device()
-        self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
+            device_str = self._resolve_torch_device()
+            self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
             try:
-        self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
-        # Tokenizer for chunking
-        try:
-            from transformers import AutoTokenizer as HFTokenizer
-            self.embedding_tokenizer = HFTokenizer.from_pretrained(
-                self.config.embedding_model_name, use_fast=True
-            )
-        except Exception:
-            self.embedding_tokenizer = None
+                self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
+                # Tokenizer for chunking
+                try:
+                    from transformers import AutoTokenizer as HFTokenizer
+                    self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                        self.config.embedding_model_name, use_fast=True
+                    )
+                except Exception:
+                    self.embedding_tokenizer = None
             except Exception as e:
                 self.logger.error("Failed to load local embedding model: %s", e)
                 self.embedding_model = None
@@ -429,7 +429,7 @@ class RAGService:
             self.generator_pipe = None
 
         # Reranker: Only load locally if using local backend
-            if self.config.reranker_backend == "local":
+        if self.config.reranker_backend == "local":
             try:
                 # Lazy import only when using local reranker
                 try:
@@ -450,8 +450,8 @@ class RAGService:
                     # sentence-transformers CrossEncoder accepts device identifier; map 'cuda' to 0
                     device_arg = 0 if (device_str == "cuda" and torch.cuda.is_available()) else device_str
                     self._reranker_model = CrossEncoder(self.config.reranker_model_name, device=device_arg)  # type: ignore
-        except Exception as e:
-            self.logger.error("Failed to initialize reranker: %s", e)
+            except Exception as e:
+                self.logger.error("Failed to initialize reranker: %s", e)
                 self._reranker_model = None
         elif self.config.reranker_backend == "remote":
             self.logger.info("Using REMOTE reranker backend at %s", self.config.reranker_remote_url)
