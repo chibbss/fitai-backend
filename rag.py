@@ -58,9 +58,10 @@ class RAGService:
 
         # Database (SQLAlchemy) with production-grade connection pooling
         # Pool settings optimized for production workloads (hundreds/thousands of concurrent users)
-        # Increased for 100+ concurrent users: 20 base + 40 overflow = 60 total connections per process
-        pool_size = int(os.getenv("DB_POOL_SIZE", "20"))  # Connections per process (increased from 10)
-        max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "40"))  # Additional connections beyond pool_size (increased from 20)
+        # Reduced for Render free tier (512MB): 5 base + 10 overflow = 15 total connections per process
+        # Can be increased via DB_POOL_SIZE and DB_MAX_OVERFLOW env vars for higher-tier deployments
+        pool_size = int(os.getenv("DB_POOL_SIZE", "5"))  # Connections per process (reduced from 20 for memory-constrained environments)
+        max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "10"))  # Additional connections beyond pool_size (reduced from 40)
         pool_timeout = int(os.getenv("DB_POOL_TIMEOUT", "30"))  # Seconds to wait for connection
         pool_recycle = int(os.getenv("DB_POOL_RECYCLE", "3600"))  # Recycle connections after 1 hour
         
@@ -235,20 +236,20 @@ class RAGService:
         with self._lock:
             self.logger.info("Starting up RAG service")
             try:
-                self._init_db()
+            self._init_db()
             except Exception as e:
                 self.logger.error("Failed to initialize database: %s", e)
                 raise  # Database is critical, fail if it doesn't work
             
             try:
-                self._init_models()
+            self._init_models()
             except Exception as e:
                 self.logger.error("Failed to initialize models: %s", e)
                 # Models are not critical for health check, but log the error
                 # The app can still start and health check will work
             
             try:
-                self._init_redis()
+            self._init_redis()
             except Exception as e:
                 self.logger.warning("Failed to initialize Redis: %s", e)
                 # Redis is optional, continue without it
@@ -293,18 +294,18 @@ class RAGService:
             # Lazy import to save memory when using remote backends
             from sentence_transformers import SentenceTransformer
             import torch
-            device_str = self._resolve_torch_device()
-            self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
+        device_str = self._resolve_torch_device()
+        self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
             try:
-                self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
-                # Tokenizer for chunking
-                try:
-                    from transformers import AutoTokenizer as HFTokenizer
-                    self.embedding_tokenizer = HFTokenizer.from_pretrained(
-                        self.config.embedding_model_name, use_fast=True
-                    )
-                except Exception:
-                    self.embedding_tokenizer = None
+        self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
+        # Tokenizer for chunking
+        try:
+            from transformers import AutoTokenizer as HFTokenizer
+            self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                self.config.embedding_model_name, use_fast=True
+            )
+        except Exception:
+            self.embedding_tokenizer = None
             except Exception as e:
                 self.logger.error("Failed to load local embedding model: %s", e)
                 self.embedding_model = None
@@ -316,6 +317,9 @@ class RAGService:
                 self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
             # Load local model as fallback for "never forgets" - ensures workouts always searchable
             # Skip on memory-constrained environments (e.g., Render free tier) by setting LOAD_LOCAL_EMBEDDING_FALLBACK=false
+            self.logger.info("LOAD_LOCAL_EMBEDDING_FALLBACK=%s (env: %s)", 
+                           self.config.load_local_embedding_fallback,
+                           os.getenv("LOAD_LOCAL_EMBEDDING_FALLBACK", "not set"))
             if self.config.load_local_embedding_fallback:
                 try:
                     from sentence_transformers import SentenceTransformer
@@ -429,7 +433,7 @@ class RAGService:
             self.generator_pipe = None
 
         # Reranker: Only load locally if using local backend
-        if self.config.reranker_backend == "local":
+            if self.config.reranker_backend == "local":
             try:
                 # Lazy import only when using local reranker
                 try:
@@ -450,8 +454,8 @@ class RAGService:
                     # sentence-transformers CrossEncoder accepts device identifier; map 'cuda' to 0
                     device_arg = 0 if (device_str == "cuda" and torch.cuda.is_available()) else device_str
                     self._reranker_model = CrossEncoder(self.config.reranker_model_name, device=device_arg)  # type: ignore
-            except Exception as e:
-                self.logger.error("Failed to initialize reranker: %s", e)
+        except Exception as e:
+            self.logger.error("Failed to initialize reranker: %s", e)
                 self._reranker_model = None
         elif self.config.reranker_backend == "remote":
             self.logger.info("Using REMOTE reranker backend at %s", self.config.reranker_remote_url)
