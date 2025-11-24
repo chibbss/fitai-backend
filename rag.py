@@ -676,13 +676,13 @@ class RAGService:
             # Try Modal first (preferred - faster, GPU)
             if self.config.remote_embed_url:
                 try:
-            resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
-            resp.raise_for_status()
-            data = resp.json()
-            vecs = data.get("embeddings") or data.get("data")
-            if not vecs:
-                raise RuntimeError("Remote embed response missing 'embeddings'")
-            return np.array(vecs, dtype="float32")
+                    resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    vecs = data.get("embeddings") or data.get("data")
+                    if not vecs:
+                        raise RuntimeError("Remote embed response missing 'embeddings'")
+                    return np.array(vecs, dtype="float32")
                 except Exception as e:
                     # Fallback to local embeddings if Modal fails - ensures "never forgets"
                     if self.embedding_model is not None:
