@@ -469,18 +469,54 @@ class RAGService:
             self._reranker_model = None
 
     def _init_redis(self) -> None:
+        """Initialize Redis client (lazy connection - connects on first use)."""
         if not self.config.redis_url:
             self._redis = None
             return
+        
         try:
             import redis  # type: ignore
-            self._redis = redis.Redis.from_url(self.config.redis_url, socket_timeout=1.0)
-            # ping to validate
-            self._redis.ping()
-            self.logger.info("Connected to Redis at %s", self.config.redis_url)
+            
+            # Create Redis client with strict timeouts but don't connect yet
+            # Connection will happen on first use (lazy connection)
+            # This prevents startup hangs if Redis is unreachable
+            self._redis = redis.Redis.from_url(
+                self.config.redis_url,
+                socket_timeout=2.0,  # Timeout for socket operations
+                socket_connect_timeout=2.0,  # Timeout for initial connection
+                socket_keepalive=True,  # Keep connection alive
+                socket_keepalive_options={},  # TCP keepalive options
+                health_check_interval=30,  # Check connection health every 30s
+                retry_on_timeout=True,  # Retry on timeout
+                decode_responses=False,  # Return bytes (for embedding cache)
+            )
+            
+            # Don't ping during startup - let it connect lazily on first use
+            # This prevents startup hangs if Redis is unreachable
+            self.logger.info("Redis client initialized (lazy connection) at %s", self.config.redis_url)
+            
         except Exception as e:
-            self.logger.warning("Redis unavailable: %s", e)
+            self.logger.warning("Failed to initialize Redis client: %s", e)
             self._redis = None
+    
+    def _ensure_redis_connection(self) -> bool:
+        """Ensure Redis connection is alive. Returns True if connected, False otherwise."""
+        if not self._redis:
+            return False
+        
+        try:
+            # Quick ping with timeout (respects socket_timeout)
+            self._redis.ping()
+            return True
+        except Exception as e:
+            self.logger.debug("Redis connection check failed: %s", e)
+            # Try to reconnect
+            try:
+                self._redis.connection_pool.disconnect()
+                self._redis.connection_pool.reset()
+            except Exception:
+                pass
+            return False
 
     def _resolve_torch_device(self) -> str:
         # Lazy import torch only when needed (local backends)

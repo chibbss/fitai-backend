@@ -18,6 +18,7 @@ import os
 import io
 import asyncio
 import time
+import threading
 from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -423,13 +424,32 @@ async def on_startup() -> None:
         except Exception:
             pass
 
-        try:
-            rag_service.startup()
-            logger.info("RAG service initialized")
-        except Exception as e:
-            logger.error("RAG service startup failed: %s", e, exc_info=True)
+        # RAG service startup with timeout protection
+        startup_timeout = int(os.getenv("STARTUP_TIMEOUT", "60"))  # 60 second default
+        startup_exception = [None]  # Use list to store exception from thread
+        
+        def startup_target():
+            """Target function for startup in separate thread."""
+            try:
+                rag_service.startup()
+            except Exception as e:
+                startup_exception[0] = e
+        
+        startup_thread = threading.Thread(target=startup_target, daemon=True)
+        startup_thread.start()
+        startup_thread.join(timeout=startup_timeout)
+        
+        if startup_thread.is_alive():
+            logger.error("RAG service startup timed out after %d seconds - continuing anyway", startup_timeout)
+            logger.warning("App will start but health check may show 'not ready' status")
+            # Don't raise - allow app to start even if startup times out
+            # Health check endpoint will show readiness status
+        elif startup_exception[0]:
+            logger.error("RAG service startup failed: %s", startup_exception[0], exc_info=True)
             # Don't raise - allow app to start even if models fail to load
             # Health check will show readiness status
+        else:
+            logger.info("RAG service initialized")
         # Dev scheduler: refresh memories on a cron schedule inside API process
         if os.getenv("ENABLE_SCHEDULER", "1") in ("1", "true", "True"):
             global _scheduler
