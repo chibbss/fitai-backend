@@ -1,0 +1,31 @@
+{
+  "timestamp": "2025-11-26T13:01:18.631160+00:00",
+  "summary": {
+    "passed": 2,
+    "failed": 1,
+    "warnings": 0
+  },
+  "tests": [
+    {
+      "name": "Create test JWT token",
+      "status": "FAIL",
+      "error": "PyJWT not available - install with: pip install PyJWT"
+    },
+    {
+      "name": "Backend health",
+      "status": "PASS",
+      "result": {
+        "status": "ok"
+      }
+    },
+    {
+      "name": "Backend readiness",
+      "status": "PASS",
+      "result": {
+        "ok": true,
+        "db_ok": true,
+        "gen_ok": true
+      }
+    }
+  ]
+}

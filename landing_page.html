@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>fit.ai – Your AI Fitness Coach That Never Forgets</title>
+    <style>
+        :root {
+            --electric-teal: #00ffc8;
+            --aqua-glow: #00e4ff;
+            --deep-charcoal: #0a0a0a;
+            --vibrant-coral: #ff3366;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            position: relative;
+            min-height: 100vh;
+            background: #000000;
+            color: #f8fafc;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(0, 255, 200, 0.2) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 200, 0.2) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+            animation: gridPulse 2.5s ease-in-out infinite;
+        }
+        body::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(0, 228, 255, 0.15) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 228, 255, 0.15) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0;
+            animation: gridPulse 2.5s ease-in-out infinite 0.6s;
+        }
+        body.scrolling::before {
+            animation: gridPulseScroll 2s ease-in-out infinite;
+        }
+        body.scrolling::after {
+            opacity: 0.7;
+            animation: gridPulseScroll 2s ease-in-out infinite 0.3s;
+        }
+        @keyframes gridPulse {
+            0%, 100% {
+                opacity: 0.2;
+            }
+            50% {
+                opacity: 0.3;
+            }
+        }
+        @keyframes gridPulseScroll {
+            0%, 100% {
+                opacity: 0.25;
+            }
+            50% {
+                opacity: 0.4;
+            }
+        }
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        /* Header */
+        header {
+            padding: 40px 0;
+        }
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .logo-icon {
+            width: 70px;
+            height: 70px;
+            animation: logoPulse 2s ease-in-out infinite;
+        }
+        .wordmark {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -2px;
+        }
+        .wordmark .fit {
+            color: #e5e5e5;
+        }
+        .wordmark .dot {
+            color: var(--electric-teal);
+            text-shadow: 0 0 20px rgba(0, 255, 200, 0.8);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        .wordmark .ai {
+            color: #e5e5e5;
+        }
+        nav a {
+            color: #a0a0a0;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+        }
+        nav a:hover {
+            color: var(--electric-teal);
+        }
+        /* Hero Section */
+        .hero {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 60px 0;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .beta-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            background: rgba(255, 51, 102, 0.16);
+            color: #ff6b88;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 40px;
+        }
+        .hero h1 {
+            font-size: 4.5rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 30px;
+            color: #e5e5e5;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.8s ease-out 0.2s forwards;
+        }
+        .hero .brand-name {
+            display: inline-block;
+            background: linear-gradient(90deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            position: relative;
+        }
+        .hero .brand-name .dot {
+            color: var(--electric-teal);
+            text-shadow: 0 0 20px rgba(0, 255, 200, 0.8);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        .hero p {
+            font-size: 1.4rem;
+            color: #a0a0a0;
+            line-height: 1.7;
+            margin-bottom: 50px;
+            max-width: 700px;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.8s ease-out 0.4s forwards;
+        }
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.8s ease-out 0.6s forwards;
+        }
+        .btn-primary {
+            padding: 18px 40px;
+            background: linear-gradient(90deg, var(--electric-teal), var(--aqua-glow));
+            border: none;
+            border-radius: 12px;
+            color: var(--deep-charcoal);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 10px 30px rgba(0, 255, 200, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0, 255, 200, 0.4);
+        }
+        .btn-secondary {
+            padding: 18px 40px;
+            background: transparent;
+            border: 1px solid rgba(0, 255, 200, 0.3);
+            border-radius: 12px;
+            color: var(--electric-teal);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-secondary:hover {
+            background: rgba(0, 255, 200, 0.1);
+            border-color: var(--electric-teal);
+        }
+        /* Waitlist Section */
+        .waitlist-section {
+            background: linear-gradient(155deg, rgba(8, 8, 8, 0.95), rgba(12, 12, 18, 0.9));
+            border-radius: 24px;
+            padding: 70px 50px;
+            margin: 60px 0 40px;
+            border: 1px solid rgba(0, 255, 200, 0.2);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7);
+            text-align: center;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            position: relative;
+            overflow: hidden;
+        }
+        .waitlist-section::before {
+            content: "";
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(0, 255, 200, 0.05) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+        .waitlist-content {
+            position: relative;
+            z-index: 1;
+        }
+        .waitlist-section h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            background: linear-gradient(90deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .waitlist-section p {
+            color: #a0a0a0;
+            margin-bottom: 50px;
+            font-size: 1.1rem;
+            line-height: 1.7;
+        }
+        .waitlist-form {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 18px 24px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1.5px solid rgba(0, 255, 200, 0.2);
+            border-radius: 12px;
+            color: #f8fafc;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: var(--electric-teal);
+            box-shadow: 0 0 25px rgba(0, 255, 200, 0.3);
+            background: rgba(0, 0, 0, 0.8);
+        }
+        .form-input::placeholder {
+            color: #6b7280;
+        }
+        .submit-btn {
+            width: 100%;
+            padding: 18px 24px;
+            background: linear-gradient(90deg, var(--electric-teal), var(--aqua-glow));
+            border: none;
+            border-radius: 12px;
+            color: var(--deep-charcoal);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 10px 30px rgba(0, 255, 200, 0.3);
+            margin-top: 10px;
+        }
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(0, 255, 200, 0.4);
+        }
+        .success-message {
+            display: none;
+            padding: 20px;
+            background: rgba(0, 255, 200, 0.1);
+            border: 1px solid var(--electric-teal);
+            border-radius: 12px;
+            color: var(--electric-teal);
+            margin-top: 20px;
+        }
+        .success-message.show {
+            display: block;
+            animation: fadeIn 0.5s ease-out;
+        }
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                text-shadow: 0 0 20px rgba(0, 255, 200, 0.8);
+            }
+            50% {
+                opacity: 0.7;
+                text-shadow: 0 0 30px rgba(0, 255, 200, 1);
+            }
+        }
+        @keyframes logoPulse {
+            0%, 100% {
+                transform: scale(1);
+                filter: drop-shadow(0 0 10px rgba(0, 255, 200, 0.5));
+            }
+            50% {
+                transform: scale(1.05);
+                filter: drop-shadow(0 0 20px rgba(0, 255, 200, 0.8));
+            }
+        }
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        @keyframes dnaFloat {
+            0% {
+                transform: translateY(0) translateX(0) rotate(0deg);
+            }
+            25% {
+                transform: translateY(-12px) translateX(8px) rotate(3deg);
+            }
+            50% {
+                transform: translateY(-8px) translateX(-6px) rotate(-2deg);
+            }
+            75% {
+                transform: translateY(-15px) translateX(5px) rotate(2deg);
+            }
+            100% {
+                transform: translateY(0) translateX(0) rotate(0deg);
+            }
+        }
+        .logo-section.scrolled {
+            animation: dnaFloat 5s ease-in-out infinite;
+        }
+        .logo-section.scrolled .logo-icon {
+            animation: dnaFloat 5s ease-in-out infinite reverse;
+        }
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.8rem;
+            }
+            .hero p {
+                font-size: 1.2rem;
+            }
+            nav {
+                display: none;
+            }
+            .cta-buttons {
+                flex-direction: column;
+                width: 100%;
+            }
+            .btn-primary, .btn-secondary {
+                width: 100%;
+            }
+            .waitlist-section {
+                padding: 50px 30px;
+            }
+            .waitlist-section h2 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="logo-section">
+                    <svg class="logo-icon" viewBox="0 0 100 100">
+                        <defs>
+                            <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#00ffc8"/>
+                                <stop offset="100%" stop-color="#00e4ff"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M25,65 Q40,35 50,50 T85,40" fill="none" stroke="url(#brandGradient)" stroke-width="3.5" stroke-linecap="round"/>
+                        <circle cx="25" cy="65" r="4" fill="url(#brandGradient)"/>
+                        <circle cx="50" cy="50" r="4.5" fill="#ff3366"/>
+                        <circle cx="85" cy="40" r="4" fill="url(#brandGradient)"/>
+                    </svg>
+                    <div class="wordmark">
+                        <span class="fit">fit</span><span class="dot">.</span><span class="ai">ai</span>
+                    </div>
+                </div>
+                <nav>
+                    <a href="#waitlist">Waitlist</a>
+                </nav>
+            </div>
+        </header>
+
+        <section class="hero">
+                <div class="beta-badge">Beta Coming December 2025</div>
+                <h1>
+                    Every Time You Open <span class="brand-name">fit<span class="dot">.</span>ai</span><br>
+                    It Already Knows What You Need
+                </h1>
+                <p>
+                    Your memory-rich AI fitness buddy. Remembers your why, your shoulder tweak, yesterday's log. 
+                    Celebrates wins, nudges when you slip, and transforms gym notes into a personal coaching story.
+                </p>
+                <div class="cta-buttons">
+                    <a href="#waitlist" class="btn-primary">Join the Waitlist</a>
+                    <a href="#waitlist" class="btn-secondary">Learn More</a>
+                </div>
+            </section>
+
+            <section class="waitlist-section" id="waitlist">
+            <div class="waitlist-content">
+                <h2>Be First to Know</h2>
+                <p>Sign up for our waitlist and be among the first to experience fit.ai when we launch in December 2025.</p>
+                <form class="waitlist-form" id="waitlistForm" onsubmit="handleSubmit(event)">
+                    <div class="form-group">
+                        <input 
+                            type="email" 
+                            class="form-input" 
+                            placeholder="name@email.com" 
+                            required
+                            id="emailInput"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <input 
+                            type="text" 
+                            class="form-input" 
+                            placeholder="Your name (optional)"
+                            id="nameInput"
+                        >
+                    </div>
+                    <button type="submit" class="submit-btn">Join Waitlist</button>
+                    <div class="success-message" id="successMessage">
+                        🎉 Thanks! We'll notify you when beta launches.
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <footer>
+            <p>&copy; 2025 fit.ai – Built by two Lagos founders with ❤️</p>
+        </footer>
+    </div>
+
+    <script>
+        // Smooth scroll for CTA buttons
+        document.querySelectorAll('a[href="#waitlist"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('waitlist').scrollIntoView({ 
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            });
+        });
+
+        // Logo DNA animation and grid pulse on scroll
+        const logoSection = document.querySelector('.logo-section');
+        let lastScrollY = window.scrollY;
+        let scrollTimeout;
+        
+        function handleScroll() {
+            const currentScrollY = window.scrollY;
+            
+            // Logo animation
+            if (currentScrollY > 50) {
+                logoSection.classList.add('scrolled');
+            } else {
+                logoSection.classList.remove('scrolled');
+            }
+            
+            // Grid pulse animation - activate when scrolling
+            if (currentScrollY > 10) {
+                document.body.classList.add('scrolling');
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    document.body.classList.remove('scrolling');
+                }, 300);
+            } else {
+                document.body.classList.remove('scrolling');
+            }
+            
+            lastScrollY = currentScrollY;
+        }
+        window.addEventListener('scroll', handleScroll, { passive: true });
+
+        function handleSubmit(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('emailInput').value;
+            const name = document.getElementById('nameInput').value;
+            
+            console.log('Waitlist signup:', { email, name });
+            
+            document.getElementById('successMessage').classList.add('show');
+            document.getElementById('waitlistForm').reset();
+            
+            // Optional: Send to your backend API
+            // fetch('/api/waitlist', {
+            //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json' },
+            //     body: JSON.stringify({ email, name })
+            // });
+        }
+    </script>
+</body>
+</html>

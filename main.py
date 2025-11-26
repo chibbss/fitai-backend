@@ -1249,8 +1249,26 @@ async def get_onboarding_completion_message(
             else:
                 prompt = system_prompt + "\n\n" + user_prompt + "\nAssistant: "
             
-            # Generate using remote backend if configured
-            if rag_service.config.gen_backend == "remote" and rag_service._remote_session and rag_service.config.remote_gen_url:
+            # Generate using OpenAI if configured
+            if rag_service.config.gen_backend == "openai" and rag_service._openai_client:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
+                try:
+                    response = rag_service._openai_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=messages,
+                        max_tokens=150,  # Short welcome message
+                        temperature=0.7,  # Slightly warmer for welcome message
+                    )
+                    message = response.choices[0].message.content.strip()
+                except Exception as e:
+                    logger.warning("OpenAI onboarding generation failed: %s", e)
+                    message = None
+            
+            # Generate using remote backend if configured (backward compatibility)
+            elif rag_service.config.gen_backend == "remote" and rag_service._remote_session and rag_service.config.remote_gen_url:
                 payload = {
                     "model": rag_service.config.hf_model_id,
                     "prompt": prompt,

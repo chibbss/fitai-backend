@@ -382,8 +382,64 @@ const createReactNativeSSE = (
     };
 };
 
+// ============================================================================
+// RETRY UTILITY FOR MODAL COLD STARTS
+// ============================================================================
+// Added: Nov 26, 2025
+// Purpose: Handle Modal vLLM cold starts (502/503 errors) with automatic retry
+// How it works: Retries failed chat requests with exponential backoff (1s, 2s, 4s)
+// Only retries on: 502, 503, 504, network errors, timeouts
+// Does NOT retry on: 401 (auth), 400 (bad request)
+// ============================================================================
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const retryWithBackoff = async <T>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+): Promise<T> => {
+    let lastError: Error;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error: any) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+            
+            // Don't retry on auth errors or bad requests
+            if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+                throw lastError;
+            }
+            if (error.message?.includes('400') || error.message?.includes('Bad Request')) {
+                throw lastError;
+            }
+            
+            // Only retry on server errors (502/503/504) or network issues
+            const isRetryable = 
+                error.message?.includes('502') ||
+                error.message?.includes('503') ||
+                error.message?.includes('504') ||
+                error.message?.includes('Network error') ||
+                error.message?.includes('timeout') ||
+                error.message?.includes('Streaming error');
+            
+            if (!isRetryable || attempt === maxRetries - 1) {
+                throw lastError;
+            }
+            
+            // Exponential backoff: 1s, 2s, 4s
+            const delay = baseDelay * Math.pow(2, attempt);
+            console.log(`[Retry] Attempt ${attempt + 1}/${maxRetries} after ${delay}ms (${error.message})`);
+            await sleep(delay);
+        }
+    }
+    
+    throw lastError!;
+};
+
 export const chatApi = {
     // Streaming chat with SSE
+    // UPDATED: Added retry logic for Modal cold starts (Nov 26, 2025)
     async chatStream(
         query: string,
         sessionId: string | null,
@@ -408,98 +464,105 @@ export const chatApi = {
             return;
         }
 
-        return new Promise((resolve, reject) => {
-            let fullAnswer = '';
-            let isDone = false;
-            let abortStream: (() => void) | null = null;
-            
-            const handleDone = (answer: string, totalTime?: number) => {
-                if (!isDone) {
-                    isDone = true;
-                    onDone(answer, totalTime);
-                    resolve();
-                }
-            };
+        // Wrap chat stream in retry logic to handle Modal cold starts
+        return retryWithBackoff(async () => {
+            return new Promise<void>((resolve, reject) => {
+                let fullAnswer = '';
+                let isDone = false;
+                let abortStream: (() => void) | null = null;
+                
+                const handleDone = (answer: string, totalTime?: number) => {
+                    if (!isDone) {
+                        isDone = true;
+                        onDone(answer, totalTime);
+                        resolve();
+                    }
+                };
 
-            const handleError = (error: Error) => {
-                if (!isDone) {
-                    isDone = true;
-                    onError(error);
-                    reject(error);
-                }
-            };
-            
-            try {
-                abortStream = createReactNativeSSE(`${API_URL}/chat_stream`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        query,
-                        session_id: sessionId,
-                    }),
-                    onmessage(event) {
-                        try {
-                            if (event.event === 'token') {
-                                // Parse JSON-encoded token
-                                const token = JSON.parse(event.data);
-                                const tokenStr = typeof token === 'string' ? token : String(token);
-                                if (tokenStr) {
-                                    fullAnswer += tokenStr;
-                                    onToken(tokenStr);
-                                }
-                            } else if (event.event === 'metadata') {
-                                // Metadata: references and citations
-                                const metadata = JSON.parse(event.data);
-                                console.log('Chat metadata:', metadata);
-                            } else if (event.event === 'done') {
-                                // Done event: final answer
-                                const doneData = JSON.parse(event.data);
-                                const answer = doneData.answer || fullAnswer;
-                                const totalTime = doneData.total_time_ms;
-                                handleDone(answer, totalTime);
-                            } else if (event.data) {
-                                // Fallback: treat as token if no event type
-                                try {
-                                    const data = JSON.parse(event.data);
-                                    const tokenStr = typeof data === 'string' ? data : String(data);
+                const handleError = (error: Error) => {
+                    if (!isDone) {
+                        isDone = true;
+                        // Reject to trigger retry logic
+                        reject(error);
+                    }
+                };
+                
+                try {
+                    abortStream = createReactNativeSSE(`${API_URL}/chat_stream`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            query,
+                            session_id: sessionId,
+                        }),
+                        onmessage(event) {
+                            try {
+                                if (event.event === 'token') {
+                                    // Parse JSON-encoded token
+                                    const token = JSON.parse(event.data);
+                                    const tokenStr = typeof token === 'string' ? token : String(token);
                                     if (tokenStr) {
                                         fullAnswer += tokenStr;
                                         onToken(tokenStr);
                                     }
-                                } catch (e) {
-                                    // If parsing fails, use data as-is
-                                    if (event.data) {
-                                        fullAnswer += event.data;
-                                        onToken(event.data);
+                                } else if (event.event === 'metadata') {
+                                    // Metadata: references and citations
+                                    const metadata = JSON.parse(event.data);
+                                    console.log('Chat metadata:', metadata);
+                                } else if (event.event === 'done') {
+                                    // Done event: final answer
+                                    const doneData = JSON.parse(event.data);
+                                    const answer = doneData.answer || fullAnswer;
+                                    const totalTime = doneData.total_time_ms;
+                                    handleDone(answer, totalTime);
+                                } else if (event.data) {
+                                    // Fallback: treat as token if no event type
+                                    try {
+                                        const data = JSON.parse(event.data);
+                                        const tokenStr = typeof data === 'string' ? data : String(data);
+                                        if (tokenStr) {
+                                            fullAnswer += tokenStr;
+                                            onToken(tokenStr);
+                                        }
+                                    } catch (e) {
+                                        // If parsing fails, use data as-is
+                                        if (event.data) {
+                                            fullAnswer += event.data;
+                                            onToken(event.data);
+                                        }
                                     }
                                 }
+                            } catch (e) {
+                                console.warn('Failed to parse SSE message:', event, e);
                             }
-                        } catch (e) {
-                            console.warn('Failed to parse SSE message:', event, e);
-                        }
-                    },
-                    onerror(err) {
-                        console.error('SSE error:', err);
-                        handleError(new Error(err?.message || 'Streaming error occurred'));
-                    },
-                    onclose() {
-                        // If we exit without 'done' event, use accumulated answer
-                        if (!isDone) {
-                            if (fullAnswer) {
-                                handleDone(fullAnswer);
-                            } else {
-                                handleError(new Error('Stream closed without data'));
+                        },
+                        onerror(err) {
+                            console.error('SSE error:', err);
+                            handleError(new Error(err?.message || 'Streaming error occurred'));
+                        },
+                        onclose() {
+                            // If we exit without 'done' event, use accumulated answer
+                            if (!isDone) {
+                                if (fullAnswer) {
+                                    handleDone(fullAnswer);
+                                } else {
+                                    handleError(new Error('Stream closed without data'));
+                                }
                             }
-                        }
-                    },
-                });
-            } catch (error: any) {
-                console.error('Stream error:', error);
-                handleError(error instanceof Error ? error : new Error(String(error)));
-            }
+                        },
+                    });
+                } catch (error: any) {
+                    console.error('Stream error:', error);
+                    handleError(error instanceof Error ? error : new Error(String(error)));
+                }
+            });
+        }, 3, 1000).catch((error) => {
+            // After all retries failed, notify user
+            onError(error);
+            throw error;
         });
     },
 

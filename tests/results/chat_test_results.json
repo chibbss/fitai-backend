@@ -1,0 +1,51 @@
+{
+  "timestamp": "2025-11-26T13:16:15.157447+00:00",
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "warnings": 4
+  },
+  "tests": [
+    {
+      "name": "Create test JWT token",
+      "status": "PASS",
+      "result": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb2huLWRvZS1lMmUtdGVzdCIsImVtYWlsIjoiam9obi5kb2UuZTJlQGZpdGFpLnRlc3QiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJpYXQiOjE3NjQxNjI4NDg"
+    },
+    {
+      "name": "Backend health",
+      "status": "PASS",
+      "result": {
+        "status": "ok"
+      }
+    },
+    {
+      "name": "Backend readiness",
+      "status": "PASS",
+      "result": {
+        "ok": true,
+        "db_ok": true,
+        "gen_ok": true
+      }
+    },
+    {
+      "name": "Non-streaming chat",
+      "status": "WARN",
+      "message": "Failed: HTTPSConnectionPool(host='fitai-api.onrender.com', port=443): Read timed out. (read timeout=120)"
+    },
+    {
+      "name": "Streaming chat (query 1)",
+      "status": "WARN",
+      "message": "Failed: Request failed: 503 Server Error: Service Unavailable for url: https://fitai-api.onrender.com/chat_s"
+    },
+    {
+      "name": "Streaming chat (query 2)",
+      "status": "WARN",
+      "message": "Failed: Got 503 - retry should have happened in frontend"
+    },
+    {
+      "name": "Streaming chat (query 3)",
+      "status": "WARN",
+      "message": "Failed: Got 503 - retry should have happened in frontend"
+    }
+  ]
+}

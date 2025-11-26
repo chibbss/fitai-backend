@@ -94,7 +94,7 @@ def get_config() -> AppConfig:
             "EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2"
         ),
         database_url=os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/fitai"),
-        gen_backend=os.getenv("GEN_BACKEND", "local"),
+        gen_backend=os.getenv("GEN_BACKEND", "openai"),  # Default to OpenAI
         remote_gen_url=os.getenv("REMOTE_GEN_URL") or None,
         remote_gen_api_key=os.getenv("REMOTE_GEN_API_KEY") or None,
         device=os.getenv("DEVICE", "auto"),

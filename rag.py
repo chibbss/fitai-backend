@@ -53,7 +53,8 @@ class RAGService:
         self.generator_model = None
         self.generator_tokenizer = None
         self.generator_pipe = None
-        self._remote_session = None  # for remote generation
+        self._remote_session = None  # for remote generation (Modal - deprecated)
+        self._openai_client = None  # OpenAI client for generation and embeddings
         self._reranker_model = None  # Cross-encoder model when using local reranker
 
         # Database (SQLAlchemy) with production-grade connection pooling
@@ -312,6 +313,17 @@ class RAGService:
             # Set default timeout (can be overridden per request)
             self._remote_session.timeout = 60
         
+        # Initialize OpenAI client if API key is provided
+        if self.config.openai_api_key:
+            try:
+                from openai import OpenAI
+                self._openai_client = OpenAI(api_key=self.config.openai_api_key)
+                self.logger.info("OpenAI client initialized")
+            except ImportError:
+                self.logger.warning("OpenAI package not installed. pip install openai")
+            except Exception as e:
+                self.logger.error("Failed to initialize OpenAI client: %s", e)
+        
         # Embeddings: Only load locally if using local provider
         if self.config.embedding_provider == "local":
             # Lazy import to save memory when using remote backends
@@ -324,7 +336,7 @@ class RAGService:
             except Exception as e:
                 self.logger.warning("Failed to load embedding model: %s", e)
                 self.embedding_model = None
-            
+
             # Tokenizer for chunking
             try:
                 from transformers import AutoTokenizer as HFTokenizer
@@ -333,8 +345,6 @@ class RAGService:
                 )
             except Exception:
                 self.embedding_tokenizer = None
-                self.logger.error("Failed to load local embedding model: %s", e)
-                self.embedding_model = None
         elif self.config.embedding_provider == "modal":
             self.logger.info("Using REMOTE embedding provider (Modal) at %s", self.config.remote_embed_url)
             if not self.config.remote_embed_url:
@@ -2304,7 +2314,25 @@ Generate an analytical insight based on the data above. Include specific numbers
                                    insight_type, len(prompt), len(generated_ids))
                 raise ValueError("Empty generation")
             
-            # Fallback to remote if configured
+            # OpenAI generation (preferred)
+            elif self.config.gen_backend == "openai" and self._openai_client:
+                messages = [
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": prompt_context}
+                ]
+                try:
+                    response = self._openai_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=messages,
+                        max_tokens=60,
+                        temperature=0.7,
+                    )
+                    return response.choices[0].message.content.strip().split("\n")[0]
+                except Exception as e:
+                    self.logger.warning("OpenAI insight generation failed: %s", e)
+                    # Fall through to template fallback
+            
+            # Modal/Remote generation (backward compatibility)
             elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
                 prompt = f"{system_msg}\n\n{prompt_context}\n\nMessage:"
                 payload = {
@@ -3901,50 +3929,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             self._user_context_cache[user_id] = (context_dict, current_time)
             self.logger.info("Pre-loaded context for user %s (FitAI ready!)", user_id)
             
-            # Warm up Modal vLLM in background (non-blocking)
-            # This ensures Modal is ready when user starts chatting
-            if self.config.gen_backend == "remote" and self.config.remote_gen_url:
-                try:
-                    import threading
-                    
-                    def warm_modal():
-                        try:
-                            if not self._remote_session:
-                                import requests
-                                self._remote_session = requests.Session()
-                            
-                            # Minimal prompt - just 1 token to wake Modal
-                            payload = {
-                                "model": self.config.hf_model_id,
-                                "prompt": "ping",
-                                "max_tokens": 1,
-                                "temperature": 0.1,
-                            }
-                            
-                            # Short timeout - we don't care about response, just want to wake Modal
-                            warm_start = time.time()
-                            self._remote_session.post(
-                                self.config.remote_gen_url,
-                                json=payload,
-                                timeout=5  # Short timeout, don't block
-                            )
-                            warm_duration = time.time() - warm_start
-                            self._metrics["modal_warm_ups_succeeded"] = self._metrics.get("modal_warm_ups_succeeded", 0) + 1
-                            self.logger.info("Modal vLLM warmed up for user %s (took %.2fs)", user_id, warm_duration)
-                        except Exception as e:
-                            # Non-critical - log but don't fail
-                            self.logger.debug("Modal warm-up failed (non-critical): %s", e)
-                    
-                    # Track warm-up attempt
-                    self._metrics["modal_warm_ups_triggered"] = self._metrics.get("modal_warm_ups_triggered", 0) + 1
-                    
-                    # Start warm-up in background thread (non-blocking)
-                    warm_thread = threading.Thread(target=warm_modal, daemon=True)
-                    warm_thread.start()
-                    
-                except Exception as e:
-                    # Non-critical - log but don't fail preload
-                    self.logger.debug("Modal warm-up setup failed (non-critical): %s", e)
+            # Note: OpenAI doesn't need warm-up (always ready)
+            # Modal warm-up removed - no longer needed with OpenAI
             
             return context_dict
         except Exception as e:
@@ -4397,9 +4383,32 @@ Generate an analytical insight based on the data above. Include specific numbers
                 system_text + "\n\n" + context_text + f"User message: {query}\nAssistant: "
             )
 
-        # Generate via remote backend if configured
+        # Generate via OpenAI or remote backend if configured
         generation_start = time.time()
-        if self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
+        
+        # OpenAI generation (preferred)
+        if self.config.gen_backend == "openai" and self._openai_client:
+            try:
+                messages = [
+                    {"role": "system", "content": system_text},
+                    {"role": "user", "content": context_text + f"User message: {query}"}
+                ]
+                response = self._openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=messages,
+                    max_tokens=max_new_tokens or self.config.max_new_tokens,
+                    temperature=temperature if temperature is not None else self.config.temperature,
+                )
+                ans = response.choices[0].message.content.strip()
+            except Exception as e:
+                self.logger.error("OpenAI generation failed: %s", e)
+                if self.config.remote_fallback_local:
+                    self.logger.info("Falling back to local generation backend")
+                else:
+                    return {"answer": "", "references": [], "dynamic_refs": [], "error": str(e)}
+        
+        # Modal/Remote generation (backward compatibility)
+        elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
             try:
                 payload = {
                     "model": self.config.hf_model_id,
@@ -4813,8 +4822,65 @@ Generate an analytical insight based on the data above. Include specific numbers
         # Generation phase
         generation_start = time.time()
         
-        if self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
-            # Remote streaming (if supported by backend)
+        # OpenAI streaming (preferred)
+        if self.config.gen_backend == "openai" and self._openai_client:
+            try:
+                messages = [
+                    {"role": "system", "content": system_text},
+                    {"role": "user", "content": context_text + f"User message: {query}"}
+                ]
+                stream = self._openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=messages,
+                    max_tokens=max_new_tokens or self.config.max_new_tokens,
+                    temperature=temperature if temperature is not None else self.config.temperature,
+                    stream=True,
+                )
+                
+                full_answer = ""
+                for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        token = chunk.choices[0].delta.content
+                        full_answer += token
+                        yield {"type": "token", "content": token}
+                
+                generation_time_ms = (time.time() - generation_start) * 1000
+                total_time_ms = (time.time() - start_time) * 1000
+                
+                # Append to session
+                if user_id and full_answer:
+                    self.append_session_message(user_id, session_id, role="assistant", content=full_answer)
+                
+                # Log RAGAS metrics
+                if os.getenv("RAGAS_LOGGING_ENABLED", "1") in ("1", "true", "True"):
+                    try:
+                        self.log_ragas_metrics(
+                            user_id=user_id,
+                            session_id=session_id,
+                            query=query,
+                            answer=full_answer,
+                            retrieved_chunks=retrieved,
+                            dynamic_refs=dyn,
+                            memories=memories,
+                            citations=citations,
+                            retrieval_time_ms=retrieval_time_ms,
+                            generation_time_ms=generation_time_ms,
+                            total_time_ms=total_time_ms,
+                        )
+                    except Exception as e:
+                        self.logger.warning("RAGAS logging failed: %s", e)
+                
+                yield {"type": "done", "content": {"answer": full_answer, "total_time_ms": total_time_ms}}
+                return
+            
+            except Exception as e:
+                self.logger.error("OpenAI streaming failed: %s", e)
+                if not self.config.remote_fallback_local:
+                    yield {"type": "error", "content": str(e)}
+                    return
+        
+        # Modal/Remote streaming (backward compatibility)
+        elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
             try:
                 payload = {
                     "model": self.config.hf_model_id,
