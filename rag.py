@@ -82,7 +82,14 @@ class RAGService:
 
         # Redis (optional)
         self._redis = None
-        self._metrics: Dict[str, int] = {"rerank_total": 0, "rerank_changed": 0}
+        self._metrics: Dict[str, int] = {
+            "rerank_total": 0,
+            "rerank_changed": 0,
+            "modal_cold_starts": 0,  # Count of cold starts detected (>10s response)
+            "modal_warm_requests": 0,  # Count of warm requests (<10s response)
+            "modal_warm_ups_triggered": 0,  # Count of warm-up calls
+            "modal_warm_ups_succeeded": 0,  # Count of successful warm-ups
+        }
         # In-memory cache for workout hooks (fallback when Redis unavailable)
         self._workout_hooks_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (hooks, timestamp)}
         # Cache for fitness overview and patterns (5 minute TTL)
@@ -161,7 +168,23 @@ class RAGService:
                 data = resp.json()
                 
                 duration_ms = (time_module.time() - start_time) * 1000
-                self.logger.info("Modal %s call succeeded (duration=%.2fms, url=%s, attempt=%d)", service_name, duration_ms, url, attempt + 1)
+                duration_seconds = duration_ms / 1000.0
+                
+                # Detect cold start: response time >10 seconds indicates Modal was cold
+                is_cold_start = duration_seconds > 10.0
+                if is_cold_start:
+                    self._metrics["modal_cold_starts"] = self._metrics.get("modal_cold_starts", 0) + 1
+                    self.logger.warning(
+                        "Modal %s COLD START detected (duration=%.2fs, url=%s, attempt=%d) - consider keeping instance warm if frequent",
+                        service_name, duration_seconds, url, attempt + 1
+                    )
+                else:
+                    self._metrics["modal_warm_requests"] = self._metrics.get("modal_warm_requests", 0) + 1
+                
+                self.logger.info(
+                    "Modal %s call succeeded (duration=%.2fs, cold_start=%s, url=%s, attempt=%d)",
+                    service_name, duration_seconds, is_cold_start, url, attempt + 1
+                )
                 
                 # Success - reset circuit breaker
                 if cb_state["state"] == "half_open":
@@ -3896,15 +3919,21 @@ Generate an analytical insight based on the data above. Include specific numbers
                             }
                             
                             # Short timeout - we don't care about response, just want to wake Modal
+                            warm_start = time.time()
                             self._remote_session.post(
                                 self.config.remote_gen_url,
                                 json=payload,
                                 timeout=5  # Short timeout, don't block
                             )
-                            self.logger.info("Modal vLLM warmed up for user %s", user_id)
+                            warm_duration = time.time() - warm_start
+                            self._metrics["modal_warm_ups_succeeded"] = self._metrics.get("modal_warm_ups_succeeded", 0) + 1
+                            self.logger.info("Modal vLLM warmed up for user %s (took %.2fs)", user_id, warm_duration)
                         except Exception as e:
                             # Non-critical - log but don't fail
                             self.logger.debug("Modal warm-up failed (non-critical): %s", e)
+                    
+                    # Track warm-up attempt
+                    self._metrics["modal_warm_ups_triggered"] = self._metrics.get("modal_warm_ups_triggered", 0) + 1
                     
                     # Start warm-up in background thread (non-blocking)
                     warm_thread = threading.Thread(target=warm_modal, daemon=True)

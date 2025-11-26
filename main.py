@@ -431,7 +431,7 @@ async def on_startup() -> None:
         def startup_target():
             """Target function for startup in separate thread."""
             try:
-                rag_service.startup()
+        rag_service.startup()
             except Exception as e:
                 startup_exception[0] = e
         
@@ -449,7 +449,7 @@ async def on_startup() -> None:
             # Don't raise - allow app to start even if models fail to load
             # Health check will show readiness status
         else:
-            logger.info("RAG service initialized")
+        logger.info("RAG service initialized")
         # Dev scheduler: refresh memories on a cron schedule inside API process
         if os.getenv("ENABLE_SCHEDULER", "1") in ("1", "true", "True"):
             global _scheduler
@@ -1267,8 +1267,8 @@ async def get_onboarding_completion_message(
             # Fallback to template if generation failed
             if not message or len(message) < 20:
                 message_parts = [f"Hey there! 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
-                if constraints:
-                    message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
+        if constraints:
+            message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
                 message_parts.append("Want me to help plan your next session or log your last one?")
                 message = " ".join(message_parts)
             
@@ -1286,7 +1286,7 @@ async def get_onboarding_completion_message(
             message_parts = [f"Hey there! 👋 I remember what you told me — your goal is **{goal}**, you've got **{experience}** experience, and you enjoy **{preference}**."]
             if constraints:
                 message_parts.append(f"I'll keep your note about **{constraints}** in mind so we train safely.")
-            message_parts.append("Want me to help plan your next session or log your last one?")
+        message_parts.append("Want me to help plan your next session or log your last one?")
             message = " ".join(message_parts)
         
         # Save as first memory summary (in background, non-blocking)
