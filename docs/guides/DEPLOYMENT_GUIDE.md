@@ -1,4 +1,10 @@
-# FitAI Backend - Deployment Guide
+# FitAI Backend - Quick Start & Development Guide
+
+**Local development and quick start guide for FitAI backend.**
+
+**Last Updated:** November 26, 2025
+
+---
 
 ## 🚀 Quick Start
 
@@ -8,30 +14,48 @@
 # Activate virtual environment
 source venv/bin/activate
 
-# Install new dependencies
+# Install dependencies (includes PyTorch for local fallback)
 pip install -r requirements.txt
 ```
 
-### 2. Run Database Migration
+### 2. Configure Environment
+
+Create `.env` file:
+
+```bash
+# Database (required)
+DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/fitai
+
+# Supabase Authentication (required)
+SUPABASE_JWT_SECRET=your-jwt-secret
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+
+# OpenAI API (recommended for production)
+OPENAI_API_KEY=sk-...
+GEN_BACKEND=openai
+EMBEDDING_PROVIDER=openai
+RERANKER_BACKEND=none
+
+# Optional: Local fallback (for development without OpenAI)
+# GEN_BACKEND=local
+# EMBEDDING_PROVIDER=local
+# RERANKER_BACKEND=local
+```
+
+### 3. Run Database Migration
 
 ```bash
 # Apply migrations against your local database
 alembic upgrade head
-
-# Apply the same migrations against production (Render)
-alembic -x url=$RENDER_DATABASE_URL upgrade head
 ```
 
-> ℹ️ **Why manual?**  
-> The API no longer runs Alembic automatically during startup.  
-> Run `alembic upgrade head` for each environment (local, Render) **before** deploying code that depends on a new schema.
-
-**Expected Output (per environment):**
+**Expected Output:**
 ```
-INFO  [alembic.runtime.migration] Running upgrade b43c9a785a9e -> c8d4f2e1b9a3, workout sessions and ragas metrics
+INFO  [alembic.runtime.migration] Running upgrade ... -> ..., workout sessions and ragas metrics
 ```
 
-### 3. Verify Migration
+### 4. Verify Migration
 
 ```bash
 # Connect to your database and verify tables exist
@@ -42,12 +66,13 @@ psql $DATABASE_URL -c "\dt"
 - `workout_sessions`
 - `exercise_logs`
 - `ragas_metrics`
+- `chat_messages`
 - (plus existing tables)
 
-### 4. Start the Server
+### 5. Start the Server
 
 ```bash
-# Development
+# Development (with auto-reload)
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 # Production (with gunicorn)
@@ -59,12 +84,14 @@ gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ## 🧪 Quick Smoke Test
 
 ### Test 1: Health Check
+
 ```bash
 curl http://localhost:8000/health
 # Expected: {"status":"ok"}
 ```
 
 ### Test 2: Create Test Token
+
 ```python
 python3 << EOF
 from auth import create_test_token
@@ -74,6 +101,7 @@ EOF
 ```
 
 ### Test 3: Log a Workout
+
 ```bash
 curl -X POST http://localhost:8000/log/workout \
   -H "Authorization: Bearer $TOKEN" \
@@ -102,6 +130,7 @@ curl -X POST http://localhost:8000/log/workout \
 ```
 
 ### Test 4: Get Insights
+
 ```bash
 # Use session_id from previous response
 curl http://localhost:8000/insights/{session_id} \
@@ -126,6 +155,7 @@ curl http://localhost:8000/insights/{session_id} \
 ```
 
 ### Test 5: Streaming Chat
+
 ```bash
 curl -X POST http://localhost:8000/chat_stream \
   -H "Authorization: Bearer $TOKEN" \
@@ -136,7 +166,8 @@ curl -X POST http://localhost:8000/chat_stream \
 
 **Expected:** Stream of SSE events with tokens appearing in real-time.
 
-### Test 6: Regular Chat with RAGAS Logging
+### Test 6: Regular Chat
+
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Authorization: Bearer $TOKEN" \
@@ -144,220 +175,52 @@ curl -X POST http://localhost:8000/chat \
   -d '{"query": "How much protein should I eat?"}'
 ```
 
-**Expected:** Normal chat response, and RAGAS metrics logged in background.
-
-### Test 7: Verify RAGAS Logging
-```bash
-psql $DATABASE_URL -c "SELECT COUNT(*) FROM ragas_metrics;"
-# Should show 1 or more rows
-```
-
----
-
-## ☁️ Modal Services Setup (Remote Generation, Embeddings, Reranking)
-
-FitAI uses **two separate Modal apps** for optimal performance and cost:
-
-1. **`fitai-vllm`** - Generation (Llama 8B) + Reranking
-2. **`fitai-embed`** - Embeddings (SentenceTransformers)
-
-### 1. Configure Modal Secrets
-
-Ensure your HF token is stored in Modal secrets:
-```bash
-python -m modal secret create hf-token HF_TOKEN=hf_XXXXXXXXXXXXXXXXXXXX
-```
-
-### 2. Deploy Generation + Reranking Service
-
-Deploy the vLLM app (includes generation and reranker):
-```bash
-cd infra
-modal deploy modal_vllm.py
-```
-
-**This service provides:**
-- **Generation**: Llama 3.1 8B Instruct via vLLM
-  - Endpoint: `/v1/chat/completions`
-  - GPU: A10G (sufficient for Llama 3.1 8B)
-- DType: float16
-- Max model len: auto-detected from model config
-- **Reranking**: CrossEncoder model
-  - Endpoint: `/rerank`
-  - Model: `cross-encoder/ms-marco-MiniLM-L-6-v2`
-
-**Get the URL:**
-```bash
-modal app list
-# Note the URL: https://your-username--fitai-vllm-serve.modal.run
-```
-
-### 3. Deploy Embedding Service
-
-Deploy the embedding service (separate app):
-```bash
-cd infra
-modal deploy embed_service_modal.py
-```
-
-**This service provides:**
-- **Embeddings**: SentenceTransformer model
-  - Endpoint: `/embed`
-  - Model: `sentence-transformers/all-MiniLM-L6-v2`
-  - GPU: T4 (cost-effective for embeddings)
-  - Batch size: 64
-
-**Get the URL:**
-```bash
-modal app list
-# Note the URL: https://your-username--fitai-embed-serve.modal.run
-```
-
-### 4. Set Backend Environment Variables
-
-Add these to your `.env` (or Render environment variables):
-```bash
-# Generation Backend
-GEN_BACKEND=remote
-REMOTE_GEN_URL=https://your-username--fitai-vllm-serve.modal.run/v1/chat/completions
-HF_MODEL_ID=meta-llama/Meta-Llama-3.1-8B-Instruct
-
-# Embeddings
-EMBEDDING_PROVIDER=modal
-REMOTE_EMBED_URL=https://your-username--fitai-embed-serve.modal.run/embed
-
-# Reranking
-RERANKER_BACKEND=remote
-RERANKER_REMOTE_URL=https://your-username--fitai-vllm-serve.modal.run/rerank
-```
-
-### 5. Test Modal Services
-
-**Test Generation Service:**
-```bash
-curl -s https://your-username--fitai-vllm-serve.modal.run/health
-# Expected: {"status":"ok","model":"..."}
-
-curl -s -X POST https://your-username--fitai-vllm-serve.modal.run/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"meta-llama/Meta-Llama-3.1-8B-Instruct", "messages":[{"role":"user","content":"Hello"}], "max_tokens":64}'
-```
-
-**Test Embedding Service:**
-```bash
-curl -s https://your-username--fitai-embed-serve.modal.run/health
-# Expected: {"ok":true,"model":"sentence-transformers/all-MiniLM-L6-v2"}
-
-curl -s -X POST https://your-username--fitai-embed-serve.modal.run/embed \
-  -H "Content-Type: application/json" \
-  -d '{"texts":["test embedding"]}'
-# Expected: {"embeddings":[[...384 numbers...]]}
-```
-
-**Test Reranking Service:**
-```bash
-curl -s -X POST https://your-username--fitai-vllm-serve.modal.run/rerank \
-  -H "Content-Type: application/json" \
-  -d '{"query":"fitness", "texts":["workout", "exercise", "nutrition"]}'
-# Expected: {"scores":[0.123, 0.456, 0.789], "model":"cross-encoder/ms-marco-MiniLM-L-6-v2"}
-```
-
-### 6. Test FitAI Backend Integration
-
-Once Modal services are deployed and environment variables are set:
-```bash
-curl -s -X POST http://localhost:8000/chat \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"Plan a leg day for me."}'
-```
-
-**Expected:** Chat response using remote Modal services (check logs to confirm no local model loading).
-
----
-
-## 🔪 Chunking Configuration & QA
-
-### 1. Recommended settings
-In `.env`:
-```bash
-CHUNKING_MODE=token
-CHUNK_SIZE_TOKENS=512
-CHUNK_OVERLAP_TOKENS=64
-```
-
-### 2. Re-ingest documents (per file)
-```bash
-source venv/bin/activate
-python scripts/ingest_local_docs.py "data/pdfs/fitness-handbook.pdf" --category kb --url "https://source-url"
-```
-
-### 3. QA checks (SQL)
-
-- Clean starts (% of chunks starting with caps/markers):
-```sql
-SELECT 
-  COUNT(*) FILTER (WHERE text ~ '^[A-Z0-9#•\\-\\*\\[]') AS clean_starts,
-  COUNT(*) AS total,
-  ROUND(COUNT(*) FILTER (WHERE text ~ '^[A-Z0-9#•\\-\\*\\[]') * 100.0 / COUNT(*), 1) AS pct
-FROM chunks WHERE document_id = '<doc_id>';
-```
-
-- Random sample (start/end):
-```sql
-SELECT LEFT(text, 120) AS start, RIGHT(text, 120) AS end
-FROM chunks WHERE document_id = '<doc_id>'
-ORDER BY RANDOM() LIMIT 10;
-```
-
-If pct < 70%, re-ingest with higher overlap (e.g., `CHUNK_OVERLAP_TOKENS=96`).
+**Expected:** Fast response (< 2s with OpenAI) with AI-generated message.
 
 ---
 
 ## 🔧 Configuration
 
-### Required Environment Variables
+### AI Backend Options
+
+#### Option 1: OpenAI (Recommended for Production)
+
 ```bash
-# Database (required)
-DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/fitai
-
-# Supabase Auth (required in production)
-SUPABASE_JWT_SECRET=your-jwt-secret
-SUPABASE_URL=https://your-project.supabase.co
-
-# Generation Backend (optional, defaults to local)
-GEN_BACKEND=remote  # or "local"
-REMOTE_GEN_URL=https://your-username--fitai-vllm-serve.modal.run/v1/chat/completions
-REMOTE_GEN_API_KEY=your-api-key  # if needed (usually not required for Modal)
-
-# Embeddings (optional, defaults to local)
-EMBEDDING_PROVIDER=modal  # or "local" or "openai"
-REMOTE_EMBED_URL=https://your-username--fitai-embed-serve.modal.run/embed
-REMOTE_EMBED_API_KEY=your-api-key  # if needed (usually not required for Modal)
-# OPENAI_API_KEY=sk-...  # Only if using OpenAI embeddings
-
-# Reranker (optional, defaults to local)
-RERANKER_BACKEND=remote  # or "local" or "none"
-RERANKER_REMOTE_URL=https://your-username--fitai-vllm-serve.modal.run/rerank
-# Note: Reranker is hosted in the same Modal app as generation (fitai-vllm)
+OPENAI_API_KEY=sk-...
+GEN_BACKEND=openai
+EMBEDDING_PROVIDER=openai
+RERANKER_BACKEND=none
 ```
 
-### Optional Toggles
+**Benefits:**
+- ✅ Fast responses (< 2s)
+- ✅ No cold starts
+- ✅ Better AI quality
+- ✅ Simple infrastructure
+
+#### Option 2: Local Models (Development/Testing)
+
 ```bash
-# RAGAS logging (default: enabled)
-RAGAS_LOGGING_ENABLED=1
+GEN_BACKEND=local
+EMBEDDING_PROVIDER=local
+RERANKER_BACKEND=local
+```
 
-# Memory refresh on user profile update (default: enabled)
-REFRESH_MEMORY_ON_UPSERT=1
+**Note:** Requires PyTorch and model downloads (~5GB+).
 
-# Scheduled memory refresh (default: enabled, runs at 3am)
-ENABLE_SCHEDULER=1
-MEMORY_CRON_HOUR=3
+### Optional Configuration
 
-# Rate limits (defaults shown)
-RATE_LIMIT_CHAT=60/minute
-RATE_LIMIT_SEARCH=120/minute
-RATE_LIMIT_LOGS=120/minute
+```bash
+# Redis Caching (Optional but Recommended)
+REDIS_URL=redis://localhost:6379/0
+
+# Observability
+SENTRY_DSN=<your-sentry-dsn>
+LOG_LEVEL=INFO
+LOG_PII_REDACTION_ENABLED=1
+
+# Performance
+LOAD_LOCAL_EMBEDDING_FALLBACK=true  # Only for local development
 ```
 
 ---
@@ -365,6 +228,7 @@ RATE_LIMIT_LOGS=120/minute
 ## 📊 Monitoring RAGAS Metrics
 
 ### Query Recent Metrics
+
 ```sql
 SELECT 
   user_id,
@@ -381,32 +245,12 @@ ORDER BY created_at DESC
 LIMIT 20;
 ```
 
-### Export for RAGAS Evaluation
-```sql
-COPY (
-  SELECT 
-    user_id,
-    query,
-    answer,
-    kb_chunks_retrieved,
-    logs_retrieved,
-    retrieval_count,
-    has_citations,
-    citation_count,
-    answer_length,
-    retrieval_time_ms,
-    generation_time_ms,
-    total_time_ms
-  FROM ragas_metrics
-  WHERE created_at >= NOW() - INTERVAL '7 days'
-) TO '/tmp/ragas_export.csv' WITH CSV HEADER;
-```
-
 ---
 
 ## 🐛 Troubleshooting
 
 ### Migration Fails
+
 ```bash
 # Check current migration version
 alembic current
@@ -420,48 +264,30 @@ alembic upgrade head
 ```
 
 ### SSE Streaming Not Working
+
 - Ensure `sse-starlette` is installed: `pip install sse-starlette==2.1.3`
 - Check client supports SSE (EventSource API in browsers)
 - Verify no proxy/nginx buffering blocking streaming
 
-### RAGAS Logging Errors
-```bash
-# Check if table exists
-psql $DATABASE_URL -c "\d ragas_metrics"
+### OpenAI API Errors
 
-# Disable if problematic
-export RAGAS_LOGGING_ENABLED=0
-```
+- Check `OPENAI_API_KEY` is set correctly
+- Verify API key has credits
+- Check OpenAI rate limits (10,000 TPM for GPT-4o-mini)
+- Review error logs for specific OpenAI errors
 
 ### Workout Insights Empty
+
 - Ensure at least 2 workouts logged for same exercise
 - Check `exercise_name` matches exactly (case-sensitive)
 - Verify weights are parseable strings ("45kg", "135lbs", etc.)
 
 ---
 
-## 🔄 Rollback Plan
-
-If you need to rollback:
-
-```bash
-# Downgrade database
-alembic downgrade b43c9a785a9e
-
-# Revert code changes
-git checkout main
-
-# Restart server
-uvicorn main:app --reload
-```
-
-**Note:** Existing endpoints are NOT affected. Old `/add_training_log` still works.
-
----
-
 ## 📈 Performance Tuning
 
 ### Database Indexes (Already Created)
+
 - `idx_workout_sessions_user`
 - `idx_workout_sessions_occurred`
 - `idx_exercise_logs_user`
@@ -469,15 +295,8 @@ uvicorn main:app --reload
 - `idx_ragas_metrics_user`
 - `idx_ragas_metrics_created`
 
-### Recommended Postgres Settings
-```sql
--- For better HNSW index performance
-ALTER SYSTEM SET maintenance_work_mem = '512MB';
-ALTER SYSTEM SET effective_cache_size = '4GB';
-SELECT pg_reload_conf();
-```
-
 ### Redis Caching (Optional but Recommended)
+
 ```bash
 export REDIS_URL=redis://localhost:6379/0
 export REDIS_TTL_EMBEDDINGS_SEC=3600
@@ -497,26 +316,34 @@ Before deploying to production:
 - [ ] Set up monitoring (Sentry, Prometheus)
 - [ ] Enable Redis for caching
 - [ ] Test streaming endpoint with production load
-- [ ] Verify RAGAS metrics logging
+- [ ] Verify OpenAI API key has credits
 - [ ] Set up database backups
 - [ ] Configure CORS if needed
-- [ ] Deploy Modal services (generation+reranker and embeddings)
-- [ ] Set Modal service URLs in environment variables
-- [ ] Test with production Modal services (generation, embeddings, reranking)
 - [ ] Load test insights endpoint
 - [ ] Set appropriate worker count for gunicorn
+
+**See `docs/guides/RENDER_DEPLOYMENT.md` for complete production deployment guide.**
 
 ---
 
 ## 🎯 Next Steps
 
 1. ✅ Run migration
-2. ✅ Test all 6 smoke tests above
+2. ✅ Test all smoke tests above
 3. ✅ Monitor RAGAS metrics for first 24 hours
 4. ✅ Gather user feedback on workout insights
-5. ✅ Plan Phase 2 features
+5. ✅ Deploy to production (see `docs/guides/RENDER_DEPLOYMENT.md`)
 
 ---
 
+## 📚 Additional Resources
 
+- **[Render Deployment Guide](./RENDER_DEPLOYMENT.md)** - Complete production deployment
+- **[Deployment Checklist](./DEPLOYMENT_CHECKLIST.md)** - Step-by-step checklist
+- **[API Documentation](../reference/API_DOCUMENTATION.md)** - Complete API reference
+- **[Observability Setup](./OBSERVABILITY_SETUP.md)** - Monitoring and alerting
+- **[Redis Setup Guide](./REDIS_SETUP_GUIDE.md)** - Redis caching setup
 
+---
+
+**Ready to develop! 🚀**

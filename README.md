@@ -15,7 +15,7 @@
 
 FitAI is an AI-powered fitness coaching platform that combines:
 - **Deep Memory System**: Remembers every conversation, workout, and user preference
-- **RAG-Powered Chat**: Context-aware AI coach powered by Llama 3 with a growing fitness knowledge base
+- **RAG-Powered Chat**: Context-aware AI coach powered by GPT-4o-mini with a growing fitness knowledge base
 - **Workout Tracking**: Structured logging with instant insights and progress analysis
 - **Personalized Stats**: Comprehensive analytics with calendar visualization
 
@@ -23,7 +23,7 @@ FitAI is an AI-powered fitness coaching platform that combines:
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| **AI Chat** | Llama 3-powered fitness assistant with RAG | ✅ Production Ready |
+| **AI Chat** | GPT-4o-mini-powered fitness assistant with RAG | ✅ Production Ready |
 | **Workout Logger** | Structured exercise tracking (sets, reps, weights) | ✅ Production Ready |
 | **Instant Insights** | PR detection, progress tracking, recovery alerts | ✅ Production Ready |
 | **Calendar & Stats** | Visual progress tracking with comprehensive metrics | ✅ Production Ready |
@@ -99,8 +99,8 @@ fitai-backend/
 ├── utils.py                # Configuration & utilities
 ├── migrations/             # Alembic database migrations
 │   └── versions/           # Migration files
-├── infra/                  # Infrastructure services
-│   ├── modal_vllm.py       # Remote LLM service (Modal)
+├── infra/                  # Infrastructure services (deprecated - using OpenAI)
+│   ├── modal_vllm.py       # Legacy Modal service (deprecated)
 │   ├── embed_service_modal.py
 │   └── rerank_service_modal.py
 ├── scripts/                # Utility scripts
@@ -115,9 +115,11 @@ fitai-backend/
 - **Framework**: FastAPI (async, high-performance)
 - **Database**: PostgreSQL 16 + pgvector (vector similarity search)
 - **Authentication**: Supabase JWT
-- **LLM**: Llama 3.1 8B Instruct (via vLLM/Modal or local)
-- **Embeddings**: SentenceTransformers (all-MiniLM-L6-v2)
-- **Reranking**: Cross-encoder (ms-marco-MiniLM-L-6-v2)
+- **AI Services**: OpenAI API
+  - **LLM**: GPT-4o-mini (chat & insights)
+  - **Embeddings**: text-embedding-3-large
+  - **Transcription**: whisper-1
+- **Caching**: Redis (optional, for performance)
 - **Monitoring**: Sentry, Prometheus, RAGAS metrics
 
 ---
@@ -135,22 +137,20 @@ SUPABASE_JWT_SECRET=your-jwt-secret
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
 
-# LLM Configuration
-HF_MODEL_ID=meta-llama/Meta-Llama-3.1-8B-Instruct
-GEN_BACKEND=remote  # or "local"
-REMOTE_GEN_URL=https://your-vllm.modal.run/v1/completions
+# OpenAI API (Recommended for Production)
+OPENAI_API_KEY=sk-...
+GEN_BACKEND=openai
+EMBEDDING_PROVIDER=openai
+RERANKER_BACKEND=none
 ```
 
 ### Optional Configuration
 
 ```bash
-# Embeddings
-EMBEDDING_PROVIDER=local  # or "modal" or "openai"
-EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
-
-# Reranking
-RERANKER_BACKEND=local  # or "remote" or "none"
-RERANKER_MODEL_NAME=cross-encoder/ms-marco-MiniLM-L-6-v2
+# Optional: Local fallback (for development without OpenAI)
+# GEN_BACKEND=local
+# EMBEDDING_PROVIDER=local
+# RERANKER_BACKEND=local
 
 # Performance
 DEVICE=auto  # auto | cpu | cuda | mps
@@ -304,7 +304,7 @@ curl http://localhost:8000/metrics
 **Cons**: Can be expensive at scale  
 **Cost**: ~$14-45/month
 
-**[Render Deployment Guide](./docs/guides/DEPLOYMENT_GUIDE.md#render-deployment)**
+**[Render Deployment Guide](./docs/guides/RENDER_DEPLOYMENT.md)**
 
 #### Option 2: Docker + Self-Hosted
 
@@ -332,7 +332,8 @@ curl http://localhost:8000/metrics
 - [ ] Test all endpoints with production config
 - [ ] Load testing (optional but recommended)
 
-**[Complete Deployment Guide](./docs/guides/DEPLOYMENT_GUIDE.md)**
+**[Complete Deployment Guide](./docs/guides/RENDER_DEPLOYMENT.md)**  
+**[Quick Start Guide](./docs/guides/DEPLOYMENT_GUIDE.md)**
 
 ---
 
