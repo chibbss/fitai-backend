@@ -702,8 +702,8 @@ async def search(
 # -------------------------------------------------
 async def _transcribe_with_whisper(file: UploadFile) -> str:
     """
-    Transcribe an uploaded audio file using OpenAI Whisper.
-    Prefers 'gpt-4o-mini-transcribe'; falls back to 'whisper-1' on older SDKs.
+    Transcribe an uploaded audio file using OpenAI Whisper API.
+    Uses 'whisper-1' model - OpenAI's most cost-effective transcription option.
 
     Returns:
         transcribed text (str)
@@ -722,7 +722,7 @@ async def _transcribe_with_whisper(file: UploadFile) -> str:
     if not content:
         raise ValueError("Empty audio file")
 
-    whisper_model_pref = os.getenv("OPENAI_WHISPER_MODEL", "gpt-4o-mini-transcribe")
+    whisper_model_pref = os.getenv("OPENAI_WHISPER_MODEL", "whisper-1")  # OpenAI's only transcription model
 
     def _call_openai_sync() -> str:
         # Prefer new OpenAI SDK (openai>=1.x)
