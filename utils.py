@@ -117,7 +117,7 @@ def get_config() -> AppConfig:
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         openai_embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-large"),
         load_local_embedding_fallback=os.getenv("LOAD_LOCAL_EMBEDDING_FALLBACK", "1") in ("1", "true", "True", "yes"),
-        reranker_backend=os.getenv("RERANKER_BACKEND", "local"),
+        reranker_backend=os.getenv("RERANKER_BACKEND", "none"),  # Default to none (no torch needed)
         reranker_model_name=os.getenv("RERANKER_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
         reranker_remote_url=os.getenv("RERANKER_REMOTE_URL") or None,
         retriever_candidates=int(os.getenv("RETRIEVER_CANDIDATES", "10")),

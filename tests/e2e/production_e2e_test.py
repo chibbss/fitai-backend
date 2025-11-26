@@ -149,7 +149,7 @@ def make_request(method: str, endpoint: str, token: Optional[str] = None,
                 print(f"\n    Retry {attempt + 1}/{retries} after {wait_time}s (backend returned 502/503, may be cold start)...")
                 time.sleep(wait_time)
                 continue
-            raise
+                raise
         except Exception as e:
             last_error = e
             raise
@@ -159,48 +159,299 @@ def make_request(method: str, endpoint: str, token: Optional[str] = None,
 
 
 def generate_workout_data(day: int, week: int) -> Dict:
-    """Generate realistic workout data for a given day"""
-    # Progressive overload pattern
-    base_weight = 60 + (week * 5) + (day % 3)
-    base_reps = 10 - (week // 2)
+    """Generate realistic workout data for a 5-day split (Mon-Fri)"""
+    # Calculate which day of week (0=Monday, 4=Friday)
+    day_of_week = day % 7
+    # Only log Mon-Fri (skip weekends)
+    if day_of_week >= 5:  # Saturday or Sunday
+        return None
     
-    # Vary workouts by day
-    if day % 3 == 0:
-        # Push day - Bench Press
-        exercise_name = "Bench Press"
-        exercise_category = "chest"
-        sets = 3
-        reps = [base_reps, base_reps - 1, base_reps - 2]
-        weights = [f"{base_weight}kg", f"{base_weight + 2.5}kg", f"{base_weight + 5}kg"]
-    elif day % 3 == 1:
-        # Pull day - Deadlift
-        exercise_name = "Deadlift"
-        exercise_category = "back"
-        sets = 2
-        reps = [base_reps, base_reps - 1]
-        weights = [f"{base_weight + 30}kg", f"{base_weight + 35}kg"]
-    else:
-        # Leg day - Squat
-        exercise_name = "Squat"
-        exercise_category = "legs"
-        sets = 3
-        reps = [base_reps + 2, base_reps + 1, base_reps]
-        weights = [f"{base_weight + 20}kg", f"{base_weight + 22.5}kg", f"{base_weight + 25}kg"]
+    # Calculate which week day (0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri)
+    weekday = day_of_week
+    
+    exercises = []
+    session_name = ""
+    session_type = "strength"
+    notes = f"Week {week}, Day {day_of_week + 1} - "
+    
+    # Bench Press - PLATEAUED (stuck at 80kg for all 4 weeks)
+    bench_weight = 80.0  # Plateaued - no progression
+    
+    # Hack Squat - PROGRESSIVE (80kg → 200kg over 4 weeks)
+    hack_squat_start = 80.0
+    hack_squat_end = 200.0
+    hack_squat_weight = hack_squat_start + ((hack_squat_end - hack_squat_start) / 3) * (week - 1)
+    
+    if weekday == 0:  # Monday - Chest
+        session_name = f"Week {week} - Chest Day"
+        exercises = [
+            {
+                "exercise_name": "Bench Press",
+                "exercise_category": "chest",
+                "sets": 4,
+                "reps": [8, 8, 6, 6],
+                "weights": [f"{bench_weight}kg", f"{bench_weight}kg", f"{bench_weight}kg", f"{bench_weight}kg"]
+            },
+            {
+                "exercise_name": "Incline Dumbbell Press",
+                "exercise_category": "chest",
+                "sets": 3,
+                "reps": [10, 10, 8],
+                "weights": [f"{bench_weight * 0.7:.1f}kg", f"{bench_weight * 0.7:.1f}kg", f"{bench_weight * 0.75:.1f}kg"]
+            },
+            {
+                "exercise_name": "Cable Flyes",
+                "exercise_category": "chest",
+                "sets": 3,
+                "reps": [12, 12, 10],
+                "weights": ["25kg", "27.5kg", "30kg"]
+            },
+            {
+                "exercise_name": "Dips",
+                "exercise_category": "chest",
+                "sets": 3,
+                "reps": [12, 10, 8],
+                "weights": ["bodyweight", "bodyweight + 10kg", "bodyweight + 15kg"]
+            },
+            {
+                "exercise_name": "Tricep Pushdowns",
+                "exercise_category": "arms",
+                "sets": 3,
+                "reps": [15, 12, 10],
+                "weights": ["30kg", "35kg", "40kg"]
+            }
+        ]
+        notes += "Chest pump! Bench still stuck at 80kg though..."
+    
+    elif weekday == 1:  # Tuesday - Back and Arms
+        session_name = f"Week {week} - Back & Arms Day"
+        back_base = 70 + (week * 3)
+        exercises = [
+            {
+                "exercise_name": "Barbell Rows",
+                "exercise_category": "back",
+                "sets": 4,
+                "reps": [8, 8, 6, 6],
+                "weights": [f"{back_base}kg", f"{back_base}kg", f"{back_base + 5}kg", f"{back_base + 5}kg"]
+            },
+            {
+                "exercise_name": "Pull-ups",
+                "exercise_category": "back",
+                "sets": 4,
+                "reps": [10, 8, 8, 6],
+                "weights": ["bodyweight", "bodyweight", "bodyweight + 10kg", "bodyweight + 10kg"]
+            },
+            {
+                "exercise_name": "Lat Pulldowns",
+                "exercise_category": "back",
+                "sets": 3,
+                "reps": [12, 10, 8],
+                "weights": ["60kg", "65kg", "70kg"]
+            },
+            {
+                "exercise_name": "Barbell Curls",
+                "exercise_category": "arms",
+                "sets": 3,
+                "reps": [10, 8, 6],
+                "weights": ["25kg", "27.5kg", "30kg"]
+            },
+            {
+                "exercise_name": "Hammer Curls",
+                "exercise_category": "arms",
+                "sets": 3,
+                "reps": [12, 10, 8],
+                "weights": ["15kg", "17.5kg", "20kg"]
+            },
+            {
+                "exercise_name": "Cable Rope Curls",
+                "exercise_category": "arms",
+                "sets": 3,
+                "reps": [15, 12, 10],
+                "weights": ["20kg", "22.5kg", "25kg"]
+            }
+        ]
+        notes += "Back and biceps destroyed!"
+    
+    elif weekday == 2:  # Wednesday - Legs
+        session_name = f"Week {week} - Leg Day"
+        exercises = [
+            {
+                "exercise_name": "Hack Squat",
+                "exercise_category": "legs",
+                "sets": 4,
+                "reps": [10, 8, 8, 6],
+                "weights": [f"{hack_squat_weight:.1f}kg", f"{hack_squat_weight:.1f}kg", f"{hack_squat_weight + 5:.1f}kg", f"{hack_squat_weight + 5:.1f}kg"]
+            },
+            {
+                "exercise_name": "Romanian Deadlifts",
+                "exercise_category": "legs",
+                "sets": 4,
+                "reps": [8, 8, 6, 6],
+                "weights": [f"{hack_squat_weight * 0.8:.1f}kg", f"{hack_squat_weight * 0.8:.1f}kg", f"{hack_squat_weight * 0.85:.1f}kg", f"{hack_squat_weight * 0.85:.1f}kg"]
+            },
+            {
+                "exercise_name": "Leg Press",
+                "exercise_category": "legs",
+                "sets": 3,
+                "reps": [15, 12, 10],
+                "weights": [f"{hack_squat_weight * 1.5:.1f}kg", f"{hack_squat_weight * 1.6:.1f}kg", f"{hack_squat_weight * 1.7:.1f}kg"]
+            },
+            {
+                "exercise_name": "Leg Curls",
+                "exercise_category": "legs",
+                "sets": 3,
+                "reps": [12, 10, 8],
+                "weights": ["40kg", "45kg", "50kg"]
+            },
+            {
+                "exercise_name": "Leg Extensions",
+                "exercise_category": "legs",
+                "sets": 3,
+                "reps": [15, 12, 10],
+                "weights": ["50kg", "55kg", "60kg"]
+            },
+            {
+                "exercise_name": "Calf Raises",
+                "exercise_category": "legs",
+                "sets": 4,
+                "reps": [20, 18, 15, 12],
+                "weights": ["80kg", "85kg", "90kg", "95kg"]
+            }
+        ]
+        notes += f"Hack squat feeling strong! Up to {hack_squat_weight:.1f}kg now!"
+    
+    elif weekday == 3:  # Thursday - Back and Shoulders
+        session_name = f"Week {week} - Back & Shoulders Day"
+        back_base = 70 + (week * 3)
+        shoulder_base = 40 + (week * 2)
+        exercises = [
+            {
+                "exercise_name": "Deadlifts",
+                "exercise_category": "back",
+                "sets": 4,
+                "reps": [5, 5, 3, 3],
+                "weights": [f"{back_base + 40}kg", f"{back_base + 45}kg", f"{back_base + 50}kg", f"{back_base + 55}kg"]
+            },
+            {
+                "exercise_name": "T-Bar Rows",
+                "exercise_category": "back",
+                "sets": 3,
+                "reps": [10, 8, 6],
+                "weights": [f"{back_base * 0.9:.1f}kg", f"{back_base * 0.95:.1f}kg", f"{back_base}kg"]
+            },
+            {
+                "exercise_name": "Seated Cable Rows",
+                "exercise_category": "back",
+                "sets": 3,
+                "reps": [12, 10, 8],
+                "weights": ["55kg", "60kg", "65kg"]
+            },
+            {
+                "exercise_name": "Overhead Press",
+                "exercise_category": "shoulders",
+                "sets": 4,
+                "reps": [8, 8, 6, 6],
+                "weights": [f"{shoulder_base}kg", f"{shoulder_base}kg", f"{shoulder_base + 2.5}kg", f"{shoulder_base + 2.5}kg"]
+            },
+            {
+                "exercise_name": "Lateral Raises",
+                "exercise_category": "shoulders",
+                "sets": 3,
+                "reps": [15, 12, 10],
+                "weights": ["12.5kg", "15kg", "17.5kg"]
+            },
+            {
+                "exercise_name": "Rear Delt Flyes",
+                "exercise_category": "shoulders",
+                "sets": 3,
+                "reps": [15, 12, 10],
+                "weights": ["10kg", "12.5kg", "15kg"]
+            },
+            {
+                "exercise_name": "Face Pulls",
+                "exercise_category": "shoulders",
+                "sets": 3,
+                "reps": [20, 18, 15],
+                "weights": ["25kg", "27.5kg", "30kg"]
+            }
+        ]
+        notes += "Back and shoulders feeling solid!"
+    
+    elif weekday == 4:  # Friday - Chest and Full Body (Mobility/Shredded)
+        session_name = f"Week {week} - Chest & Full Body Day"
+        exercises = [
+            {
+                "exercise_name": "Bench Press",
+                "exercise_category": "chest",
+                "sets": 3,
+                "reps": [10, 8, 6],
+                "weights": [f"{bench_weight}kg", f"{bench_weight}kg", f"{bench_weight}kg"]  # Still plateaued
+            },
+            {
+                "exercise_name": "Dumbbell Flyes",
+                "exercise_category": "chest",
+                "sets": 3,
+                "reps": [12, 10, 8],
+                "weights": ["20kg", "22.5kg", "25kg"]
+            },
+            {
+                "exercise_name": "Push-ups",
+                "exercise_category": "chest",
+                "sets": 3,
+                "reps": [20, 15, 12],
+                "weights": ["bodyweight", "bodyweight", "bodyweight"]
+            },
+            {
+                "exercise_name": "Burpees",
+                "exercise_category": "full_body",
+                "sets": 3,
+                "reps": [15, 12, 10],
+                "weights": ["bodyweight", "bodyweight", "bodyweight"]
+            },
+            {
+                "exercise_name": "Mountain Climbers",
+                "exercise_category": "full_body",
+                "sets": 3,
+                "reps": [30, 25, 20],
+                "weights": ["bodyweight", "bodyweight", "bodyweight"]
+            },
+            {
+                "exercise_name": "Plank",
+                "exercise_category": "core",
+                "sets": 3,
+                "reps": [60, 45, 30],  # seconds
+                "weights": ["bodyweight", "bodyweight", "bodyweight"]
+            },
+            {
+                "exercise_name": "Russian Twists",
+                "exercise_category": "core",
+                "sets": 3,
+                "reps": [30, 25, 20],
+                "weights": ["10kg", "12.5kg", "15kg"]
+            },
+            {
+                "exercise_name": "Jump Rope",
+                "exercise_category": "cardio",
+                "sets": 3,
+                "reps": [100, 100, 100],
+                "weights": ["bodyweight", "bodyweight", "bodyweight"]
+            },
+            {
+                "exercise_name": "Battle Ropes",
+                "exercise_category": "full_body",
+                "sets": 3,
+                "reps": [30, 25, 20],  # seconds
+                "weights": ["15kg", "15kg", "15kg"]
+            }
+        ]
+        notes += "Full body shredded session! Bench still stuck though..."
     
     return {
-        "session_name": f"Week {week} - {exercise_name} Day",
-        "session_type": "strength",
-        "exercises": [
-            {
-                "exercise_name": exercise_name,
-                "exercise_category": exercise_category,
-                "sets": sets,
-                "reps": reps,
-                "weights": weights
-            }
-        ],
-        "notes": f"Week {week}, Day {day % 7 + 1} - Feeling strong!",
-        "duration_minutes": 45 + (day % 10),
+        "session_name": session_name,
+        "session_type": session_type,
+        "exercises": exercises,
+        "notes": notes,
+        "duration_minutes": 60 + (weekday * 5) + (week * 2),  # 60-90 minutes
         "occurred_at": (datetime.now(timezone.utc) - timedelta(days=28-day)).isoformat()
     }
 
@@ -317,17 +568,19 @@ def main():
     # Workout logging (4 weeks) - but log fewer to avoid timeouts
     print(f"{Colors.BLUE}5. Workout Logging (4 Weeks - Sampling){Colors.NC}")
     print("-" * 60)
-    print("  Note: Logging 12 workouts (3 per week) to avoid timeouts")
+    print("  Note: Logging 20 workouts (5 per week, Mon-Fri) for realistic training split")
     session_ids = []
     
-    # Log 3 workouts per week (days 1, 3, 5) to get good coverage
+    # Log 5 workouts per week (Mon-Fri) for realistic training split
     for week in range(1, 5):
         print(f"  Week {week}:", end=" ", flush=True)
         week_sessions = []
         
-        for day_offset in [0, 2, 4]:  # Days 1, 3, 5 of each week
+        for day_offset in [0, 1, 2, 3, 4]:  # Monday through Friday
             day = (week-1)*7 + day_offset
             workout_data = generate_workout_data(day, week)
+            if workout_data is None:  # Skip weekends
+                continue
             try:
                 response = make_request("POST", "/log/workout", token, workout_data, retries=1)
                 session_id = response.get("session_id")
