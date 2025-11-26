@@ -3878,9 +3878,10 @@ Generate an analytical insight based on the data above. Include specific numbers
     def preload_user_context(self, user_id: str) -> Dict[str, Any]:
         """
         Pre-load user context for faster chat responses.
-        Called on login to warm up FitAI's memory.
+        Called on login to pre-load user's fitness data, memories, and patterns.
         
         Returns cached context that can be reused for chat requests.
+        Note: OpenAI doesn't require warm-up (always ready), so this only pre-loads context data.
         """
         import time
         cache_ttl = 600  # 10 minutes
@@ -3928,9 +3929,6 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             self._user_context_cache[user_id] = (context_dict, current_time)
             self.logger.info("Pre-loaded context for user %s (FitAI ready!)", user_id)
-            
-            # Note: OpenAI doesn't need warm-up (always ready)
-            # Modal warm-up removed - no longer needed with OpenAI
             
             return context_dict
         except Exception as e:
