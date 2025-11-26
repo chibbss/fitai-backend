@@ -1,5 +1,5 @@
 # Lightweight requirements for Render deployment
-# Excludes PyTorch and heavy ML packages (Modal handles AI inference)
+# Excludes PyTorch and heavy ML packages (OpenAI handles AI inference)
 # This significantly reduces build time and avoids connection timeouts
 
 # FastAPI and web server
