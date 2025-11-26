@@ -728,7 +728,10 @@ async def _transcribe_with_whisper(file: UploadFile) -> str:
         # Prefer new OpenAI SDK (openai>=1.x)
         try:
             from openai import OpenAI  # type: ignore
-            client = OpenAI()
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise RuntimeError("OPENAI_API_KEY not set")
+            client = OpenAI(api_key=api_key)
             bio = io.BytesIO(content)
             # name attribute is expected by some SDK calls
             bio.name = file.filename or "audio.m4a"
