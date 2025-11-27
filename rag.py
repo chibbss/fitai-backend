@@ -288,17 +288,53 @@ class RAGService:
         try:
             from alembic import command
             from alembic.config import Config
+            from alembic.script import ScriptDirectory
+            from alembic.runtime.migration import MigrationContext
             
-            # Get migrations directory path
+            # Get migrations directory path - handle both local and deployed paths
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            migrations_dir = os.path.join(script_dir, "..", "migrations")
-            alembic_cfg = Config(os.path.join(migrations_dir, "alembic.ini"))
+            project_root = os.path.dirname(script_dir)
+            migrations_dir = os.path.join(project_root, "migrations")
+            
+            # Also check root directory (alembic.ini might be at root)
+            alembic_ini_path = os.path.join(project_root, "alembic.ini")
+            if not os.path.exists(alembic_ini_path):
+                # Try migrations directory
+                alembic_ini_path = os.path.join(migrations_dir, "alembic.ini")
+            
+            # Check if migrations directory exists
+            if not os.path.exists(migrations_dir):
+                self.logger.warning("Migrations directory not found at %s - skipping automatic migrations", migrations_dir)
+                return
+            
+            if not os.path.exists(alembic_ini_path):
+                self.logger.warning("alembic.ini not found at %s - skipping automatic migrations", alembic_ini_path)
+                return
+            
+            # Create Alembic config
+            alembic_cfg = Config(alembic_ini_path)
             alembic_cfg.set_main_option("script_location", migrations_dir)
             
             # Set database URL from config
             alembic_cfg.set_main_option("sqlalchemy.url", self.config.database_url)
             
-            self.logger.info("Running database migrations...")
+            # Check current database revision
+            with self.engine.connect() as conn:
+                context = MigrationContext.configure(conn)
+                current_rev = context.get_current_revision()
+                self.logger.info("Current database revision: %s", current_rev)
+            
+            # Get target revision
+            script = ScriptDirectory.from_config(alembic_cfg)
+            head_rev = script.get_current_head()
+            self.logger.info("Target migration revision: %s", head_rev)
+            
+            if current_rev == head_rev:
+                self.logger.info("Database is already at latest revision - no migrations needed")
+                return
+            
+            self.logger.info("Running database migrations from %s (current: %s -> target: %s)...", 
+                           migrations_dir, current_rev, head_rev)
             command.upgrade(alembic_cfg, "head")
             self.logger.info("Database migrations completed successfully")
         except ImportError:
