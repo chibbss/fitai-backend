@@ -1,15 +1,15 @@
 {
-  "timestamp": "2025-11-26T13:01:18.631160+00:00",
+  "timestamp": "2025-11-27T09:48:36.016389+00:00",
   "summary": {
-    "passed": 2,
-    "failed": 1,
-    "warnings": 0
+    "passed": 12,
+    "failed": 0,
+    "warnings": 23
   },
   "tests": [
     {
       "name": "Create test JWT token",
-      "status": "FAIL",
-      "error": "PyJWT not available - install with: pip install PyJWT"
+      "status": "PASS",
+      "result": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb2huLWRvZS1lMmUtdGVzdCIsImVtYWlsIjoiam9obi5kb2UuZTJlQGZpdGFpLnRlc3QiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJ1c2VyX21ldGFkYXRhIjp7InRpZXIiOiJmcmVlIn0sImV4cCI6MTc2NDI0MDIxNywiaWF0IjoxNzY0MjM2NjE3fQ.SMT9XsNKHl3dbV4RdmbTUvTMD9X5pjF6GxsBsYwoGwc"
     },
     {
       "name": "Backend health",
@@ -26,6 +26,771 @@
         "db_ok": true,
         "gen_ok": true
       }
+    },
+    {
+      "name": "Create user profile",
+      "status": "PASS",
+      "result": {
+        "id": "john-doe-e2e-test",
+        "name": "John Doe",
+        "email": "john.doe.e2e@fitai.test",
+        "profile": {
+          "age": 28,
+          "gender": "male",
+          "height": 180,
+          "weight": 75,
+          "experience_level": "intermediate"
+        },
+        "goals": {
+          "timeline": "12 weeks",
+          "primary_goal": "build_muscle",
+          "target_weight": 80
+        },
+        "metadata": {},
+        "created_at": "2025-11-26T12:19:55.207239+00:00",
+        "updated_at": "2025-11-26T12:19:55.207239+00:00"
+      }
+    },
+    {
+      "name": "Onboarding - Goal",
+      "status": "PASS",
+      "result": null
+    },
+    {
+      "name": "Onboarding - Experience",
+      "status": "PASS",
+      "result": null
+    },
+    {
+      "name": "Onboarding - Training Style",
+      "status": "PASS",
+      "result": null
+    },
+    {
+      "name": "Week 1, Day 1",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 1, Day 2",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 1, Day 3",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 1, Day 4",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 1, Day 5",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 2, Day 1",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 2, Day 2",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 2, Day 3",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 2, Day 4",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 2, Day 5",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 3, Day 1",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 3, Day 2",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 3, Day 3",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 3, Day 4",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 3, Day 5",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 4, Day 1",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 4, Day 2",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 4, Day 3",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 4, Day 4",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Week 4, Day 5",
+      "status": "WARN",
+      "message": "Invalid response: <class 'NoneType'>"
+    },
+    {
+      "name": "Workout logging",
+      "status": "WARN",
+      "message": "No workouts logged - cannot test insights/stats"
+    },
+    {
+      "name": "Insights & Analytics",
+      "status": "WARN",
+      "message": "Skipped - no workouts logged"
+    },
+    {
+      "name": "Get workout calendar",
+      "status": "PASS",
+      "result": {
+        "items": [
+          {
+            "session_id": "9e156fd5-b80b-4078-88ba-14de44b07fa3",
+            "session_name": "Week 4 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T12:33:41.208938+00:00",
+            "duration_minutes": 50,
+            "notes": "Week 4, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1700.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "98fdbf4d-4c3e-4901-a943-0a0f4c390726",
+            "session_name": "Week 4 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T12:28:40.622167+00:00",
+            "duration_minutes": 50,
+            "notes": "Week 4, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1700.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "87f4ce1b-88e5-47a9-b357-41046aa2a767",
+            "session_name": "Week 4 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T12:33:35.302404+00:00",
+            "duration_minutes": 48,
+            "notes": "Week 4, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2816.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "dd202f0c-ace4-4e0f-baab-65e55fdc9a91",
+            "session_name": "Week 4 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T12:28:35.705320+00:00",
+            "duration_minutes": 48,
+            "notes": "Week 4, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2816.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "8e59c187-3c7f-48ac-bcd4-8479c26bc8d1",
+            "session_name": "Week 4 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-19T12:33:29.627813+00:00",
+            "duration_minutes": 46,
+            "notes": "Week 4, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1727.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "59925203-7897-42a9-9ab0-b549a126ff6e",
+            "session_name": "Week 4 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-19T12:28:30.804876+00:00",
+            "duration_minutes": 46,
+            "notes": "Week 4, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1727.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "e68f4b6f-c588-427c-8787-fbe126106981",
+            "session_name": "Week 3 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-16T12:33:22.197419+00:00",
+            "duration_minutes": 53,
+            "notes": "Week 3, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1855.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "a20521bd-1b53-4bb0-9004-0a1f989b4b20",
+            "session_name": "Week 3 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-16T12:28:25.874619+00:00",
+            "duration_minutes": 53,
+            "notes": "Week 3, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1855.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "fcac36df-0687-471a-a894-6e8735826411",
+            "session_name": "Week 3 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-14T12:33:14.707954+00:00",
+            "duration_minutes": 51,
+            "notes": "Week 3, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1842.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "3e7cbfb6-4760-4e9b-9957-3de756e61c32",
+            "session_name": "Week 3 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-14T12:28:20.883643+00:00",
+            "duration_minutes": 51,
+            "notes": "Week 3, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1842.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "e9f24453-b8ab-43c9-b29b-aa3dcbd1123d",
+            "session_name": "Week 3 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-12T12:33:09.703595+00:00",
+            "duration_minutes": 49,
+            "notes": "Week 3, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2980.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "75311b78-233b-48a2-85db-e2632d0af995",
+            "session_name": "Week 3 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-12T12:28:16.000394+00:00",
+            "duration_minutes": 49,
+            "notes": "Week 3, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2980.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "d1236076-6e01-4f7b-993d-fdaf53f24e05",
+            "session_name": "Week 2 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-09T12:33:04.861020+00:00",
+            "duration_minutes": 46,
+            "notes": "Week 2, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2830.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "cf920794-fb79-4934-9a13-5832eecb417f",
+            "session_name": "Week 2 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-09T12:28:10.796671+00:00",
+            "duration_minutes": 46,
+            "notes": "Week 2, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2830.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "a498ba7c-8810-4351-a678-a537dae92942",
+            "session_name": "Week 2 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-09T12:26:26.263422+00:00",
+            "duration_minutes": 46,
+            "notes": "Week 2, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2830.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "3d8f3095-b718-43b1-8999-d49bdd8e4f5d",
+            "session_name": "Week 2 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-07T12:32:59.711298+00:00",
+            "duration_minutes": 54,
+            "notes": "Week 2, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1735.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "31253ab7-a203-43b4-b312-5ea02fb66c66",
+            "session_name": "Week 2 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-07T12:28:05.927404+00:00",
+            "duration_minutes": 54,
+            "notes": "Week 2, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1735.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "f1b5af95-df49-4c14-8c40-a43d6bcd1c56",
+            "session_name": "Week 2 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-07T12:26:21.310926+00:00",
+            "duration_minutes": 54,
+            "notes": "Week 2, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1735.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "9e178727-e50d-4c61-b4ca-e061daea3c44",
+            "session_name": "Week 2 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-05T12:32:54.766998+00:00",
+            "duration_minutes": 52,
+            "notes": "Week 2, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1757.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "6ce7a1d1-00e3-4338-8e2e-bcd7d68fee3c",
+            "session_name": "Week 2 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-05T12:28:00.742820+00:00",
+            "duration_minutes": 52,
+            "notes": "Week 2, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1757.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "1fba0d3b-dca1-4b7f-83ac-6bdd098348f5",
+            "session_name": "Week 2 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-05T12:26:16.009035+00:00",
+            "duration_minutes": 52,
+            "notes": "Week 2, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1757.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "8d5afbf1-6b27-4455-aa95-b2b62823890e",
+            "session_name": "Week 1 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-02T12:32:49.058847+00:00",
+            "duration_minutes": 49,
+            "notes": "Week 1, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1869.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "71a5d68e-60ac-431d-a533-c7f576db4948",
+            "session_name": "Week 1 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-02T12:27:55.833079+00:00",
+            "duration_minutes": 49,
+            "notes": "Week 1, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1869.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "3c4aae7b-3e13-4d97-abad-cb72a4432130",
+            "session_name": "Week 1 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-02T12:26:11.002153+00:00",
+            "duration_minutes": 49,
+            "notes": "Week 1, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1869.0,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "8c615271-3a1c-4f04-b9b9-3597cd0c27a3",
+            "session_name": "Week 1 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-10-31T12:32:44.166781+00:00",
+            "duration_minutes": 47,
+            "notes": "Week 1, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2948.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "12ab99d5-8348-48c7-b9f6-bad249ab8a59",
+            "session_name": "Week 1 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-10-31T12:27:50.959047+00:00",
+            "duration_minutes": 47,
+            "notes": "Week 1, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2948.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "830cfca4-cd8f-497c-bdb0-042a3b2a25a7",
+            "session_name": "Week 1 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-10-31T12:26:06.059165+00:00",
+            "duration_minutes": 47,
+            "notes": "Week 1, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2948.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "heavy"
+          },
+          {
+            "session_id": "b999823f-bd39-499e-8f08-15c249b36bc7",
+            "session_name": "Week 1 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-10-29T12:32:39.031830+00:00",
+            "duration_minutes": 45,
+            "notes": "Week 1, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1817.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "5bac8ae1-602f-44da-973d-4dcfe1a64709",
+            "session_name": "Week 1 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-10-29T12:27:45.683595+00:00",
+            "duration_minutes": 45,
+            "notes": "Week 1, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1817.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "8a9ce21b-279c-46a5-b1cb-63cfa8411332",
+            "session_name": "Week 1 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-10-29T12:26:01.006881+00:00",
+            "duration_minutes": 45,
+            "notes": "Week 1, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1817.5,
+            "exercise_count": 1,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Get weekly summary",
+      "status": "WARN",
+      "message": "Skipped - no workouts logged"
+    },
+    {
+      "name": "Preload user context",
+      "status": "PASS",
+      "result": {
+        "user_id": "john-doe-e2e-test",
+        "status": "preloading",
+        "message": "FitAI is booting up and remembering you... Context will be ready shortly."
+      }
+    },
+    {
+      "name": "Chat with FitAI",
+      "status": "PASS",
+      "result": null
+    },
+    {
+      "name": "Get user memories",
+      "status": "PASS",
+      "result": {
+        "items": [
+          {
+            "id": "759c0ffb-ff6e-4b53-b79a-7693190d75f2",
+            "summary": "coach: You're making great progress, but I want to focus on your weaknesses. You're still struggling with your squat form. \nuser: I'm not sure I agree with that. I feel like I've made a lot of progress. \ncoach: I understand where you're coming from, but let's take a look at the video footage from last week's session. \nuser: Okay, I'll take a look. I'm a bit frustrated, though. I feel like I'm doing everything right. \ncoach: I'm not saying you're not, but let's analyze the footage together and see if we can identify any areas for improvement. \nuser: Alright, let's do it. I'm just worried that I'm going to get discouraged if I see something I don't like. \ncoach: That's a valid concern, but I want to emphasize that we're not trying to criticize you, we're trying to help you improve. \n\n## Step 1: Identify the key points of the conversation\nThe conversation revolves around the user's progress in a fitness program, specifically their squat form. The coach wants to focus on weaknesses, but the user feels they've made progress and is frustrated.\n\n## Step 2: Determine the user's",
+            "source": "conversation_summary",
+            "metadata": {
+              "days": 7,
+              "redacted": true,
+              "created_at": "2025-11-26T12:37:05.683021+00:00",
+              "message_count": 1,
+              "date_range_end": "2025-11-26T12:36:37.114429+00:00",
+              "date_range_start": "2025-11-26T12:36:37.114429+00:00"
+            },
+            "updated_at": "2025-11-26 12:36:40.100431+00:00"
+          },
+          {
+            "id": "4cbf8571-b9fb-4b5f-b716-a7bfe8ca60a0",
+            "summary": "Workout: Week 4 - Leg Press Day; Type: strength; Exercises: Leg Press; Notes: Leg Press is a great exercise for targeting the quadriceps.\n\nWorkout: Week 4 - Chest Press Day; Type: strength; Exercises: Chest Press; Notes: Chest Press is a great exercise for targeting the chest muscles.\n\nWorkout: Week 4 - Shoulder Press Day; Type: strength; Exercises: Shoulder Press; Notes: Shoulder Press is a great exercise for targeting the shoulder muscles.\n\nWorkout: Week 4 - Bicep Curl Day; Type: strength; Exercises: Bicep Curl; Notes: Bicep Curls are a great exercise for targeting the bicep muscles.\n\nWorkout: Week 4 - Tricep Extension Day; Type: strength; Exercises: Tricep Extension; Notes: Tricep Extensions are a great exercise for targeting the tricep muscles.\n\nWorkout: Week 4 - Back Day; Type: strength; Exercises: Pull-up, Barbell Row; Notes: Back Day is a great way to target the back muscles.\n\nWorkout: Week 4 - Core Day; Type: strength; Exercises: Plank, Russian Twist; Notes: Core Day is a great way to",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 15,
+              "milestone": 25,
+              "created_at": "2025-11-26T12:33:33.649791+00:00",
+              "window_size": 15,
+              "date_range_end": "2025-11-26T12:32:38.110730+00:00",
+              "date_range_start": "2025-11-19T12:28:30.804876+00:00"
+            },
+            "updated_at": "2025-11-26 12:33:21.832040+00:00"
+          },
+          {
+            "id": "6b97dc63-a100-4ac1-8502-29d56375be94",
+            "summary": "Workout: Week 4 - Leg Press Day; Type: strength; Exercises: Leg Press; Notes: Leg Press is a great exercise for legs.\n\nWorkout: Week 4 - Chest Press Day; Type: strength; Exercises: Chest Press; Notes: Chest Press is a great exercise for chest.\n\nWorkout: Week 4 - Shoulder Press Day; Type: strength; Exercises: Shoulder Press; Notes: Shoulder Press is a great exercise for shoulders.\n\nWorkout: Week 4 - Bicep Curl Day; Type: strength; Exercises: Bicep Curl; Notes: Bicep Curls are a great exercise for biceps.\n\nWorkout: Week 4 - Tricep Extension Day; Type: strength; Exercises: Tricep Extension; Notes: Tricep Extensions are a great exercise for triceps.\n\nWorkout: Week 4 - Back Day; Type: strength; Exercises: Deadlift, Bent Over Row, Pull Up; Notes: Back Day is a great day to work on back muscles.\n\nWorkout: Week 4 - Core Day; Type: strength; Exercises: Plank, Russian Twist; Notes: Core Day is a great day to work on core muscles.\n\nWorkout: Week 4 - Cardio Day",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 15,
+              "milestone": 25,
+              "created_at": "2025-11-26T12:33:24.358328+00:00",
+              "window_size": 15,
+              "date_range_end": "2025-11-26T12:32:38.110730+00:00",
+              "date_range_start": "2025-11-19T12:28:30.804876+00:00"
+            },
+            "updated_at": "2025-11-26 12:33:14.336289+00:00"
+          },
+          {
+            "id": "312081f2-56c4-4484-8255-5841f4e01d4e",
+            "summary": "Increased weight by 5lbs. \n\nWorkout: Week 4 - Chest Day; Type: strength; Exercises: Bench Press, Incline Dumbbell Press; Notes: Week 4, Day 3 - Feeling good, but struggled with form on incline press. Need to work on that. \n\nWorkout: Week 4 - Back Day; Type: strength; Exercises: Pull-ups, Barbell Rows; Notes: Week 4, Day 2 - Had a great workout today! Increased weight on rows by 10lbs. \n\nWorkout: Week 4 - Leg Day; Type: strength; Exercises: Squats, Leg Press; Notes: Week 4, Day 1 - Feeling strong today! Increased weight on squats by 5lbs. \n\nWorkout: Week 3 - Chest Day; Type: strength; Exercises: Bench Press, Incline Dumbbell Press; Notes: Week 3, Day 3 - Had a tough workout today. Struggled with form on incline press again. \n\nWorkout: Week 3 - Back Day; Type: strength; Exercises: Pull-ups, Barbell Rows; Notes: Week 3, Day 2 - Had a great workout today! Increased weight on rows",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-26T12:32:22.061875+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-26T12:27:44.808624+00:00",
+              "date_range_start": "2025-11-23T12:28:40.622167+00:00"
+            },
+            "updated_at": "2025-11-26 12:31:56.171984+00:00"
+          },
+          {
+            "id": "12cb0a0f-38d1-4cfc-a8cf-977c6dd6ba37",
+            "summary": "Workout: Week 1 - Squat Day; Type: strength; Exercises: Squat; Notes: Week 1, Day 3 - Feeling strong!\n\nWorkout: Week 1 - Bench Press Day; Type: strength; Exercises: Bench Press; Notes: Week 1, Day 1 - Feeling strong!\n\nThis user is an intermediate strength trainer who prefers strength training and is focused on building muscle. They have been consistently feeling strong throughout their workouts, indicating a good level of physical fitness and adherence to their training plan. \n\nHere is a rewritten version of the summary in 2-4 short sentences:\n\nThis intermediate strength trainer is focused on building muscle and prefers strength training. They have been consistently feeling strong throughout their workouts, indicating a good level of physical fitness. Their training plan appears to be going well, with a focus on exercises like squats, bench press, and deadlifts. They have been working out regularly, with a full week of strength training exercises completed. \n\nNote: I removed the phrase \"indicating a good level of physical fitness and adherence to their training plan\" as it was not necessary and made the summary a bit wordy. I also removed the phrase \"with a focus on exercises like squats, bench press,",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-26T12:27:29.033341+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-26T12:26:00.123902+00:00",
+              "date_range_start": "2025-11-02T12:26:11.002153+00:00"
+            },
+            "updated_at": "2025-11-26 12:27:18.150212+00:00"
+          },
+          {
+            "id": "d540a8b7-b3fa-4abe-ae75-338bbfae51bf",
+            "summary": "Training log for week 1:\n- Monday: Chest and Triceps\n  - Barbell Bench Press (3 sets of 8-12 reps)\n  - Incline Dumbbell Press (3 sets of 10-15 reps)\n  - Tricep Pushdowns (3 sets of 12-15 reps)\n  - Tricep Dips (3 sets of 12-15 reps)\n- Tuesday: Back and Biceps\n  - Pull-ups (3 sets of 8-12 reps)\n  - Barbell Rows (3 sets of 8-12 reps)\n  - Dumbbell Bicep Curls (3 sets of 10-15 reps)\n  - Hammer Curls (3 sets of 10-15 reps)\n- Wednesday: Rest day\n- Thursday: Legs\n  - Squats (3 sets of 8-12 reps)\n  - Leg Press (3 sets of 10-15 reps)\n  - Lunges (3 sets of 10-15 reps)\n  - Leg Extensions (3 sets of 12-15 reps)\n- Friday: Shoulders and Abs\n  - Dumbbell Shoulder Press (3 sets of 8-12 reps)\n  - Lateral Raises (3",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 3,
+              "created_at": "2025-11-26T12:25:43.553465+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-26T12:20:29.030490+00:00",
+              "date_range_start": "2025-11-26T12:20:17.775905+00:00"
+            },
+            "updated_at": "2025-11-26 12:24:51.697981+00:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Refresh user memory",
+      "status": "PASS",
+      "result": null
     }
   ]
 }

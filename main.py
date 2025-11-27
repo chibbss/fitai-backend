@@ -490,38 +490,6 @@ class ReadinessResponse(BaseModel):
     gen_ok: bool
 
 
-@app.head("/readiness")
-@app.get("/metrics/modal", response_model=Dict[str, Any])
-async def get_modal_metrics() -> Dict[str, Any]:
-    """
-    Get Modal service metrics for monitoring cold start frequency.
-    Useful for beta testing to determine if keep-warm strategy is needed.
-    """
-    try:
-        metrics = rag_service._metrics
-        total_requests = metrics.get("modal_cold_starts", 0) + metrics.get("modal_warm_requests", 0)
-        cold_start_rate = 0.0
-        if total_requests > 0:
-            cold_start_rate = (metrics.get("modal_cold_starts", 0) / total_requests) * 100
-        
-        return {
-            "modal_metrics": {
-                "cold_starts": metrics.get("modal_cold_starts", 0),
-                "warm_requests": metrics.get("modal_warm_requests", 0),
-                "total_requests": total_requests,
-                "cold_start_rate_percent": round(cold_start_rate, 2),
-                "warm_ups_triggered": metrics.get("modal_warm_ups_triggered", 0),
-                "warm_ups_succeeded": metrics.get("modal_warm_ups_succeeded", 0),
-            },
-            "recommendation": (
-                "Consider keeping Modal warm" if cold_start_rate > 20.0 else "Current setup is working well"
-            ) if total_requests > 0 else "No data yet",
-        }
-    except Exception as e:
-        logger.error("/metrics/modal error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
-
-
 @app.get("/readiness", response_model=ReadinessResponse)
 async def readiness() -> ReadinessResponse:
     db_ok = False

@@ -260,20 +260,20 @@ class RAGService:
         with self._lock:
             self.logger.info("Starting up RAG service")
             try:
-                self._init_db()
+            self._init_db()
             except Exception as e:
                 self.logger.error("Failed to initialize database: %s", e)
                 raise  # Database is critical, fail if it doesn't work
             
             try:
-                self._init_models()
+            self._init_models()
             except Exception as e:
                 self.logger.error("Failed to initialize models: %s", e)
                 # Models are not critical for health check, but log the error
                 # The app can still start and health check will work
             
             try:
-                self._init_redis()
+            self._init_redis()
             except Exception as e:
                 self.logger.warning("Failed to initialize Redis: %s", e)
                 # Redis is optional, continue without it
@@ -329,22 +329,22 @@ class RAGService:
             # Lazy import to save memory when using remote backends
             from sentence_transformers import SentenceTransformer
             import torch
-            device_str = self._resolve_torch_device()
-            self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
+        device_str = self._resolve_torch_device()
+        self.logger.info("Loading embedding model %s on %s", self.config.embedding_model_name, device_str)
             try:
-                self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
+        self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
             except Exception as e:
                 self.logger.warning("Failed to load embedding model: %s", e)
                 self.embedding_model = None
 
-            # Tokenizer for chunking
-            try:
-                from transformers import AutoTokenizer as HFTokenizer
-                self.embedding_tokenizer = HFTokenizer.from_pretrained(
-                    self.config.embedding_model_name, use_fast=True
-                )
-            except Exception:
-                self.embedding_tokenizer = None
+        # Tokenizer for chunking
+        try:
+            from transformers import AutoTokenizer as HFTokenizer
+            self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                self.config.embedding_model_name, use_fast=True
+            )
+        except Exception:
+            self.embedding_tokenizer = None
         elif self.config.embedding_provider == "modal":
             self.logger.info("Using REMOTE embedding provider (Modal) at %s", self.config.remote_embed_url)
             if not self.config.remote_embed_url:
@@ -427,12 +427,12 @@ class RAGService:
 
             # Phi-3 models may require authentication
             try:
-                self.generator_tokenizer = AutoTokenizer.from_pretrained(
-                    self.config.hf_model_id, token=token, trust_remote_code=True
-                )
-                self.generator_model = AutoModelForCausalLM.from_pretrained(
-                    self.config.hf_model_id, token=token, device_map=None, **model_kwargs
-                )
+            self.generator_tokenizer = AutoTokenizer.from_pretrained(
+                self.config.hf_model_id, token=token, trust_remote_code=True
+            )
+            self.generator_model = AutoModelForCausalLM.from_pretrained(
+                self.config.hf_model_id, token=token, device_map=None, **model_kwargs
+            )
             except OSError as e:
                 if "401" in str(e) or "Unauthorized" in str(e):
                     self.logger.error(
@@ -469,7 +469,7 @@ class RAGService:
             self.generator_pipe = None
 
         # Reranker: Only load locally if using local backend
-        if self.config.reranker_backend == "local":
+            if self.config.reranker_backend == "local":
             try:
                 # Lazy import only when using local reranker
                 try:
@@ -490,8 +490,8 @@ class RAGService:
                     # sentence-transformers CrossEncoder accepts device identifier; map 'cuda' to 0
                     device_arg = 0 if (device_str == "cuda" and torch.cuda.is_available()) else device_str
                     self._reranker_model = CrossEncoder(self.config.reranker_model_name, device=device_arg)  # type: ignore
-            except Exception as e:
-                self.logger.error("Failed to initialize reranker: %s", e)
+        except Exception as e:
+            self.logger.error("Failed to initialize reranker: %s", e)
                 self._reranker_model = None
         elif self.config.reranker_backend == "remote":
             self.logger.info("Using REMOTE reranker backend at %s", self.config.reranker_remote_url)
@@ -748,13 +748,13 @@ class RAGService:
             # Try Modal first (preferred - faster, GPU)
             if self.config.remote_embed_url:
                 try:
-                    resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
-                    resp.raise_for_status()
-                    data = resp.json()
-                    vecs = data.get("embeddings") or data.get("data")
-                    if not vecs:
-                        raise RuntimeError("Remote embed response missing 'embeddings'")
-                    return np.array(vecs, dtype="float32")
+            resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
+            resp.raise_for_status()
+            data = resp.json()
+            vecs = data.get("embeddings") or data.get("data")
+            if not vecs:
+                raise RuntimeError("Remote embed response missing 'embeddings'")
+            return np.array(vecs, dtype="float32")
                 except Exception as e:
                     # Fallback to local embeddings if Modal fails - ensures "never forgets"
                     if self.embedding_model is not None:
@@ -1016,7 +1016,7 @@ class RAGService:
         # Embedding is required for "never forgets" - always generated (Modal with local fallback)
         embedding = None
         try:
-            embedding = self._embed([text])[0].tolist()
+        embedding = self._embed([text])[0].tolist()
         except Exception as e:
             # This should never happen with fallback
             self.logger.error("CRITICAL: Failed to generate embedding for training log even with fallback: %s", e, exc_info=True)
@@ -1170,7 +1170,7 @@ class RAGService:
                 # Create training log for semantic retrieval - REQUIRED for "never forgets"
                 # Embedding is always generated (Modal with local fallback ensures this)
                 try:
-                    embedding = self._embed([summary_text])[0].tolist()
+                embedding = self._embed([summary_text])[0].tolist()
                 except Exception as e:
                     # This should never happen with fallback, but log if it does
                     self.logger.error("CRITICAL: Failed to generate embedding even with fallback: %s", e, exc_info=True)
@@ -2890,9 +2890,9 @@ Generate an analytical insight based on the data above. Include specific numbers
                                 
                                 pr_message = self._generate_insight_message("pr_context", pr_context)
                                 
-                                insights.append({
-                                    "exercise": exercise_name,
-                                    "status": "pr",
+                            insights.append({
+                                "exercise": exercise_name,
+                                "status": "pr",
                                     "message": pr_message,
                                     "weight_increase": weight_increase,
                                 })
@@ -2931,11 +2931,11 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Fallback if generation fails - analytical fallbacks
             if not overall_message or overall_message == "Great work on exercise!":
-                if avg_delta > 10:
+            if avg_delta > 10:
                     overall_message = f"Session volume increased by {avg_delta:+.1f}% vs previous session. Strong progression pattern."
-                elif avg_delta > 0:
+            elif avg_delta > 0:
                     overall_message = f"Volume up {avg_delta:+.1f}% from last session. Maintaining positive trajectory."
-                elif avg_delta < -10:
+            elif avg_delta < -10:
                     overall_message = f"Volume decreased {abs(avg_delta):.1f}% vs previous session. Lower intensity may indicate recovery need."
                 else:
                     overall_message = f"Session volume maintained (±{abs(avg_delta):.1f}% change). Consistent performance."
@@ -4249,7 +4249,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
         else:
             # Fallback: load context on-demand (slower, but works if preload wasn't called)
-            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
             memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
@@ -4535,7 +4535,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 try:
                     text = self.tokenizer.decode(recent_tokens, skip_special_tokens=True)
                     # Only check stop strings that might appear in recent text
-                    return any(s in text for s in self.stop_strings)
+                return any(s in text for s in self.stop_strings)
                 except Exception:
                     return False
 
@@ -4681,7 +4681,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
         else:
             # Fallback: load context on-demand
-            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
             memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
@@ -5068,8 +5068,9 @@ class ChunkModel(Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
-    # Embedding dimension set for MiniLM-L6-v2 (384). Adjust if you change the embedding model.
-    embedding: Mapped[Any] = mapped_column(Vector(384), nullable=False)
+    # Embedding dimension set for OpenAI text-embedding-3-small (1536). Adjust if you change the embedding model.
+    # Note: Using 'small' instead of 'large' (3072) because HNSW index limit is 2000 dimensions.
+    embedding: Mapped[Any] = mapped_column(Vector(1536), nullable=False)
     created_at: Mapped[Optional[str]] = mapped_column(server_default=sql_text("now()"))
 
     document: Mapped[DocumentModel] = relationship(back_populates="chunks")
@@ -5099,7 +5100,7 @@ class TrainingLogModel(Base):
     occurred_at: Mapped[Optional[datetime]] = mapped_column()
     notes: Mapped[str] = mapped_column(Text, nullable=False)
     meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
-    embedding: Mapped[Any] = mapped_column(Vector(384), nullable=False)
+    embedding: Mapped[Any] = mapped_column(Vector(1536), nullable=False)
     created_at: Mapped[Optional[str]] = mapped_column(server_default=sql_text("now()"))
 
 
@@ -5110,7 +5111,7 @@ class UserMemoryModel(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), index=True)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
-    embedding: Mapped[Any] = mapped_column(Vector(384), nullable=False)
+    embedding: Mapped[Any] = mapped_column(Vector(1536), nullable=False)
     source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[Optional[str]] = mapped_column(server_default=sql_text("now()"))
     updated_at: Mapped[Optional[str]] = mapped_column(server_default=sql_text("now()"))

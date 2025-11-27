@@ -127,12 +127,26 @@ def make_request(method: str, endpoint: str, token: Optional[str] = None,
             else:
                 raise ValueError(f"Unsupported method: {method}")
             
-            assert response.status_code == expected_status, \
-                f"Expected {expected_status}, got {response.status_code}: {response.text[:200]}"
+            # Check status code
+            if response.status_code != expected_status:
+                error_msg = f"Expected {expected_status}, got {response.status_code}: {response.text[:200]}"
+                # Retry on 502/503 errors
+                if response.status_code in (502, 503) and attempt < retries:
+                    wait_time = (attempt + 1) * 10
+                    print(f"\n    Retry {attempt + 1}/{retries} after {wait_time}s (backend returned {response.status_code}, may be cold start)...")
+                    time.sleep(wait_time)
+                    continue
+                raise AssertionError(error_msg)
             
             if response.status_code == 204:
                 return {}
-            return response.json()
+            
+            # Try to parse JSON
+            try:
+                return response.json()
+            except ValueError:
+                raise ValueError(f"Invalid JSON response: {response.text[:200]}")
+                
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
             last_error = e
             if attempt < retries:
@@ -142,20 +156,20 @@ def make_request(method: str, endpoint: str, token: Optional[str] = None,
             else:
                 raise
         except AssertionError as e:
-            # Check if it's a 502/503 error that we should retry
-            error_str = str(e)
-            if ("503" in error_str or "502" in error_str) and attempt < retries:
-                wait_time = (attempt + 1) * 10
-                print(f"\n    Retry {attempt + 1}/{retries} after {wait_time}s (backend returned 502/503, may be cold start)...")
-                time.sleep(wait_time)
-                continue
+            # Re-raise if we've exhausted retries
+            if attempt >= retries:
                 raise
+            # Otherwise continue to retry (already handled above)
+            last_error = e
         except Exception as e:
             last_error = e
-            raise
+            if attempt >= retries:
+                raise
     
+    # Should never reach here, but just in case
     if last_error:
         raise last_error
+    raise RuntimeError("make_request failed for unknown reason")
 
 
 def generate_workout_data(day: int, week: int) -> Dict:
@@ -583,11 +597,18 @@ def main():
                 continue
             try:
                 response = make_request("POST", "/log/workout", token, workout_data, retries=1)
-                session_id = response.get("session_id")
-                if session_id:
-                    week_sessions.append(session_id)
-                    session_ids.append(session_id)
-                print(".", end="", flush=True)
+                if response and isinstance(response, dict):
+                    session_id = response.get("session_id")
+                    if session_id:
+                        week_sessions.append(session_id)
+                        session_ids.append(session_id)
+                        print(".", end="", flush=True)
+                    else:
+                        print(f"{Colors.RED}X{Colors.NC}", end="", flush=True)
+                        warn(f"Week {week}, Day {day_offset + 1}", "No session_id in response")
+                else:
+                    print(f"{Colors.RED}X{Colors.NC}", end="", flush=True)
+                    warn(f"Week {week}, Day {day_offset + 1}", f"Invalid response: {type(response)}")
                 time.sleep(1)  # Rate limiting
             except Exception as e:
                 print(f"{Colors.RED}X{Colors.NC}", end="", flush=True)

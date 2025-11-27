@@ -56,7 +56,7 @@ class AppConfig(BaseModel):
     remote_embed_url: Optional[str] = None
     remote_embed_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
-    openai_embed_model: str = "text-embedding-3-large"
+    openai_embed_model: str = "text-embedding-3-small"  # Using 'small' (1536 dims) instead of 'large' (3072) due to HNSW index limit of 2000
     load_local_embedding_fallback: bool = True  # Load local model as fallback when using Modal (for "never forgets"). Set False on memory-constrained environments.
 
     # Reranker configuration
@@ -115,7 +115,7 @@ def get_config() -> AppConfig:
         remote_embed_url=os.getenv("REMOTE_EMBED_URL") or None,
         remote_embed_api_key=os.getenv("REMOTE_EMBED_API_KEY") or None,
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
-        openai_embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-large"),
+        openai_embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small"),  # Using 'small' (1536 dims) instead of 'large' (3072) due to HNSW index limit of 2000
         load_local_embedding_fallback=os.getenv("LOAD_LOCAL_EMBEDDING_FALLBACK", "1") in ("1", "true", "True", "yes"),
         reranker_backend=os.getenv("RERANKER_BACKEND", "none"),  # Default to none (no torch needed)
         reranker_model_name=os.getenv("RERANKER_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
