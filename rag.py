@@ -294,22 +294,49 @@ class RAGService:
             # Get migrations directory path - handle both local and deployed paths
             script_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(script_dir)
-            migrations_dir = os.path.join(project_root, "migrations")
             
-            # Also check root directory (alembic.ini might be at root)
-            alembic_ini_path = os.path.join(project_root, "alembic.ini")
-            if not os.path.exists(alembic_ini_path):
-                # Try migrations directory
+            # Try multiple possible paths for migrations directory
+            possible_migrations_dirs = [
+                os.path.join(project_root, "migrations"),  # Standard: project_root/migrations
+                os.path.join(script_dir, "migrations"),    # Alternative: src/migrations
+                os.path.join(project_root, "src", "migrations"),  # Render: project/src/migrations
+                "migrations",  # Current working directory
+            ]
+            
+            # Try multiple possible paths for alembic.ini
+            possible_alembic_ini_paths = [
+                os.path.join(project_root, "alembic.ini"),  # Root level
+                os.path.join(script_dir, "alembic.ini"),    # src/ level
+                "alembic.ini",  # Current working directory
+            ]
+            
+            migrations_dir = None
+            alembic_ini_path = None
+            
+            # Find migrations directory
+            for path in possible_migrations_dirs:
+                if os.path.exists(path) and os.path.isdir(path):
+                    migrations_dir = path
+                    self.logger.info("Found migrations directory at: %s", migrations_dir)
+                    break
+            
+            # Find alembic.ini
+            for path in possible_alembic_ini_paths:
+                if os.path.exists(path) and os.path.isfile(path):
+                    alembic_ini_path = path
+                    self.logger.info("Found alembic.ini at: %s", alembic_ini_path)
+                    break
+            
+            if not migrations_dir:
+                self.logger.warning("Migrations directory not found in any of: %s - skipping automatic migrations", possible_migrations_dirs)
+                return
+            
+            if not alembic_ini_path:
+                # If alembic.ini not found, try in migrations directory
                 alembic_ini_path = os.path.join(migrations_dir, "alembic.ini")
-            
-            # Check if migrations directory exists
-            if not os.path.exists(migrations_dir):
-                self.logger.warning("Migrations directory not found at %s - skipping automatic migrations", migrations_dir)
-                return
-            
-            if not os.path.exists(alembic_ini_path):
-                self.logger.warning("alembic.ini not found at %s - skipping automatic migrations", alembic_ini_path)
-                return
+                if not os.path.exists(alembic_ini_path):
+                    self.logger.warning("alembic.ini not found - skipping automatic migrations")
+                    return
             
             # Create Alembic config
             alembic_cfg = Config(alembic_ini_path)
