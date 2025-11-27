@@ -408,7 +408,10 @@ class RAGService:
         if self.config.openai_api_key:
             try:
                 from openai import OpenAI
-                self._openai_client = OpenAI(api_key=self.config.openai_api_key)
+                self._openai_client = OpenAI(
+                    api_key=self.config.openai_api_key,
+                    timeout=30.0,  # 30 second timeout for all requests
+                )
                 self.logger.info("OpenAI client initialized")
             except ImportError:
                 self.logger.warning("OpenAI package not installed. pip install openai")
@@ -4519,7 +4522,6 @@ Generate an analytical insight based on the data above. Include specific numbers
                         messages=messages,
                         max_tokens=max_new_tokens or self.config.max_new_tokens,
                         temperature=temperature if temperature is not None else self.config.temperature,
-                        timeout=30.0,  # 30 second timeout
                     )
                     ans = response.choices[0].message.content.strip()
                     break  # Success, exit retry loop

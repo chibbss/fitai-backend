@@ -1507,6 +1507,65 @@ async def get_session_volume(
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
+class WeeklySummaryDayItem(BaseModel):
+    date: str
+    day_name: str  # "Mon", "Tue", etc.
+    day_number: int
+    has_workout: bool
+    session_id: Optional[str] = None
+    volume_kg: float = 0.0
+    intensity_level: str = "light"  # light | medium | heavy | very_heavy
+    has_pr: bool = False
+    exercise_count: int = 0
+
+
+class WeeklySummaryResponse(BaseModel):
+    days: List[WeeklySummaryDayItem]  # Always 7 days (Mon-Sun)
+    week_start: str
+    week_end: str
+    is_current_week: bool
+
+
+@app.get("/workouts/weekly-summary", response_model=WeeklySummaryResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_STATS", "120/minute"))
+async def get_weekly_summary(
+    request: Request,
+    user: AuthUser = Depends(get_current_user),
+    start_date: Optional[str] = Query(None, description="ISO date for week start (Monday). Defaults to current week. Swipe to get next/previous week."),
+) -> WeeklySummaryResponse:
+    """
+    Get 7 individual days (Mon-Sun) for horizontal scrolling strip.
+    Returns one week of days. Frontend swipes to get next/previous week.
+    
+    Each day includes:
+    - Date, day name (Mon/Tue/etc.), day number
+    - Workout status (has_workout, session_id)
+    - Volume, intensity level, PR flag, exercise count
+    
+    Usage:
+    - Initial load: GET /workouts/weekly-summary (returns current week)
+    - Swipe left (next week): GET /workouts/weekly-summary?start_date=2025-11-18
+    - Swipe right (previous week): GET /workouts/weekly-summary?start_date=2025-11-04
+    """
+    try:
+        from datetime import datetime
+        start_dt = None
+        if start_date:
+            try:
+                start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            except Exception:
+                pass
+        
+        result = rag_service.get_weekly_summary(
+            user_id=user.user_id,
+            start_date=start_dt,
+        )
+        return WeeklySummaryResponse(**result)
+    except Exception as e:
+        logger.error("/workouts/weekly-summary error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
 class WorkoutDetailsResponse(BaseModel):
     session_id: str
     session_name: Optional[str] = None
@@ -1597,65 +1656,6 @@ async def update_workout(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error("/workouts/{session_id} PUT error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
-
-
-class WeeklySummaryDayItem(BaseModel):
-    date: str
-    day_name: str  # "Mon", "Tue", etc.
-    day_number: int
-    has_workout: bool
-    session_id: Optional[str] = None
-    volume_kg: float = 0.0
-    intensity_level: str = "light"  # light | medium | heavy | very_heavy
-    has_pr: bool = False
-    exercise_count: int = 0
-
-
-class WeeklySummaryResponse(BaseModel):
-    days: List[WeeklySummaryDayItem]  # Always 7 days (Mon-Sun)
-    week_start: str
-    week_end: str
-    is_current_week: bool
-
-
-@app.get("/workouts/weekly-summary", response_model=WeeklySummaryResponse)
-@limiter.limit(os.getenv("RATE_LIMIT_STATS", "120/minute"))
-async def get_weekly_summary(
-    request: Request,
-    user: AuthUser = Depends(get_current_user),
-    start_date: Optional[str] = Query(None, description="ISO date for week start (Monday). Defaults to current week. Swipe to get next/previous week."),
-) -> WeeklySummaryResponse:
-    """
-    Get 7 individual days (Mon-Sun) for horizontal scrolling strip.
-    Returns one week of days. Frontend swipes to get next/previous week.
-    
-    Each day includes:
-    - Date, day name (Mon/Tue/etc.), day number
-    - Workout status (has_workout, session_id)
-    - Volume, intensity level, PR flag, exercise count
-    
-    Usage:
-    - Initial load: GET /workouts/weekly-summary (returns current week)
-    - Swipe left (next week): GET /workouts/weekly-summary?start_date=2025-11-18
-    - Swipe right (previous week): GET /workouts/weekly-summary?start_date=2025-11-04
-    """
-    try:
-        from datetime import datetime
-        start_dt = None
-        if start_date:
-            try:
-                start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
-            except Exception:
-                pass
-        
-        result = rag_service.get_weekly_summary(
-            user_id=user.user_id,
-            start_date=start_dt,
-        )
-        return WeeklySummaryResponse(**result)
-    except Exception as e:
-        logger.error("/workouts/weekly-summary error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 
