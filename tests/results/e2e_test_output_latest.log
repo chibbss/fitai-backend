@@ -1,0 +1,42 @@
+[0;36m============================================================[0m
+[0;36mFitAI Production End-to-End Test[0m
+[0;36m============================================================[0m
+Backend: https://fitai-api.onrender.com
+Test User: John Doe (john-doe-e2e-test)
+Duration: 4 weeks (28 days)
+
+[0;34m1. Authentication Setup[0m
+------------------------------------------------------------
+  Testing Create test JWT token... [0;32m✓ PASS[0m
+  Token created: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb...
+
+[0;34m2. Backend Wake-up[0m
+------------------------------------------------------------
+  Waking up backend (may take 30-60s)... [0;32m✓ Awake[0m
+
+[0;34m3. Pre-flight Health Checks[0m
+------------------------------------------------------------
+  Testing Backend health... [0;32m✓ PASS[0m
+  Testing Backend readiness... [0;32m✓ PASS[0m
+
+[0;34m4. User Setup & Onboarding[0m
+------------------------------------------------------------
+  Testing Create user profile... [0;32m✓ PASS[0m
+  Testing Onboarding - Goal... Traceback (most recent call last):
+  File "/Users/emmanuelochiba/Desktop/fitai-backend/tests/e2e/production_e2e_test.py", line 770, in <module>
+    main()
+  File "/Users/emmanuelochiba/Desktop/fitai-backend/tests/e2e/production_e2e_test.py", line 554, in main
+    test("Onboarding - Goal", lambda: make_request(
+  File "/Users/emmanuelochiba/Desktop/fitai-backend/tests/e2e/production_e2e_test.py", line 83, in test
+    result = func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/emmanuelochiba/Desktop/fitai-backend/tests/e2e/production_e2e_test.py", line 554, in <lambda>
+    test("Onboarding - Goal", lambda: make_request(
+                                      ^^^^^^^^^^^^^
+  File "/Users/emmanuelochiba/Desktop/fitai-backend/tests/e2e/production_e2e_test.py", line 139, in make_request
+    raise AssertionError(error_msg)
+AssertionError: Expected 200, got 500: {"detail":"(builtins.ValueError) expected 384 dimensions, not 3072\n[SQL: INSERT INTO training_logs (id, user_id, kind, topic, tags, occurred_at, notes, meta_data, embedding) VALUES (%(id)s, %(user_id
+[0;31m✗ FAIL[0m
+    Assertion: Expected 200, got 500: {"detail":"(builtins.ValueError) expected 384 dimensions, not 3072\n[SQL: INSERT INTO training_logs (id, user_id, kind, topic, tags, occurred_at, notes, meta_data, embedding) VALUES (%(id)s, %(user_id
+
+[0;31mFatal error: Expected 200, got 500: {"detail":"(builtins.ValueError) expected 384 dimensions, not 3072\n[SQL: INSERT INTO training_logs (id, user_id, kind, topic, tags, occurred_at, notes, meta_data, embedding) VALUES (%(id)s, %(user_id[0m

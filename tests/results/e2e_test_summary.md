@@ -49,8 +49,23 @@ git commit -m "Fix embedding dimensions: use text-embedding-3-small (1536) inste
 git push
 ```
 
-## Test Status
+## Test Status (Latest Run: 2025-11-26)
 
+**Test Results:**
+- ✅ Authentication Setup - PASS
+- ✅ Backend Wake-up - PASS  
+- ✅ Health Checks - PASS
+- ✅ User Creation - PASS
+- ❌ Onboarding - FAIL (Embedding dimension mismatch)
+- ⏸️ Workout Logging - Not reached
+- ⏸️ Insights & Analytics - Not reached
+- ⏸️ Calendar & Weekly Summary - Not reached
+- ⏸️ AI Chat - Not reached
+- ⏸️ Deep Memory - Not reached
+
+**Error:** `expected 384 dimensions, not 3072`
+
+**Status:**
 - ❌ **Blocked** - Cannot complete E2E test until Render database is migrated and environment variable is set
 - ✅ **Code fixes complete** - All local changes applied
 - ✅ **Migration ready** - Migration file created and tested locally

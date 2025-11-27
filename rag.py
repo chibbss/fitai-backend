@@ -260,10 +260,38 @@ class RAGService:
         with self._lock:
             self.logger.info("Starting up RAG service")
             try:
-            self._init_db()
+                # Run database migrations automatically if enabled
+                if os.getenv("AUTO_RUN_MIGRATIONS", "1") in ("1", "true", "True"):
+                    self._run_migrations()
+                self._init_db()
             except Exception as e:
                 self.logger.error("Failed to initialize database: %s", e)
                 raise  # Database is critical, fail if it doesn't work
+    
+    def _run_migrations(self) -> None:
+        """Run Alembic migrations automatically on startup."""
+        try:
+            from alembic import command
+            from alembic.config import Config
+            
+            # Get migrations directory path
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            migrations_dir = os.path.join(script_dir, "..", "migrations")
+            alembic_cfg = Config(os.path.join(migrations_dir, "alembic.ini"))
+            alembic_cfg.set_main_option("script_location", migrations_dir)
+            
+            # Set database URL from config
+            alembic_cfg.set_main_option("sqlalchemy.url", self.config.database_url)
+            
+            self.logger.info("Running database migrations...")
+            command.upgrade(alembic_cfg, "head")
+            self.logger.info("Database migrations completed successfully")
+        except ImportError:
+            self.logger.warning("Alembic not available - skipping automatic migrations")
+        except Exception as e:
+            self.logger.error("Failed to run migrations: %s", e, exc_info=True)
+            # Don't raise - allow app to start even if migrations fail
+            # This is important for production where migrations might be run manually
             
             try:
             self._init_models()
