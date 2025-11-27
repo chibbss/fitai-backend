@@ -428,15 +428,16 @@ class RAGService:
                 self.logger.warning("Failed to load embedding model: %s", e)
                 self.embedding_model = None
 
-            # Tokenizer for chunking
-            try:
-                from transformers import AutoTokenizer as HFTokenizer
-                self.embedding_tokenizer = HFTokenizer.from_pretrained(
-                    self.config.embedding_model_name, use_fast=True
-                )
-            except Exception:
-                self.embedding_tokenizer = None
-        elif self.config.embedding_provider == "modal":
+        # Tokenizer for chunking
+        try:
+            from transformers import AutoTokenizer as HFTokenizer
+            self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                self.config.embedding_model_name, use_fast=True
+            )
+        except Exception:
+            self.embedding_tokenizer = None
+        
+        if self.config.embedding_provider == "modal":
             self.logger.info("Using REMOTE embedding provider (Modal) at %s", self.config.remote_embed_url)
             if not self.config.remote_embed_url:
                 self.logger.warning("REMOTE_EMBED_URL not set - will use local fallback")
@@ -1803,40 +1804,40 @@ class RAGService:
                     if curr_max > pr_max_weights[ex.exercise_name]:
                         return True
                 return False
+        
+        result = []
+        for r in rows:
+            # Exercises already loaded via eager loading
+            exercises = r.exercises
             
-            result = []
-            for r in rows:
-                # Exercises already loaded via eager loading
-                exercises = r.exercises
-                
-                # Calculate volume
-                volume_kg = round(sum(calc_volume(e) for e in exercises), 1)
-                
-                # Count exercises
-                exercise_count = len(exercises)
-                
-                # Extract muscle groups
-                all_muscle_groups = []
-                for ex in exercises:
-                    if ex.exercise_name:
-                        groups = extract_muscle_groups(ex.exercise_name)
-                        all_muscle_groups.extend(groups)
-                muscle_groups = list(set(all_muscle_groups))  # Remove duplicates
-                
-                # Fast PR check using pre-computed data
-                has_pr = fast_check_has_pr(exercises)
-                
-                # Calculate intensity
-                intensity_level = calculate_intensity_level(volume_kg, avg_volume)
-                
-                result.append({
-                    "session_id": r.id,
-                    "session_name": r.session_name,
-                    "session_type": r.session_type,
-                    "occurred_at": r.occurred_at.isoformat() if r.occurred_at else None,
-                    "duration_minutes": r.duration_minutes,
-                    "notes": r.notes,
-                    "metadata": r.meta_data or {},
+            # Calculate volume
+            volume_kg = round(sum(calc_volume(e) for e in exercises), 1)
+            
+            # Count exercises
+            exercise_count = len(exercises)
+            
+            # Extract muscle groups
+            all_muscle_groups = []
+            for ex in exercises:
+                if ex.exercise_name:
+                    groups = extract_muscle_groups(ex.exercise_name)
+                    all_muscle_groups.extend(groups)
+            muscle_groups = list(set(all_muscle_groups))  # Remove duplicates
+            
+            # Fast PR check using pre-computed data
+            has_pr = fast_check_has_pr(exercises)
+            
+            # Calculate intensity
+            intensity_level = calculate_intensity_level(volume_kg, avg_volume)
+            
+            result.append({
+                "session_id": r.id,
+                "session_name": r.session_name,
+                "session_type": r.session_type,
+                "occurred_at": r.occurred_at.isoformat() if r.occurred_at else None,
+                "duration_minutes": r.duration_minutes,
+                "notes": r.notes,
+                "metadata": r.meta_data or {},
                     # Enhanced fields
                     "volume_kg": volume_kg,
                     "exercise_count": exercise_count,
@@ -1918,67 +1919,37 @@ class RAGService:
                     continue
             return vol
         
-        def check_has_pr(session_id: str, user_id: str, exercises: List[ExerciseLogModel]) -> bool:
-            """Check if session has any PRs."""
-            with self.SessionLocal() as session:
-                for ex in exercises:
-                    exercise_name = ex.exercise_name
-                    if not exercise_name:
-                        continue
-                    
-                    curr_max = 0.0
-                    if ex.weights:
-                        for w_str in ex.weights:
-                            try:
-                                weight_str = str(w_str).strip().upper()
-                                if weight_str == "BW" or weight_str == "BODYWEIGHT":
-                                    continue
-                                if "KG" in weight_str:
-                                    weight_val = float(weight_str.replace("KG", "").strip())
-                                elif "LBS" in weight_str or "LB" in weight_str:
-                                    weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
-                                else:
-                                    weight_val = float(weight_str)
-                                curr_max = max(curr_max, weight_val)
-                            except (ValueError, AttributeError):
+        def check_has_pr_fast(session_id: str, user_id: str, exercises: List[ExerciseLogModel], pr_max_weights: Dict[str, float]) -> bool:
+            """Fast PR check using pre-computed max weights (no nested session)."""
+            for ex in exercises:
+                exercise_name = ex.exercise_name
+                if not exercise_name:
+                    continue
+                
+                curr_max = 0.0
+                if ex.weights:
+                    for w_str in ex.weights:
+                        try:
+                            weight_str = str(w_str).strip().upper()
+                            if weight_str == "BW" or weight_str == "BODYWEIGHT":
                                 continue
-                    
-                    if curr_max == 0:
-                        continue
-                    
-                    # Find previous max for this exercise
-                    prev_ex = session.execute(
-                        select(ExerciseLogModel, WorkoutSessionModel)
-                        .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
-                        .where(
-                            ExerciseLogModel.user_id == user_id,
-                            ExerciseLogModel.exercise_name == exercise_name,
-                            ExerciseLogModel.session_id != session_id,
-                        )
-                        .order_by(WorkoutSessionModel.occurred_at.desc())
-                        .limit(1)
-                    ).first()
-                    
-                    if prev_ex:
-                        prev_ex_model, _ = prev_ex
-                        prev_max = 0.0
-                        if prev_ex_model.weights:
-                            for w_str in prev_ex_model.weights:
-                                try:
-                                    weight_str = str(w_str).strip().upper()
-                                    if weight_str == "BW" or weight_str == "BODYWEIGHT":
-                                        continue
-                                    if "KG" in weight_str:
-                                        weight_val = float(weight_str.replace("KG", "").strip())
-                                    elif "LBS" in weight_str or "LB" in weight_str:
-                                        weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
-                                    else:
-                                        weight_val = float(weight_str)
-                                    prev_max = max(prev_max, weight_val)
-                                except (ValueError, AttributeError):
-                                    continue
-                        if curr_max > prev_max:
-                            return True
+                            if "KG" in weight_str:
+                                weight_val = float(weight_str.replace("KG", "").strip())
+                            elif "LBS" in weight_str or "LB" in weight_str:
+                                weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                            else:
+                                weight_val = float(weight_str)
+                            curr_max = max(curr_max, weight_val)
+                        except (ValueError, AttributeError):
+                            continue
+                
+                if curr_max == 0:
+                    continue
+                
+                # Check against pre-computed max
+                prev_max = pr_max_weights.get(exercise_name, 0.0)
+                if curr_max > prev_max:
+                    return True
             return False
         
         def calculate_intensity_level(volume_kg: float, avg_session_volume: Optional[float] = None) -> str:
@@ -2021,35 +1992,79 @@ class RAGService:
         week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
         is_current_week = (week_start <= now <= week_end)
         
-        # Get all workouts for this week
+        # Get all workouts for this week with exercises eagerly loaded
         with self.SessionLocal() as session:
+            from sqlalchemy.orm import joinedload
+            
             workouts = session.execute(
                 select(WorkoutSessionModel)
+                .options(joinedload(WorkoutSessionModel.exercises))
                 .where(WorkoutSessionModel.user_id == user_id)
                 .where(WorkoutSessionModel.occurred_at >= week_start)
                 .where(WorkoutSessionModel.occurred_at <= week_end)
                 .order_by(WorkoutSessionModel.occurred_at.asc())
-            ).scalars().all()
+            ).unique().scalars().all()
             
-            # Get average session volume for intensity calculation
+            # Get average session volume for intensity calculation (with eager loading)
             all_workouts = session.execute(
-                select(WorkoutSessionModel).where(WorkoutSessionModel.user_id == user_id)
-            ).scalars().all()
+                select(WorkoutSessionModel)
+                .options(joinedload(WorkoutSessionModel.exercises))
+                .where(WorkoutSessionModel.user_id == user_id)
+            ).unique().scalars().all()
             
             avg_volume = None
             if all_workouts:
                 total_vol = 0.0
                 count = 0
                 for w in all_workouts[:30]:  # Last 30 sessions for average
-                    exercises = session.execute(
-                        select(ExerciseLogModel).where(ExerciseLogModel.session_id == w.id)
-                    ).scalars().all()
-                    vol = sum(calc_volume(e) for e in exercises)
+                    vol = sum(calc_volume(e) for e in w.exercises)  # Already loaded
                     if vol > 0:
                         total_vol += vol
                         count += 1
                 if count > 0:
                     avg_volume = total_vol / count
+            
+            # Batch PR check - collect all exercise names and query historical exercises once
+            exercise_names = set()
+            for workout in workouts:
+                for ex in workout.exercises:
+                    if ex.exercise_name:
+                        exercise_names.add(ex.exercise_name)
+            
+            # Build max weight map for each exercise (excluding current week's workouts)
+            pr_max_weights = {}
+            if exercise_names:
+                historical_exercises = session.execute(
+                    select(ExerciseLogModel, WorkoutSessionModel)
+                    .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
+                    .where(
+                        ExerciseLogModel.user_id == user_id,
+                        ExerciseLogModel.exercise_name.in_(exercise_names),
+                        WorkoutSessionModel.occurred_at < week_start,  # Before this week
+                    )
+                    .order_by(WorkoutSessionModel.occurred_at.desc())
+                ).all()
+                
+                for ex, sess in historical_exercises:
+                    ex_name = ex.exercise_name
+                    if ex_name not in pr_max_weights:
+                        pr_max_weights[ex_name] = 0.0
+                    
+                    if ex.weights:
+                        for w_str in ex.weights:
+                            try:
+                                weight_str = str(w_str).strip().upper()
+                                if weight_str == "BW" or weight_str == "BODYWEIGHT":
+                                    continue
+                                if "KG" in weight_str:
+                                    weight_val = float(weight_str.replace("KG", "").strip())
+                                elif "LBS" in weight_str or "LB" in weight_str:
+                                    weight_val = float(weight_str.replace("LBS", "").replace("LB", "").strip()) * 0.453592
+                                else:
+                                    weight_val = float(weight_str)
+                                pr_max_weights[ex_name] = max(pr_max_weights[ex_name], weight_val)
+                            except (ValueError, AttributeError):
+                                continue
         
         # Create a map of workouts by date (day of week)
         workouts_by_date = {}
@@ -2070,15 +2085,12 @@ class RAGService:
             workout = workouts_by_date.get(day_date)
             
             if workout:
-                # Get exercises for this workout
-                with self.SessionLocal() as day_session:
-                    exercises = day_session.execute(
-                        select(ExerciseLogModel).where(ExerciseLogModel.session_id == workout.id)
-                    ).scalars().all()
+                # Exercises already loaded via eager loading
+                exercises = workout.exercises
                 
                 volume_kg = round(sum(calc_volume(e) for e in exercises), 1)
                 exercise_count = len(exercises)
-                has_pr = check_has_pr(workout.id, user_id, exercises)
+                has_pr = check_has_pr_fast(workout.id, user_id, exercises, pr_max_weights)
                 intensity_level = calculate_intensity_level(volume_kg, avg_volume)
                 
                 days.append({
@@ -3081,9 +3093,17 @@ Generate an analytical insight based on the data above. Include specific numbers
             return vol
         
         with self.SessionLocal() as session:
-            # Get current session
-            current = session.get(WorkoutSessionModel, session_id)
-            if not current or current.user_id != user_id:
+            from sqlalchemy.orm import joinedload
+            
+            # Get current session with exercises eagerly loaded
+            current = session.execute(
+                select(WorkoutSessionModel)
+                .options(joinedload(WorkoutSessionModel.exercises))
+                .where(WorkoutSessionModel.id == session_id)
+                .where(WorkoutSessionModel.user_id == user_id)
+            ).unique().scalars().first()
+            
+            if not current:
                 return {"error": "Session not found"}
             
             current_date = current.occurred_at if current.occurred_at else datetime.now(timezone.utc)
@@ -3091,12 +3111,13 @@ Generate an analytical insight based on the data above. Include specific numbers
             seven_days_ago = now - timedelta(days=7)
             thirty_days_ago = now - timedelta(days=30)
             
-            # Get all workouts for calculations
+            # Get all workouts for calculations with exercises eagerly loaded
             all_workouts = session.execute(
                 select(WorkoutSessionModel)
+                .options(joinedload(WorkoutSessionModel.exercises))
                 .where(WorkoutSessionModel.user_id == user_id)
                 .order_by(WorkoutSessionModel.occurred_at.desc())
-            ).scalars().all()
+            ).unique().scalars().all()
             
             workouts_7d = [w for w in all_workouts if w.occurred_at and w.occurred_at >= seven_days_ago and w.id != session_id]
             workouts_30d = [w for w in all_workouts if w.occurred_at and w.occurred_at >= thirty_days_ago and w.id != session_id]
@@ -3146,21 +3167,19 @@ Generate an analytical insight based on the data above. Include specific numbers
             # ============================================
             # 2. VOLUME METRICS
             # ============================================
-            def get_session_volume(session_id: str) -> float:
-                exercises = session.execute(
-                    select(ExerciseLogModel).where(ExerciseLogModel.session_id == session_id)
-                ).scalars().all()
-                return sum(calc_volume(e) for e in exercises)
+            # Calculate volumes using already-loaded exercises (no N+1 queries)
+            def get_session_volume(workout: WorkoutSessionModel) -> float:
+                return sum(calc_volume(e) for e in workout.exercises)
             
-            total_volume_week = sum(get_session_volume(w.id) for w in workouts_7d)
-            total_volume_month = sum(get_session_volume(w.id) for w in workouts_30d)
+            total_volume_week = sum(get_session_volume(w) for w in workouts_7d)
+            total_volume_month = sum(get_session_volume(w) for w in workouts_30d)
             avg_session_volume = round(total_volume_month / len(workouts_30d), 1) if workouts_30d else 0.0
             
             # Volume trend (compare last 7 days to previous 7 days)
             if len(workouts_7d) >= 2:
                 previous_7d_start = seven_days_ago - timedelta(days=7)
                 previous_7d_workouts = [w for w in all_workouts if w.occurred_at and previous_7d_start <= w.occurred_at < seven_days_ago]
-                previous_volume = sum(get_session_volume(w.id) for w in previous_7d_workouts)
+                previous_volume = sum(get_session_volume(w) for w in previous_7d_workouts)
                 if previous_volume > 0:
                     volume_trend_pct = round(((total_volume_week - previous_volume) / previous_volume) * 100, 1)
                     volume_trend = f"{volume_trend_pct:+.1f}%"
@@ -3179,10 +3198,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             volume_legs = 0.0
             
             for w in workouts_30d:
-                exercises = session.execute(
-                    select(ExerciseLogModel).where(ExerciseLogModel.session_id == w.id)
-                ).scalars().all()
-                for ex in exercises:
+                for ex in w.exercises:  # Already loaded
                     ex_name = (ex.exercise_name or "").lower()
                     vol = calc_volume(ex)
                     if any(kw in ex_name for kw in push_keywords):
@@ -3211,10 +3227,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             exercise_names_set = set()
             
             for w in workouts_30d:
-                exercises = session.execute(
-                    select(ExerciseLogModel).where(ExerciseLogModel.session_id == w.id)
-                ).scalars().all()
-                for ex in exercises:
+                for ex in w.exercises:  # Already loaded
                     name = ex.exercise_name or "Unknown"
                     exercise_counts[name] = exercise_counts.get(name, 0) + 1
                     exercise_names_set.add(name)
@@ -3292,10 +3305,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             prs_this_week = 0
             prs_this_month = 0
             
-            # Get current session exercises
-            current_exercises = session.execute(
-                select(ExerciseLogModel).where(ExerciseLogModel.session_id == session_id)
-            ).scalars().all()
+            # Get current session exercises (already loaded)
+            current_exercises = current.exercises
             
             for ex in current_exercises:
                 exercise_name = ex.exercise_name
@@ -4388,6 +4399,12 @@ Generate an analytical insight based on the data above. Include specific numbers
                 f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
             ]
             dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+        
+        # Session recap - retrieve conversation history (optimized: limit to 20 messages)
+        # This is session-specific, so always load fresh
+        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
+        session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
+        session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
 
         # Session recap - retrieve conversation history (optimized: limit to 20 messages)
         # This is session-specific, so always load fresh
@@ -4483,26 +4500,43 @@ Generate an analytical insight based on the data above. Include specific numbers
         # Generate via OpenAI or remote backend if configured
         generation_start = time.time()
         
-        # OpenAI generation (preferred)
+        # OpenAI generation (preferred) with retry logic
         if self.config.gen_backend == "openai" and self._openai_client:
-            try:
-                messages = [
-                    {"role": "system", "content": system_text},
-                    {"role": "user", "content": context_text + f"User message: {query}"}
-                ]
-                response = self._openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=messages,
-                    max_tokens=max_new_tokens or self.config.max_new_tokens,
-                    temperature=temperature if temperature is not None else self.config.temperature,
-                )
-                ans = response.choices[0].message.content.strip()
-            except Exception as e:
-                self.logger.error("OpenAI generation failed: %s", e)
+            import time as time_module
+            max_retries = 3
+            retry_delay = 1.0
+            ans = None
+            last_error = None
+            
+            for attempt in range(max_retries):
+                try:
+                    messages = [
+                        {"role": "system", "content": system_text},
+                        {"role": "user", "content": context_text + f"User message: {query}"}
+                    ]
+                    response = self._openai_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=messages,
+                        max_tokens=max_new_tokens or self.config.max_new_tokens,
+                        temperature=temperature if temperature is not None else self.config.temperature,
+                        timeout=30.0,  # 30 second timeout
+                    )
+                    ans = response.choices[0].message.content.strip()
+                    break  # Success, exit retry loop
+                except Exception as e:
+                    last_error = e
+                    self.logger.warning("OpenAI generation attempt %d/%d failed: %s", attempt + 1, max_retries, e)
+                    if attempt < max_retries - 1:
+                        time_module.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                    else:
+                        self.logger.error("OpenAI generation failed after %d attempts: %s", max_retries, e)
+            
+            if ans is None:
                 if self.config.remote_fallback_local:
                     self.logger.info("Falling back to local generation backend")
                 else:
-                    return {"answer": "", "references": [], "dynamic_refs": [], "error": str(e)}
+                    error_msg = f"OpenAI API error: {str(last_error)}" if last_error else "OpenAI generation failed"
+                    return {"answer": "", "references": [], "dynamic_refs": [], "error": error_msg}
         
         # Modal/Remote generation (backward compatibility)
         elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
@@ -4816,8 +4850,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
-            dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
-            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+        dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
+        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
         
         # Session recap - always load fresh (session-specific)
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
