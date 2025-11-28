@@ -4503,6 +4503,16 @@ Generate an analytical insight based on the data above. Include specific numbers
         # Generate via OpenAI or remote backend if configured
         generation_start = time.time()
         
+        # Performance monitoring: log phase timings
+        retrieval_time = (retrieval_start - start_time) * 1000 if 'retrieval_start' in locals() else 0
+        context_time = (generation_start - context_start) * 1000 if 'context_start' in locals() else 0
+        self.logger.debug(
+            "Chat performance (user_id=%s): retrieval=%.1fms, context_build=%.1fms",
+            user_id or "anonymous",
+            retrieval_time,
+            context_time,
+        )
+        
         # OpenAI generation (preferred) with retry logic
         if self.config.gen_backend == "openai" and self._openai_client:
             import time as time_module
@@ -4513,6 +4523,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             for attempt in range(max_retries):
                 try:
+                    openai_start = time.time()
                     messages = [
                         {"role": "system", "content": system_text},
                         {"role": "user", "content": context_text + f"User message: {query}"}
@@ -4524,6 +4535,14 @@ Generate an analytical insight based on the data above. Include specific numbers
                         temperature=temperature if temperature is not None else self.config.temperature,
                     )
                     ans = response.choices[0].message.content.strip()
+                    openai_time = (time.time() - openai_start) * 1000
+                    self.logger.debug(
+                        "OpenAI generation completed (user_id=%s, attempt=%d, time=%.1fms, tokens=%d)",
+                        user_id or "anonymous",
+                        attempt + 1,
+                        openai_time,
+                        response.usage.total_tokens if hasattr(response, 'usage') and response.usage else 0,
+                    )
                     break  # Success, exit retry loop
                 except Exception as e:
                     last_error = e
@@ -4758,8 +4777,18 @@ Generate an analytical insight based on the data above. Include specific numbers
 
         generation_time = (time.time() - generation_start) * 1000
         total_time = (time.time() - start_time) * 1000
-        self.logger.debug("Chat timing - Retrieval: %.1fms, Context: %.1fms, Generation: %.1fms, Total: %.1fms", 
-                          retrieval_time, context_time, generation_time, total_time)
+        
+        # Performance monitoring: log detailed timing
+        retrieval_time_ms = retrieval_time if 'retrieval_time' in locals() else 0
+        context_time_ms = context_time if 'context_time' in locals() else 0
+        self.logger.info(
+            "Chat performance summary (user_id=%s): retrieval=%.1fms, context=%.1fms, generation=%.1fms, total=%.1fms",
+            user_id or "anonymous",
+            retrieval_time_ms,
+            context_time_ms,
+            generation_time,
+            total_time,
+        )
 
         return {
             "answer": ans,

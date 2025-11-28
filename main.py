@@ -583,10 +583,27 @@ async def chat(
                     raise HTTPException(status_code=400, detail="Inappropriate language detected")
                 q = bad.sub("[CENSORED]", q)
         
+        # Performance monitoring: log chat request
+        logger.info(
+            "Chat request started (user_id=%s, session_id=%s, query_length=%d)",
+            user.user_id,
+            body.session_id,
+            len(q),
+        )
+        
         result = rag_service.chat(
             query=q,
             user_id=user.user_id,
             session_id=body.session_id,
+        )
+        
+        # Performance monitoring: log total time
+        total_time = time.time() - start_time
+        logger.info(
+            "Chat request completed (user_id=%s, total_time=%.2fs, answer_length=%d)",
+            user.user_id,
+            total_time,
+            len(result.get("answer", "")),
         )
         
         # Log RAGAS metrics
@@ -1799,16 +1816,50 @@ async def chat_stream(
                     raise HTTPException(status_code=400, detail="Inappropriate language detected")
                 q = bad.sub("[CENSORED]", q)
         
+        # Performance monitoring: log streaming request
+        stream_start_time = time.time()
+        logger.info(
+            "Chat stream started (user_id=%s, session_id=%s, query_length=%d)",
+            user.user_id,
+            body.session_id,
+            len(q),
+        )
+        
+        first_token_time = None
+        token_count = 0
+        
         async def event_generator():
+            nonlocal first_token_time, token_count
             for chunk in rag_service.chat_stream(
                 query=q,
                 user_id=user.user_id,
                 session_id=body.session_id,
             ):
+                if first_token_time is None and chunk.get("type") == "token":
+                    first_token_time = time.time() - stream_start_time
+                    logger.info(
+                        "Chat stream first token (user_id=%s, time_to_first_token=%.2fs)",
+                        user.user_id,
+                        first_token_time,
+                    )
+                
+                if chunk.get("type") == "token":
+                    token_count += 1
+                
                 yield {
                     "event": chunk["type"],
                     "data": json.dumps(chunk["content"]),
                 }
+            
+            # Performance monitoring: log streaming completion
+            total_time = time.time() - stream_start_time
+            logger.info(
+                "Chat stream completed (user_id=%s, total_time=%.2fs, time_to_first_token=%.2fs, token_count=%d)",
+                user.user_id,
+                total_time,
+                first_token_time or 0,
+                token_count,
+            )
         
         return EventSourceResponse(event_generator())
     
