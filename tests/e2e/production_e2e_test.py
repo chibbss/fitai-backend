@@ -602,17 +602,14 @@ def main():
                     if session_id:
                         week_sessions.append(session_id)
                         session_ids.append(session_id)
-                        print(".", end="", flush=True)
-                    else:
-                        print(f"{Colors.RED}X{Colors.NC}", end="", flush=True)
-                        warn(f"Week {week}, Day {day_offset + 1}", "No session_id in response")
+                    print(".", end="", flush=True)
                 else:
                     print(f"{Colors.RED}X{Colors.NC}", end="", flush=True)
-                    warn(f"Week {week}, Day {day_offset + 1}", f"Invalid response: {type(response)}")
-                time.sleep(1)  # Rate limiting
+                    warn(f"Week {week}, Day {day_offset + 1}", "No session_id in response")
             except Exception as e:
                 print(f"{Colors.RED}X{Colors.NC}", end="", flush=True)
                 warn(f"Week {week}, Day {day_offset + 1}", str(e)[:80])
+            time.sleep(1)  # Rate limiting
         
         print(f" {Colors.GREEN}✓{Colors.NC} ({len(week_sessions)} workouts logged)")
     
@@ -687,18 +684,57 @@ def main():
     except:
         warn("Preload context", "Failed but non-critical")
     
-    # Test chat (non-streaming) - continue on error
+    # Test chat (streaming) - continue on error
     try:
-        test("Chat with FitAI", lambda: make_request(
-            "POST", "/chat", token,
-            {
+        def test_chat_stream():
+            """Test streaming chat endpoint"""
+            url = f"{BACKEND_URL}/chat_stream"
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            }
+            payload = {
                 "user_id": TEST_USER_ID,
                 "session_id": "test-chat-1",
                 "query": "How am I progressing? Give me a quick summary."
             }
-        ))
+            
+            response = requests.post(url, headers=headers, json=payload, stream=True, timeout=90)
+            if response.status_code != 200:
+                raise AssertionError(f"Expected 200, got {response.status_code}: {response.text[:200]}")
+            
+            # Read streaming response
+            full_answer = ""
+            first_token_received = False
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith('data: '):
+                        try:
+                            import json
+                            data = json.loads(line_str[6:])  # Remove 'data: ' prefix
+                            if isinstance(data, dict):
+                                if data.get('type') == 'token':
+                                    full_answer += data.get('content', '')
+                                    if not first_token_received:
+                                        first_token_received = True
+                                elif data.get('type') == 'done':
+                                    # Final answer
+                                    done_content = data.get('content', {})
+                                    if isinstance(done_content, dict):
+                                        full_answer = done_content.get('answer', full_answer)
+                        except:
+                            pass
+            
+            if not full_answer:
+                raise AssertionError("No answer received from streaming chat")
+            
+            return {"answer": full_answer, "streaming": True}
+        
+        test("Chat with FitAI (streaming)", test_chat_stream)
     except Exception as e:
-        warn("Chat", f"Failed - may be Modal cold start or backend issue: {str(e)[:80]}")
+        warn("Chat", f"Failed - may be backend issue: {str(e)[:80]}")
     
     print()
     
