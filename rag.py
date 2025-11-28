@@ -4141,8 +4141,8 @@ Generate an analytical insight based on the data above. Include specific numbers
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
-        # Limit KB chunks to top 5
-        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:5])]
+        # Limit KB chunks to top 3 for faster processing
+        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:3])]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
         dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
@@ -4184,11 +4184,11 @@ Generate an analytical insight based on the data above. Include specific numbers
         if memory_text and memory_text != "(no long-term memory yet)":
             context_text += f"LONG-TERM PATTERNS:\n{memory_text}\n\n"
         
-        # Get fitness overview and patterns (cached, 5 min TTL)
+        # Get fitness overview and patterns (cached, 15 min TTL for better performance)
         fitness_overview = ""
         user_patterns = []
         if user_id:
-            cache_ttl = 300  # 5 minutes
+            cache_ttl = 900  # 15 minutes (increased for better performance)
             current_time = time.time()
             
             # Check fitness overview cache
@@ -4363,15 +4363,15 @@ Generate an analytical insight based on the data above. Include specific numbers
         else:
             # Fallback: load context on-demand (slower, but works if preload wasn't called)
             static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
-            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
+            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
             
-            # Get fitness overview and patterns (cached, 5 min TTL)
+            # Get fitness overview and patterns (cached, 15 min TTL for better performance)
             fitness_overview = ""
             user_patterns = []
             if user_id:
-                cache_ttl = 300  # 5 minutes
+                cache_ttl = 900  # 15 minutes (increased for better performance)
                 current_time = time.time()
                 
                 if user_id in self._fitness_overview_cache:
@@ -4397,7 +4397,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                     self._patterns_cache[user_id] = (user_patterns, current_time)
             
             # Get recent workouts
-            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
             dyn_blocks = [
                 f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
             ]
@@ -4415,8 +4415,8 @@ Generate an analytical insight based on the data above. Include specific numbers
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
 
-        # Limit KB chunks to top 5 for faster processing
-        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:5])]
+        # Limit KB chunks to top 3 for faster processing
+        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:3])]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
 
         # Build prompt with optional structured mode
@@ -4817,15 +4817,15 @@ Generate an analytical insight based on the data above. Include specific numbers
         else:
             # Fallback: load context on-demand
             static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
-            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=5) if user_id else []
+            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
             
-            # Get fitness overview and patterns (cached, 5 min TTL)
+            # Get fitness overview and patterns (cached, 15 min TTL for better performance)
             fitness_overview = ""
             user_patterns = []
             if user_id:
-                cache_ttl = 300  # 5 minutes
+                cache_ttl = 900  # 15 minutes (increased for better performance)
                 current_time = time.time()
                 
                 if user_id in self._fitness_overview_cache:
@@ -4851,7 +4851,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                     self._patterns_cache[user_id] = (user_patterns, current_time)
             
             # Get recent workouts
-            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(5, (top_k or self.config.top_k))) if user_id else []
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
         dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
         dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
         
@@ -4860,8 +4860,8 @@ Generate an analytical insight based on the data above. Include specific numbers
         session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
         session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
         
-        # Limit KB chunks to top 5
-        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:5])]
+        # Limit KB chunks to top 3 for faster processing
+        kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:3])]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
         
         # Build prompt
