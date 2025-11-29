@@ -23,17 +23,11 @@ services:
       - key: HF_MODEL_ID
         value: meta-llama/Meta-Llama-3.1-8B-Instruct
       - key: GEN_BACKEND
-        value: remote
-      - key: REMOTE_GEN_URL
-        sync: false
+        value: openai
       - key: EMBEDDING_PROVIDER
-        value: modal
-      - key: REMOTE_EMBED_URL
-        sync: false
+        value: openai
       - key: RERANKER_BACKEND
-        value: remote
-      - key: RERANKER_REMOTE_URL
-        sync: false
+        value: none
       - key: LOG_PII_REDACTION_ENABLED
         value: 1
       - key: RAGAS_LOGGING_ENABLED

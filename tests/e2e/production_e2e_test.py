@@ -9,6 +9,8 @@ import sys
 import json
 import time
 import requests
+import httpx
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
@@ -143,7 +145,7 @@ def make_request(method: str, endpoint: str, token: Optional[str] = None,
             
             # Try to parse JSON
             try:
-                return response.json()
+            return response.json()
             except ValueError:
                 raise ValueError(f"Invalid JSON response: {response.text[:200]}")
                 
@@ -164,7 +166,7 @@ def make_request(method: str, endpoint: str, token: Optional[str] = None,
         except Exception as e:
             last_error = e
             if attempt >= retries:
-                raise
+            raise
     
     # Should never reach here, but just in case
     if last_error:
@@ -598,11 +600,11 @@ def main():
             try:
                 response = make_request("POST", "/log/workout", token, workout_data, retries=1)
                 if response and isinstance(response, dict):
-                    session_id = response.get("session_id")
-                    if session_id:
-                        week_sessions.append(session_id)
-                        session_ids.append(session_id)
-                    print(".", end="", flush=True)
+                session_id = response.get("session_id")
+                if session_id:
+                    week_sessions.append(session_id)
+                    session_ids.append(session_id)
+                print(".", end="", flush=True)
                 else:
                     print(f"{Colors.RED}X{Colors.NC}", end="", flush=True)
                     warn(f"Week {week}, Day {day_offset + 1}", "No session_id in response")
@@ -700,41 +702,104 @@ def main():
                 "query": "How am I progressing? Give me a quick summary."
             }
             
-            response = requests.post(url, headers=headers, json=payload, stream=True, timeout=90)
-            if response.status_code != 200:
-                raise AssertionError(f"Expected 200, got {response.status_code}: {response.text[:200]}")
-            
-            # Read streaming response
-            full_answer = ""
-            first_token_received = False
-            for line in response.iter_lines():
-                if line:
-                    line_str = line.decode('utf-8')
-                    if line_str.startswith('data: '):
-                        try:
-                            import json
-                            data = json.loads(line_str[6:])  # Remove 'data: ' prefix
-                            if isinstance(data, dict):
-                                if data.get('type') == 'token':
-                                    full_answer += data.get('content', '')
-                                    if not first_token_received:
-                                        first_token_received = True
-                                elif data.get('type') == 'done':
-                                    # Final answer
-                                    done_content = data.get('content', {})
-                                    if isinstance(done_content, dict):
-                                        full_answer = done_content.get('answer', full_answer)
-                        except:
-                            pass
-            
-            if not full_answer:
-                raise AssertionError("No answer received from streaming chat")
-            
-            return {"answer": full_answer, "streaming": True}
+            # Use httpx for better streaming support - handles SSE properly
+            # For streaming, we need a long read timeout to allow for slow token delivery
+            # Set read timeout to 120s to match total timeout (allows slow streams)
+            timeout = httpx.Timeout(120.0, connect=30.0, read=120.0, write=30.0)
+            with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+                with client.stream("POST", url, headers=headers, json=payload) as response:
+                    if response.status_code != 200:
+                        raise AssertionError(f"Expected 200, got {response.status_code}: {response.text[:200]}")
+                    
+                    # Read streaming response - handle SSE format correctly (matches curl output)
+                    full_answer = ""
+                    first_token_received = False
+                    token_count = 0
+                    start_time = time.time()
+                    current_event = None
+                    buffer = ""
+                    
+                    try:
+                        # Read stream as text - httpx handles decoding automatically
+                        for chunk in response.iter_text():
+                            if not chunk:
+                                continue
+                            
+                            # Add chunk to buffer
+                            buffer += chunk
+                            
+                            # Process complete lines
+                            while '\n' in buffer:
+                                line, buffer = buffer.split('\n', 1)
+                                line = line.strip()
+                                
+                                if not line:
+                                    continue
+                                
+                                # Ignore ping lines
+                                if line.startswith(': '):
+                                    continue
+                                
+                                # Handle SSE format: "event: token" or "data: {...}"
+                                if line.startswith('event: '):
+                                    current_event = line[7:].strip()
+                                    continue
+                                
+                                if line.startswith('data: '):
+                                    data_str = line[6:].strip()  # Remove 'data: ' prefix
+                                    
+                                    # Handle 'done' event with full answer
+                                    if current_event == 'done':
+                                        try:
+                                            data = json.loads(data_str)
+                                            if isinstance(data, dict) and 'answer' in data:
+                                                full_answer = data.get('answer', full_answer)
+                                                break  # Exit loop when done
+                                        except json.JSONDecodeError:
+                                            pass
+                                    
+                                    # Handle 'token' events - data is a JSON string (e.g., data: "Well")
+                                    elif current_event == 'token':
+                                        try:
+                                            # Parse JSON string (e.g., "Well" -> Well)
+                                            token_content = json.loads(data_str)
+                                            if isinstance(token_content, str):
+                                                full_answer += token_content
+                                                token_count += 1
+                                                if not first_token_received:
+                                                    first_token_received = True
+                                        except (json.JSONDecodeError, ValueError):
+                                            # If not valid JSON, skip
+                                            pass
+                                    
+                                    # Handle metadata events (skip)
+                                    elif current_event == 'metadata':
+                                        continue
+                            
+                            # Timeout check: if stream takes longer than 120 seconds, fail
+                            current_time = time.time()
+                            if current_time - start_time > 120:
+                                raise AssertionError(f"Timeout: Stream took longer than 120 seconds")
+                    
+                        # Final check for done event
+                        if not full_answer:
+                            raise AssertionError("No answer received from streaming chat")
+                        
+                        elapsed = time.time() - start_time
+                        return {
+                            "answer": full_answer[:200] + "..." if len(full_answer) > 200 else full_answer,
+                            "streaming": True,
+                            "token_count": token_count,
+                            "response_time": f"{elapsed:.1f}s"
+                        }
+                    except httpx.TimeoutException as e:
+                        raise AssertionError(f"Streaming chat request timed out: {str(e)[:200]}")
+                    except Exception as e:
+                        raise AssertionError(f"Error reading stream: {str(e)[:200]}")
         
         test("Chat with FitAI (streaming)", test_chat_stream)
     except Exception as e:
-        warn("Chat", f"Failed - may be backend issue: {str(e)[:80]}")
+        warn("Chat", f"Failed - may be backend issue: {str(e)[:200]}")
     
     print()
     

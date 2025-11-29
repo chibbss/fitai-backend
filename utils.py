@@ -23,10 +23,8 @@ class AppConfig(BaseModel):
     # Database URL for Postgres + pgvector
     database_url: str
 
-    # Generation backend: 'local' (transformers) or 'remote' (e.g., vLLM/OpenAI-compatible)
-    gen_backend: str = "local"
-    remote_gen_url: Optional[str] = None
-    remote_gen_api_key: Optional[str] = None
+    # Generation backend: 'local' (transformers) or 'openai' (OpenAI API)
+    gen_backend: str = "openai"
 
     device: str = "auto"  # auto | cpu | cuda
     log_level: str = "INFO"
@@ -52,17 +50,13 @@ class AppConfig(BaseModel):
     profanity_block_mode: str = "mask"  # mask | block
 
     # Embedding provider
-    embedding_provider: str = "local"  # local | modal | openai
-    remote_embed_url: Optional[str] = None
-    remote_embed_api_key: Optional[str] = None
+    embedding_provider: str = "openai"  # local | openai
     openai_api_key: Optional[str] = None
     openai_embed_model: str = "text-embedding-3-small"  # Using 'small' (1536 dims) instead of 'large' (3072) due to HNSW index limit of 2000
-    load_local_embedding_fallback: bool = True  # Load local model as fallback when using Modal (for "never forgets"). Set False on memory-constrained environments.
 
     # Reranker configuration
-    reranker_backend: str = "local"  # local | remote | none (required)
+    reranker_backend: str = "none"  # local | none
     reranker_model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    reranker_remote_url: Optional[str] = None
     retriever_candidates: int = 10
 
     # Redis (optional) for caching and session persistence
@@ -95,8 +89,6 @@ def get_config() -> AppConfig:
         ),
         database_url=os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/fitai"),
         gen_backend=os.getenv("GEN_BACKEND", "openai"),  # Default to OpenAI
-        remote_gen_url=os.getenv("REMOTE_GEN_URL") or None,
-        remote_gen_api_key=os.getenv("REMOTE_GEN_API_KEY") or None,
         device=os.getenv("DEVICE", "auto"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         top_k=int(os.getenv("TOP_K", "5")),
@@ -111,15 +103,11 @@ def get_config() -> AppConfig:
         max_context_chars=int(os.getenv("MAX_CONTEXT_CHARS", "16000")),
         profanity_filter_enabled=os.getenv("PROFANITY_FILTER_ENABLED", "1") in ("1", "true", "True", "yes"),
         profanity_block_mode=os.getenv("PROFANITY_BLOCK_MODE", "mask"),
-        embedding_provider=os.getenv("EMBEDDING_PROVIDER", "local"),
-        remote_embed_url=os.getenv("REMOTE_EMBED_URL") or None,
-        remote_embed_api_key=os.getenv("REMOTE_EMBED_API_KEY") or None,
+        embedding_provider=os.getenv("EMBEDDING_PROVIDER", "openai"),  # Default to OpenAI
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
         openai_embed_model=os.getenv("OPENAI_EMBED_MODEL", "text-embedding-3-small"),  # Using 'small' (1536 dims) instead of 'large' (3072) due to HNSW index limit of 2000
-        load_local_embedding_fallback=os.getenv("LOAD_LOCAL_EMBEDDING_FALLBACK", "1") in ("1", "true", "True", "yes"),
         reranker_backend=os.getenv("RERANKER_BACKEND", "none"),  # Default to none (no torch needed)
         reranker_model_name=os.getenv("RERANKER_MODEL_NAME", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
-        reranker_remote_url=os.getenv("RERANKER_REMOTE_URL") or None,
         retriever_candidates=int(os.getenv("RETRIEVER_CANDIDATES", "10")),
         redis_url=os.getenv("REDIS_URL") or None,
         redis_prefix=os.getenv("REDIS_PREFIX", "fitai"),

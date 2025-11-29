@@ -467,97 +467,97 @@ export const chatApi = {
         // Wrap chat stream in retry logic to handle Modal cold starts
         return retryWithBackoff(async () => {
             return new Promise<void>((resolve, reject) => {
-                let fullAnswer = '';
-                let isDone = false;
-                let abortStream: (() => void) | null = null;
-                
-                const handleDone = (answer: string, totalTime?: number) => {
-                    if (!isDone) {
-                        isDone = true;
-                        onDone(answer, totalTime);
-                        resolve();
-                    }
-                };
+            let fullAnswer = '';
+            let isDone = false;
+            let abortStream: (() => void) | null = null;
+            
+            const handleDone = (answer: string, totalTime?: number) => {
+                if (!isDone) {
+                    isDone = true;
+                    onDone(answer, totalTime);
+                    resolve();
+                }
+            };
 
-                const handleError = (error: Error) => {
-                    if (!isDone) {
-                        isDone = true;
+            const handleError = (error: Error) => {
+                if (!isDone) {
+                    isDone = true;
                         // Reject to trigger retry logic
-                        reject(error);
-                    }
-                };
-                
-                try {
-                    abortStream = createReactNativeSSE(`${API_URL}/chat_stream`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            query,
-                            session_id: sessionId,
-                        }),
-                        onmessage(event) {
-                            try {
-                                if (event.event === 'token') {
-                                    // Parse JSON-encoded token
-                                    const token = JSON.parse(event.data);
-                                    const tokenStr = typeof token === 'string' ? token : String(token);
+                    reject(error);
+                }
+            };
+            
+            try {
+                abortStream = createReactNativeSSE(`${API_URL}/chat_stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query,
+                        session_id: sessionId,
+                    }),
+                    onmessage(event) {
+                        try {
+                            if (event.event === 'token') {
+                                // Parse JSON-encoded token
+                                const token = JSON.parse(event.data);
+                                const tokenStr = typeof token === 'string' ? token : String(token);
+                                if (tokenStr) {
+                                    fullAnswer += tokenStr;
+                                    onToken(tokenStr);
+                                }
+                            } else if (event.event === 'metadata') {
+                                // Metadata: references and citations
+                                const metadata = JSON.parse(event.data);
+                                console.log('Chat metadata:', metadata);
+                            } else if (event.event === 'done') {
+                                // Done event: final answer
+                                const doneData = JSON.parse(event.data);
+                                const answer = doneData.answer || fullAnswer;
+                                const totalTime = doneData.total_time_ms;
+                                handleDone(answer, totalTime);
+                            } else if (event.data) {
+                                // Fallback: treat as token if no event type
+                                try {
+                                    const data = JSON.parse(event.data);
+                                    const tokenStr = typeof data === 'string' ? data : String(data);
                                     if (tokenStr) {
                                         fullAnswer += tokenStr;
                                         onToken(tokenStr);
                                     }
-                                } else if (event.event === 'metadata') {
-                                    // Metadata: references and citations
-                                    const metadata = JSON.parse(event.data);
-                                    console.log('Chat metadata:', metadata);
-                                } else if (event.event === 'done') {
-                                    // Done event: final answer
-                                    const doneData = JSON.parse(event.data);
-                                    const answer = doneData.answer || fullAnswer;
-                                    const totalTime = doneData.total_time_ms;
-                                    handleDone(answer, totalTime);
-                                } else if (event.data) {
-                                    // Fallback: treat as token if no event type
-                                    try {
-                                        const data = JSON.parse(event.data);
-                                        const tokenStr = typeof data === 'string' ? data : String(data);
-                                        if (tokenStr) {
-                                            fullAnswer += tokenStr;
-                                            onToken(tokenStr);
-                                        }
-                                    } catch (e) {
-                                        // If parsing fails, use data as-is
-                                        if (event.data) {
-                                            fullAnswer += event.data;
-                                            onToken(event.data);
-                                        }
+                                } catch (e) {
+                                    // If parsing fails, use data as-is
+                                    if (event.data) {
+                                        fullAnswer += event.data;
+                                        onToken(event.data);
                                     }
                                 }
-                            } catch (e) {
-                                console.warn('Failed to parse SSE message:', event, e);
                             }
-                        },
-                        onerror(err) {
-                            console.error('SSE error:', err);
-                            handleError(new Error(err?.message || 'Streaming error occurred'));
-                        },
-                        onclose() {
-                            // If we exit without 'done' event, use accumulated answer
-                            if (!isDone) {
-                                if (fullAnswer) {
-                                    handleDone(fullAnswer);
-                                } else {
-                                    handleError(new Error('Stream closed without data'));
-                                }
+                        } catch (e) {
+                            console.warn('Failed to parse SSE message:', event, e);
+                        }
+                    },
+                    onerror(err) {
+                        console.error('SSE error:', err);
+                        handleError(new Error(err?.message || 'Streaming error occurred'));
+                    },
+                    onclose() {
+                        // If we exit without 'done' event, use accumulated answer
+                        if (!isDone) {
+                            if (fullAnswer) {
+                                handleDone(fullAnswer);
+                            } else {
+                                handleError(new Error('Stream closed without data'));
                             }
-                        },
-                    });
-                } catch (error: any) {
-                    console.error('Stream error:', error);
-                    handleError(error instanceof Error ? error : new Error(String(error)));
-                }
+                        }
+                    },
+                });
+            } catch (error: any) {
+                console.error('Stream error:', error);
+                handleError(error instanceof Error ? error : new Error(String(error)));
+            }
             });
         }, 3, 1000).catch((error) => {
             // After all retries failed, notify user

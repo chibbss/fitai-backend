@@ -74,34 +74,8 @@ def summarize_texts(rag_service: RAGService, texts: List[str], summary_type: str
                 logger.warning("OpenAI summarization failed: %s", e)
                 return _simple_summarize(texts)
         
-        # Modal/Remote summarization (backward compatibility)
-        elif rag_service.config.gen_backend == "remote" and rag_service._remote_session and rag_service.config.remote_gen_url:
-            if summary_type == "conversation":
-                prompt = (
-                    "Summarize the following conversation with the user into 2-4 short sentences. "
-                    "Capture preferences, feelings, goals, personality traits, injuries/concerns, and anything personal they mentioned. "
-                    "Focus on what makes them unique. Avoid PII.\n\n" + joined
-                )
-            else:  # workout
-                prompt = (
-                    "Summarize the following user's recent training logs into 2-4 short sentences. "
-                    "Capture habits, goals, preferences, and recent achievements. Avoid PII.\n\n" + joined
-                )
-            payload = {
-                "model": rag_service.config.hf_model_id,
-                "prompt": prompt,
-                "max_tokens": 256,
-                "temperature": 0.1,
-            }
-            resp = rag_service._remote_session.post(rag_service.config.remote_gen_url, json=payload, timeout=rag_service.config.gen_timeout_ms / 1000.0)
-            resp.raise_for_status()
-            data = resp.json()
-            if isinstance(data, dict) and data.get("choices"):
-                choice = data["choices"][0]
-                if "text" in choice:
-                    return str(choice["text"]).strip()
-                if "message" in choice and "content" in choice["message"]:
-                    return str(choice["message"]["content"]).strip()
+        # Local generation fallback
+        else:
             return _simple_summarize(texts)
     except Exception as e:  # pragma: no cover - robustness
         logger.warning("Remote summarization failed, falling back: %s", e)

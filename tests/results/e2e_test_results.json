@@ -1,44 +1,3089 @@
 {
-  "timestamp": "2025-11-26T00:00:00Z",
-  "backend_url": "https://fitai-api.onrender.com",
-  "test_user": "john-doe-e2e-test",
+  "timestamp": "2025-11-28T17:42:47.085402+00:00",
   "summary": {
-    "passed": 4,
+    "passed": 17,
     "failed": 1,
-    "warnings": 0,
-    "status": "BLOCKED"
+    "warnings": 1
   },
   "tests": [
     {
       "name": "Create test JWT token",
-      "status": "PASS"
-    },
-    {
-      "name": "Backend wake-up",
-      "status": "PASS"
+      "status": "PASS",
+      "result": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqb2huLWRvZS1lMmUtdGVzdCIsImVtYWlsIjoiam9obi5kb2UuZTJlQGZpdGFpLnRlc3QiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJ1c2VyX21ldGFkYXRhIjp7InRpZXIiOiJmcmVlIn0sImV4cCI6MTc2NDM1NDk1NCwiaWF0IjoxNzY0MzUxMzU0fQ.pDIIFn7YKZWQ8nRE0zCpY06SMbi9dcSJbNgFlQ1ReLw"
     },
     {
       "name": "Backend health",
-      "status": "PASS"
+      "status": "PASS",
+      "result": {
+        "status": "ok"
+      }
     },
     {
       "name": "Backend readiness",
-      "status": "PASS"
+      "status": "PASS",
+      "result": {
+        "ok": true,
+        "db_ok": true,
+        "gen_ok": true
+      }
     },
     {
       "name": "Create user profile",
-      "status": "PASS"
+      "status": "PASS",
+      "result": {
+        "id": "john-doe-e2e-test",
+        "name": "John Doe",
+        "email": "john.doe.e2e@fitai.test",
+        "profile": {
+          "age": 28,
+          "gender": "male",
+          "height": 180,
+          "weight": 75,
+          "experience_level": "intermediate"
+        },
+        "goals": {
+          "timeline": "12 weeks",
+          "primary_goal": "build_muscle",
+          "target_weight": 80
+        },
+        "metadata": {},
+        "created_at": "2025-11-26T12:19:55.207239+00:00",
+        "updated_at": "2025-11-26T12:19:55.207239+00:00"
+      }
     },
     {
       "name": "Onboarding - Goal",
+      "status": "PASS",
+      "result": {
+        "user": {
+          "id": "john-doe-e2e-test",
+          "name": "John Doe",
+          "email": "john.doe.e2e@fitai.test",
+          "profile": {
+            "age": 28,
+            "gender": "male",
+            "height": 180,
+            "weight": 75,
+            "experience_level": "intermediate"
+          },
+          "goals": {
+            "timeline": "12 weeks",
+            "primary_goal": "build_muscle",
+            "target_weight": 80
+          },
+          "metadata": {},
+          "created_at": "2025-11-26T12:19:55.207239+00:00",
+          "updated_at": "2025-11-26T12:19:55.207239+00:00"
+        }
+      }
+    },
+    {
+      "name": "Onboarding - Experience",
+      "status": "PASS",
+      "result": {
+        "user": {
+          "id": "john-doe-e2e-test",
+          "name": "John Doe",
+          "email": "john.doe.e2e@fitai.test",
+          "profile": {
+            "age": 28,
+            "gender": "male",
+            "height": 180,
+            "weight": 75,
+            "experience_level": "intermediate"
+          },
+          "goals": {
+            "timeline": "12 weeks",
+            "primary_goal": "build_muscle",
+            "target_weight": 80
+          },
+          "metadata": {},
+          "created_at": "2025-11-26T12:19:55.207239+00:00",
+          "updated_at": "2025-11-26T12:19:55.207239+00:00"
+        }
+      }
+    },
+    {
+      "name": "Onboarding - Training Style",
+      "status": "PASS",
+      "result": {
+        "user": {
+          "id": "john-doe-e2e-test",
+          "name": "John Doe",
+          "email": "john.doe.e2e@fitai.test",
+          "profile": {
+            "age": 28,
+            "gender": "male",
+            "height": 180,
+            "weight": 75,
+            "experience_level": "intermediate",
+            "workout_preference": "strength_training"
+          },
+          "goals": {
+            "timeline": "12 weeks",
+            "primary_goal": "build_muscle",
+            "target_weight": 80
+          },
+          "metadata": {},
+          "created_at": "2025-11-26T12:19:55.207239+00:00",
+          "updated_at": "2025-11-26T12:19:55.207239+00:00"
+        }
+      }
+    },
+    {
+      "name": "Get insights (workout 1)",
+      "status": "PASS",
+      "result": {
+        "session_id": "39c5368d-5d89-40d1-b143-d5250daf384b",
+        "insights": [
+          {
+            "exercise": "Hack Squat",
+            "status": "maintained",
+            "message": "Hack Squat volume changed by +0.0% vs last session, indicating no variation in workload or intensity. This stable volume suggests a plateau in performance, which may require adjustments to either weight or rep scheme to stimulate further progress.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Romanian Deadlifts",
+            "status": "maintained",
+            "message": "Romanian Deadlifts volume changed by +0.0% vs last session. This indicates a stable performance with no increase in workload, suggesting potential stagnation in progression or maintenance of current fitness level without challenge or adaptation.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Leg Press",
+            "status": "maintained",
+            "message": "Leg Press volume changed by +0.0% vs last session, indicating that performance has remained stable with no increase in workload. This consistent volume suggests that the current training stimulus is adequate for maintenance, but may not be challenging enough to elicit further gains in strength or hypertrophy without adjustments.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Leg Curls",
+            "status": "maintained",
+            "message": "Leg Curls volume changed by +0.0% vs last session. This indicates that performance is stable without any progression or regression, suggesting a potential plateau in strength or adaptations in this exercise, which may require reassessment of training variables to promote further improvements.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Leg Extensions",
+            "status": "maintained",
+            "message": "Leg Extensions volume changed by +0.0% vs last session, indicating that performance has remained stable without any increase in workload or intensity. This consistent volume suggests a plateau in training adaptations, warranting a review of progression strategies to stimulate further improvement.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Calf Raises",
+            "status": "maintained",
+            "message": "Calf Raises volume changed by +0.0% vs last session, indicating that there was no increase in workload or intensity applied during this exercise. This stability in volume suggests a plateau in performance, which may require variation in weight or additional stimulus to promote further progress.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          }
+        ],
+        "session_insights": [
+          {
+            "type": "consistency",
+            "message": "80 sessions logged in the last 7 days (1143% frequency), with a 0-day streak. This indicates an extremely high frequency of workouts within a short timeframe but suggests a lack of sustained consistency, as evidenced by the absence of consecutive days logged. Furthermore, with 307 sessions in the",
+            "priority": 3
+          },
+          {
+            "type": "recovery",
+            "message": "You've trained 80 times this week, resulting in an extraordinary frequency of 1142.9%, with an average recovery window of only 1.0 days. This indicates a significant risk of overtraining, as the negative value of days since your last workout (-3) suggests a chronic state of",
+            "priority": 2
+          }
+        ],
+        "overall_message": "Overall session volume changed by +0.0% vs last session. This indicates that performance remained stable without any increase in workload, suggesting either a maintenance phase or potential stagnation in progress.",
+        "avg_volume_change_pct": 0.0,
+        "exercise_count": 6,
+        "conversation_hooks": [
+          "consistent this week - 80 workouts"
+        ]
+      }
+    },
+    {
+      "name": "Get insights (workout 2)",
+      "status": "PASS",
+      "result": {
+        "session_id": "e29e3644-5f76-4c5c-9248-0e4b9e1a8f28",
+        "insights": [
+          {
+            "exercise": "Deadlifts",
+            "status": "maintained",
+            "message": "Deadlifts volume changed by +0.0% vs last session, indicating that there has been no progression or regression in workload. This stable trend suggests consistency in performance but may also imply a potential plateau, warranting a review of either intensity or variation in training to stimulate further adaptation.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "T-Bar Rows",
+            "status": "maintained",
+            "message": "T-Bar Rows volume changed by +0.0% vs last session, indicating a complete maintenance of workload and no progression or regression in performance. This stable volume trend suggests consistency in training but may also indicate a need for variation or intensity adjustment to stimulate further gains.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Seated Cable Rows",
+            "status": "maintained",
+            "message": "Seated Cable Rows volume changed by +0.0% vs last session. This indicates a stable performance with no progression or regression in workload, suggesting a plateau that may require adjustments in either intensity or variation to stimulate further adaptation.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Overhead Press",
+            "status": "maintained",
+            "message": "Overhead Press volume changed by +0.0% vs last session, indicating no variation in workload or intensity, suggesting either a plateau in performance or consistent adherence to the current training regimen. The stable volume trend indicates that while strength may be maintained, there is no progression in terms of increased weight or",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Lateral Raises",
+            "status": "maintained",
+            "message": "Lateral Raises volume changed by +0.0% vs last session. This indicates that performance has plateaued, showing no progression or regression, which may suggest a need for variation in training stimulus to stimulate further gains.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Rear Delt Flyes",
+            "status": "maintained",
+            "message": "Rear Delt Flyes volume changed by +0.0% compared to the last session, indicating a lack of progression or adaptation in this exercise. This stable volume trend suggests that current training intensity or workload may not be sufficient to drive further improvements in strength or hypertrophy for this muscle group.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Face Pulls",
+            "status": "maintained",
+            "message": "Face Pulls volume changed by +0.0% vs last session, indicating no improvement or decline in workload, which suggests a plateau in performance. The stable volume trend may imply the current weight or repetitions are optimal for maintenance, but could also indicate a need for variation to stimulate further progress.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          }
+        ],
+        "session_insights": [
+          {
+            "type": "consistency",
+            "message": "80 sessions logged in the last 7 days (1143% frequency), with a 0-day streak. This indicates a highly intensive workout pattern over the past week, but the lack of a current streak suggests that these sessions may not be part of a sustainable routine. Additionally, with only 336",
+            "priority": 3
+          },
+          {
+            "type": "recovery",
+            "message": "You've trained 80 times this week, resulting in an unprecedented weekly frequency of 1142.9%. With an average recovery window of only 1.0 days and having trained even with a negative recovery period of -2 days since your last workout, you are at a significant risk of overtraining",
+            "priority": 2
+          }
+        ],
+        "overall_message": "Overall session volume changed by +0.0% vs last session. This indicates a lack of progress or adaptation in workload, suggesting that the current training stimulus may not be sufficient to drive performance improvements or that recovery and consistency may need to be addressed.",
+        "avg_volume_change_pct": 0.0,
+        "exercise_count": 7,
+        "conversation_hooks": [
+          "consistent this week - 80 workouts"
+        ]
+      }
+    },
+    {
+      "name": "Get insights (workout 3)",
+      "status": "PASS",
+      "result": {
+        "session_id": "95a78981-18eb-4455-83f5-c3bea88c94e5",
+        "insights": [
+          {
+            "exercise": "Bench Press",
+            "status": "maintained",
+            "message": "Bench Press volume changed by +0.0% vs last session, indicating no improvement or decline in performance, which suggests a plateau in strength or endurance for this exercise. The stable volume trend may reflect consistent training intensity but could necessitate program adjustments to stimulate progression.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Dumbbell Flyes",
+            "status": "maintained",
+            "message": "Dumbbell Flyes volume changed by +0.0% vs last session. This indicates a stable performance level with no increase in workload, suggesting that either the current weight or form is being consistently maintained without progression, which may limit potential strength gains over time.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Push-ups",
+            "status": "maintained",
+            "message": "Push-ups volume changed by +0.0% versus the last session. This indicates a stable performance trend, suggesting that there has been no progression or regression in strength or endurance for this exercise, which may require further assessment or adjustment to stimulate improvement.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Burpees",
+            "status": "maintained",
+            "message": "Burpees volume changed by +0.0% vs last session, indicating that there has been no improvement or decline in performance, which suggests a plateau in training effectiveness. The stable volume trend may imply a need for variation in intensity or technique to stimulate further progress.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Mountain Climbers",
+            "status": "maintained",
+            "message": "Mountain Climbers volume changed by +0.0% vs last session. This indicates a stable performance with no growth or decline, suggesting either a plateau in conditioning or consistent effort levels; further monitoring is needed to identify if this trend persists or if adjustments are required for progression.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Plank",
+            "status": "maintained",
+            "message": "Plank volume changed by +0.0% vs last session, indicating that there has been no improvement or regression in performance. This stability suggests a plateau in strength or endurance for this exercise, which may require reassessment of training stimulus or variation to induce further progress.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Russian Twists",
+            "status": "maintained",
+            "message": "Russian Twists volume changed by +0.0% vs last session. This indicates that performance has remained stable without any increase in workload, suggesting consistency in exercise execution but potentially a lack of progression or adaptation over time.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Jump Rope",
+            "status": "maintained",
+            "message": "Jump Rope volume changed by +0.0% vs last session. This indicates that the workout intensity and duration have remained consistent, suggesting a plateau in performance, with no increase in endurance or skill level observed during this period.",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          },
+          {
+            "exercise": "Battle Ropes",
+            "status": "maintained",
+            "message": "Battle Ropes volume changed by +0.0% vs last session, indicating no increase in workload or intensity, which may suggest a plateau in performance or consistency in training. The stable volume trend suggests that while the exercise is being maintained, there may be an opportunity to introduce variation or progression to stimulate",
+            "delta_pct": 0.0,
+            "weight_increase": null
+          }
+        ],
+        "session_insights": [
+          {
+            "type": "consistency",
+            "message": "80 sessions logged in the last 7 days (1143% frequency), with a 0-day streak. This indicates an extremely high frequency of workouts within a short period, yet the lack of consecutive days suggests a possible pattern of irregularity or sporadic activity rather than sustained daily engagement. The total",
+            "priority": 3
+          },
+          {
+            "type": "recovery",
+            "message": "You've trained 80 times this week with a frequency of 1142.9%, indicating extreme overtraining with negligible recovery time, as your average recovery window is only 1.0 days. This pattern significantly increases the risk of injury and may lead to diminished performance due to inadequate recovery.",
+            "priority": 2
+          }
+        ],
+        "overall_message": "Overall session volume changed by +0.0% vs last session. This indicates that there was no improvement or decline in workload, suggesting a plateau in performance, which may require adjustments to training variables to stimulate progress.",
+        "avg_volume_change_pct": 0.0,
+        "exercise_count": 9,
+        "conversation_hooks": [
+          "consistent this week - 80 workouts"
+        ]
+      }
+    },
+    {
+      "name": "Get workout stats",
+      "status": "PASS",
+      "result": {
+        "session_id": "95a78981-18eb-4455-83f5-c3bea88c94e5",
+        "stats": {
+          "consistency": {
+            "sessions_this_week": 60,
+            "sessions_this_month": 333,
+            "total_sessions": 336,
+            "current_streak": 1,
+            "weekly_frequency": 77.4,
+            "best_streak": 2
+          },
+          "volume": {
+            "total_volume_week": 773261.0,
+            "total_volume_month": 3170311.4,
+            "volume_trend": "-5.7%",
+            "avg_session_volume": 9520.5,
+            "volume_by_group": {
+              "push": 1020772.0,
+              "pull": 928090.9,
+              "legs": 851118.5
+            }
+          },
+          "exercises": {
+            "top_5": [
+              {
+                "name": "Bench Press",
+                "frequency": 129
+              },
+              {
+                "name": "Hammer Curls",
+                "frequency": 62
+              },
+              {
+                "name": "Barbell Rows",
+                "frequency": 62
+              },
+              {
+                "name": "Cable Rope Curls",
+                "frequency": 62
+              },
+              {
+                "name": "Pull-ups",
+                "frequency": 62
+              }
+            ],
+            "variety": 34,
+            "most_trained_group": "pull",
+            "least_trained_group": "legs"
+          },
+          "recovery": {
+            "avg_recovery_days": 1.0,
+            "recovery_trend": "N/A",
+            "days_since_last": 0,
+            "rest_days_per_week": -70.4
+          },
+          "progress": {
+            "prs_this_week": 0,
+            "prs_this_month": 0,
+            "strength_progression": "+14.3%",
+            "plateaus": [
+              {
+                "exercise": "Bench Press",
+                "weeks": 3
+              },
+              {
+                "exercise": "Hammer Curls",
+                "weeks": 3
+              },
+              {
+                "exercise": "Cable Rope Curls",
+                "weeks": 3
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "Get workout details",
+      "status": "PASS",
+      "result": {
+        "session_id": "95a78981-18eb-4455-83f5-c3bea88c94e5",
+        "session_name": "Week 4 - Chest & Full Body Day",
+        "session_type": "strength",
+        "occurred_at": "2025-11-25T17:38:22.096804+00:00",
+        "duration_minutes": 88,
+        "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+        "metadata": {},
+        "exercises": [
+          {
+            "exercise_name": "Bench Press",
+            "exercise_category": "chest",
+            "sets": 3,
+            "reps": [
+              10,
+              8,
+              6
+            ],
+            "weights": [
+              "80.0kg",
+              "80.0kg",
+              "80.0kg"
+            ],
+            "duration_seconds": null,
+            "distance_meters": null,
+            "notes": null,
+            "metadata": {}
+          },
+          {
+            "exercise_name": "Dumbbell Flyes",
+            "exercise_category": "chest",
+            "sets": 3,
+            "reps": [
+              12,
+              10,
+              8
+            ],
+            "weights": [
+              "20kg",
+              "22.5kg",
+              "25kg"
+            ],
+            "duration_seconds": null,
+            "distance_meters": null,
+            "notes": null,
+            "metadata": {}
+          },
+          {
+            "exercise_name": "Push-ups",
+            "exercise_category": "chest",
+            "sets": 3,
+            "reps": [
+              20,
+              15,
+              12
+            ],
+            "weights": [
+              "bodyweight",
+              "bodyweight",
+              "bodyweight"
+            ],
+            "duration_seconds": null,
+            "distance_meters": null,
+            "notes": null,
+            "metadata": {}
+          },
+          {
+            "exercise_name": "Burpees",
+            "exercise_category": "full_body",
+            "sets": 3,
+            "reps": [
+              15,
+              12,
+              10
+            ],
+            "weights": [
+              "bodyweight",
+              "bodyweight",
+              "bodyweight"
+            ],
+            "duration_seconds": null,
+            "distance_meters": null,
+            "notes": null,
+            "metadata": {}
+          },
+          {
+            "exercise_name": "Mountain Climbers",
+            "exercise_category": "full_body",
+            "sets": 3,
+            "reps": [
+              30,
+              25,
+              20
+            ],
+            "weights": [
+              "bodyweight",
+              "bodyweight",
+              "bodyweight"
+            ],
+            "duration_seconds": null,
+            "distance_meters": null,
+            "notes": null,
+            "metadata": {}
+          },
+          {
+            "exercise_name": "Plank",
+            "exercise_category": "core",
+            "sets": 3,
+            "reps": [
+              60,
+              45,
+              30
+            ],
+            "weights": [
+              "bodyweight",
+              "bodyweight",
+              "bodyweight"
+            ],
+            "duration_seconds": null,
+            "distance_meters": null,
+            "notes": null,
+            "metadata": {}
+          },
+          {
+            "exercise_name": "Russian Twists",
+            "exercise_category": "core",
+            "sets": 3,
+            "reps": [
+              30,
+              25,
+              20
+            ],
+            "weights": [
+              "10kg",
+              "12.5kg",
+              "15kg"
+            ],
+            "duration_seconds": null,
+            "distance_meters": null,
+            "notes": null,
+            "metadata": {}
+          },
+          {
+            "exercise_name": "Jump Rope",
+            "exercise_category": "cardio",
+            "sets": 3,
+            "reps": [
+              100,
+              100,
+              100
+            ],
+            "weights": [
+              "bodyweight",
+              "bodyweight",
+              "bodyweight"
+            ],
+            "duration_seconds": null,
+            "distance_meters": null,
+            "notes": null,
+            "metadata": {}
+          },
+          {
+            "exercise_name": "Battle Ropes",
+            "exercise_category": "full_body",
+            "sets": 3,
+            "reps": [
+              30,
+              25,
+              20
+            ],
+            "weights": [
+              "15kg",
+              "15kg",
+              "15kg"
+            ],
+            "duration_seconds": null,
+            "distance_meters": null,
+            "notes": null,
+            "metadata": {}
+          }
+        ]
+      }
+    },
+    {
+      "name": "Get workout calendar",
+      "status": "PASS",
+      "result": {
+        "items": [
+          {
+            "session_id": "95a78981-18eb-4455-83f5-c3bea88c94e5",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T17:38:22.096804+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "493bc303-1272-4635-9766-2764d96286c8",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T17:29:24.539083+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "e94578ec-e1ac-4048-974c-1baed280c8f8",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T17:21:20.583161+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "eb404456-8e64-46bf-b71d-94332e4b33f4",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T16:54:56.574621+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "2112e10c-dd4d-4bfa-8c37-04a7f8ad8d05",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T16:39:46.066489+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "ab89b9ad-a430-455a-9f0a-942c20531c50",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T16:23:32.010461+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "3500d1c1-22b5-49eb-9fff-8ee8e1bcb11a",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T16:17:51.419113+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "a79b368a-a226-4265-9333-f104723753c7",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T16:08:52.512948+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "c023b881-8a79-4fb1-84ca-6e2f7f5dd4ab",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T13:43:55.078936+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "e5271e31-b7df-460a-a546-8fef0a6629b5",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-25T05:17:10.757167+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "65716b64-c2cc-42c0-9353-7f283470fedc",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T23:46:15.466935+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "89a65692-b47f-489c-9424-4cfa24dd5789",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T23:04:32.483214+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "484a243a-35b2-4133-9501-858c4ea1a73e",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T20:59:23.178359+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "e29e3644-5f76-4c5c-9248-0e4b9e1a8f28",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T17:38:16.171812+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "0cab3b40-89ee-4032-93de-096208e89383",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T17:29:18.696098+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "571ebaa0-737d-4264-b063-4c0964c3e45a",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T17:21:14.307251+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "b7278e9e-6da3-4458-aa63-203ed390e100",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T16:54:49.599856+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "9018d905-4ec3-4ea7-85f2-0081e372744e",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T16:39:40.324051+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "bed18845-4590-4a4a-b246-256ddaa86184",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T16:23:26.351986+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "5f5fb78d-dd18-42b7-8a37-c6a9864d7893",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T16:17:41.184867+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "07a32b0d-e810-4ad2-9991-680f46a9efcc",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T16:08:45.966312+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "c1c3cc89-b527-4eb1-bcd5-aaa352d5e2a7",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T14:15:15.191684+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "ad9f4edb-d29a-4986-a79f-95e9a787aaa8",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T13:43:48.875125+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "a6aeaafe-f434-4540-9015-72454349633f",
+            "session_name": "Week 4 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T13:34:35.980907+00:00",
+            "duration_minutes": 88,
+            "notes": "Week 4, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "5f0af65c-5c2e-4690-bef0-cc8bd54d9c6f",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-24T05:17:04.909739+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "328f186e-32e4-404c-8e94-cff9f29c9c2a",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T23:46:09.914219+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "9170291a-7d66-422d-89ad-1df3fa71e215",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T23:04:26.569674+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "7d510d97-f074-4b6b-94ce-51af4e0e8a90",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T20:59:17.461152+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "39c5368d-5d89-40d1-b143-d5250daf384b",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T17:38:10.004993+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "a8e33e0c-fd7c-4986-839d-a213a4040ba9",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T17:29:12.770036+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "48d0695f-259a-4d79-8c75-e26a45d0b7d0",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T17:21:08.495690+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "18e29af4-feb0-478a-9067-93cc54201cf3",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T16:54:39.491297+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "f9dba3ac-0e70-4dab-b717-afe772f86daf",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T16:39:34.692821+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "9194fc6b-83b8-4f7a-ace2-79fa5dd80864",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T16:23:20.279087+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "96cbce1b-6da0-44d7-8722-1bffafc54aac",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T16:17:31.062327+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "9fe60994-099b-46fe-8a97-beaaba4786e7",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T16:08:38.404434+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "cc110128-8d00-4c78-88d5-981d21155273",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T14:15:09.317998+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "d1ce0cf3-c079-43f9-a718-dd5830ff7fb7",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T13:43:43.081198+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "e6a69892-921f-4ae6-8d80-7a26ab7be05b",
+            "session_name": "Week 4 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T13:34:30.618575+00:00",
+            "duration_minutes": 83,
+            "notes": "Week 4, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9496.7,
+            "exercise_count": 7,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "9e156fd5-b80b-4078-88ba-14de44b07fa3",
+            "session_name": "Week 4 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T12:33:41.208938+00:00",
+            "duration_minutes": 50,
+            "notes": "Week 4, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1700.0,
+            "exercise_count": 1,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "98fdbf4d-4c3e-4901-a943-0a0f4c390726",
+            "session_name": "Week 4 - Deadlift Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T12:28:40.622167+00:00",
+            "duration_minutes": 50,
+            "notes": "Week 4, Day 5 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1700.0,
+            "exercise_count": 1,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "legs"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "25ffcdc1-c0ae-40d5-ad37-b014f561c241",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-23T05:16:58.323185+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "2cfe8ab0-fe8c-4941-aa15-f27f5a8cdcfe",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T23:46:04.107400+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "18947ef2-86bf-47dc-84fc-e6cda19c1a77",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T23:04:20.296793+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "7f733da7-1f97-4934-a528-159b1ffb908f",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T20:59:11.941309+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "bf51a5e3-2924-4f00-bbdb-f95a0dd82410",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T17:38:04.256782+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "c7738047-50ec-43c1-bc12-d485c0568682",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T17:29:06.780215+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "6586df4f-2de6-4eb2-9208-f26fab6c7eef",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T17:21:01.016656+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "9f2ed328-c184-4b27-ba0d-e51314831217",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T16:54:31.459867+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "aaa834cc-23bf-4107-a0e5-f63d86c98416",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T16:39:28.558911+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "dc2abbc3-212a-4f8c-9cf6-193f37f3f6b8",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T16:23:14.017508+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "69b8d8f0-de16-4f82-97e3-df983756b2d1",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T16:17:24.084908+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "04d001be-9d14-46b6-bd17-9fa23c6cd47e",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T16:08:32.372176+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "bb323269-921d-4eaa-b368-551357af857b",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T14:15:03.558500+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "11bb10f6-5105-486a-ade8-f9467be8ecdd",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T13:43:37.096928+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "d8e81ed8-1fc8-4ce2-bbe4-313551da589d",
+            "session_name": "Week 4 - Leg Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T13:34:24.493430+00:00",
+            "duration_minutes": 78,
+            "notes": "Week 4, Day 3 - Hack squat feeling strong! Up to 200.0kg now!",
+            "metadata": {},
+            "volume_kg": 31770.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "triceps",
+              "chest",
+              "legs",
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "very_heavy"
+          },
+          {
+            "session_id": "37a12866-03bf-48de-b58e-4d0cd7d7f8ac",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-22T05:16:52.730695+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "3c9d012c-7f0c-4ab0-92a8-617af16e0fec",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T23:45:58.476069+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "47616e3c-c58e-498f-8c4a-75a360e32d5e",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T23:04:14.415886+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "f3a522ca-7665-4155-aa46-73aaf2cdf74a",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T20:59:05.351364+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "d7976e14-9a63-464a-9c09-4875fbd94ec5",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T17:37:58.019648+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "3af55cd2-9eae-4b8c-bbdf-a6fb14f7e4e8",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T17:29:00.787606+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "0e75e136-13d9-45be-881b-822adfb0ab5a",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T17:20:55.071507+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "a253c2c4-e066-4f12-bb7a-888c170f7165",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T16:54:22.991814+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "29b6f443-fe45-41d5-8b73-0b97e68d6280",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T16:39:21.802616+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "deb2bfa5-9a72-48ba-bf40-9d113575dddf",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T16:23:07.759644+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "b7b890fd-f4c0-4f0b-a7ef-f5230d0e2ede",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T16:17:18.119057+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "df12b68c-d9ec-4e03-9559-a397ef2eee51",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T16:08:26.598016+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "029ae9bc-0564-4ce0-88cf-e8a5dd20e836",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T14:14:57.620945+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "b7c0289e-904b-4db2-bef9-67984fe1c850",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T13:43:31.368791+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "0585dbf1-a5fa-428c-90e2-18c91213abd4",
+            "session_name": "Week 4 - Back & Arms Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T13:34:18.110751+00:00",
+            "duration_minutes": 73,
+            "notes": "Week 4, Day 2 - Back and biceps destroyed!",
+            "metadata": {},
+            "volume_kg": 6271.0,
+            "exercise_count": 6,
+            "has_pr": true,
+            "muscle_groups": [
+              "back",
+              "biceps"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "87f4ce1b-88e5-47a9-b357-41046aa2a767",
+            "session_name": "Week 4 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T12:33:35.302404+00:00",
+            "duration_minutes": 48,
+            "notes": "Week 4, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2816.5,
+            "exercise_count": 1,
+            "has_pr": true,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "dd202f0c-ace4-4e0f-baab-65e55fdc9a91",
+            "session_name": "Week 4 - Squat Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T12:28:35.705320+00:00",
+            "duration_minutes": 48,
+            "notes": "Week 4, Day 3 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 2816.5,
+            "exercise_count": 1,
+            "has_pr": true,
+            "muscle_groups": [
+              "legs"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "f6ca6bc9-6b52-4a0a-b2e6-691c19569e97",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-21T05:16:46.878327+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "3de945bb-38d7-4fe0-99ab-dc9ca23269be",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-20T23:45:52.650225+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "81b5549b-267e-4109-93a1-0310fa8bfcdc",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-20T23:04:08.148578+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "4cb2e27f-dc7a-4aaa-8184-f8f31beca4d3",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-20T20:58:58.421509+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "1811e4bf-8794-45c4-80e1-7449b6735602",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-20T14:14:51.697268+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "28b231fc-039c-4c40-a8a6-444ce5d591ef",
+            "session_name": "Week 4 - Chest Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-20T13:34:12.373759+00:00",
+            "duration_minutes": 68,
+            "notes": "Week 4, Day 1 - Chest pump! Bench still stuck at 80kg though...",
+            "metadata": {},
+            "volume_kg": 6040.0,
+            "exercise_count": 5,
+            "has_pr": false,
+            "muscle_groups": [
+              "triceps",
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "8e59c187-3c7f-48ac-bcd4-8479c26bc8d1",
+            "session_name": "Week 4 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-19T12:33:29.627813+00:00",
+            "duration_minutes": 46,
+            "notes": "Week 4, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1727.5,
+            "exercise_count": 1,
+            "has_pr": true,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "59925203-7897-42a9-9ab0-b549a126ff6e",
+            "session_name": "Week 4 - Bench Press Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-19T12:28:30.804876+00:00",
+            "duration_minutes": 46,
+            "notes": "Week 4, Day 1 - Feeling strong!",
+            "metadata": {},
+            "volume_kg": 1727.5,
+            "exercise_count": 1,
+            "has_pr": true,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "4a9e5f45-ebf5-481a-bd69-af411e969a77",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T17:37:51.836634+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "37a4a4e0-f2f7-4aa9-befd-f02de5328d6b",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T17:28:54.644581+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "d94bcdfc-2fa3-458b-b235-de0de36105c5",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T17:20:48.721034+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "d1911496-b9f5-407e-a9e8-abaad6101661",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T16:54:13.100531+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "6ff2243f-24b0-4c1d-a441-569031d92fbf",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T16:39:15.845438+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "84a2c7a6-45eb-4dea-9025-093335c043a5",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T16:23:00.577038+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "90938906-2e6c-4c0d-b8e4-f41dc0321991",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T16:17:11.799797+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "5dc35228-cc1b-4a99-bac3-804070d4ae6d",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T16:08:20.640009+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "cccf5369-6927-4a66-bbd2-6f73b041d377",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T13:43:25.253976+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "87b77ba3-7309-44c4-97e4-32eada6e8ae2",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-18T05:16:41.036393+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "6e93ca83-6c87-4299-9be1-78cae44f026d",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-17T23:45:47.047300+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "cf61e44e-cfa6-4b6e-b625-9f8fb8ecc236",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-17T23:04:02.502176+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "a6bbf4ec-e7fe-49a9-b6af-f7d8a9a60e61",
+            "session_name": "Week 3 - Chest & Full Body Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-17T20:58:52.507087+00:00",
+            "duration_minutes": 86,
+            "notes": "Week 3, Day 5 - Full body shredded session! Bench still stuck though...",
+            "metadata": {},
+            "volume_kg": 4622.5,
+            "exercise_count": 9,
+            "has_pr": false,
+            "muscle_groups": [
+              "chest"
+            ],
+            "intensity_level": "light"
+          },
+          {
+            "session_id": "951de6f3-e568-460e-a77c-744a3de49bcc",
+            "session_name": "Week 3 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-17T17:37:45.602818+00:00",
+            "duration_minutes": 81,
+            "notes": "Week 3, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9324.5,
+            "exercise_count": 7,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "759bc9fc-65af-4bfb-86c0-c814ce16d312",
+            "session_name": "Week 3 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-17T17:28:48.866233+00:00",
+            "duration_minutes": 81,
+            "notes": "Week 3, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9324.5,
+            "exercise_count": 7,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "cd89837c-f8d4-4ed2-9133-148b7b6b9475",
+            "session_name": "Week 3 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-17T17:20:42.546734+00:00",
+            "duration_minutes": 81,
+            "notes": "Week 3, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9324.5,
+            "exercise_count": 7,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "f37fce59-f2e0-4256-b9bc-61951288eefc",
+            "session_name": "Week 3 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-17T16:54:03.814043+00:00",
+            "duration_minutes": 81,
+            "notes": "Week 3, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9324.5,
+            "exercise_count": 7,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "58b41a01-2303-445e-897b-f52d6fb6e1bb",
+            "session_name": "Week 3 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-17T16:39:10.029752+00:00",
+            "duration_minutes": 81,
+            "notes": "Week 3, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9324.5,
+            "exercise_count": 7,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          },
+          {
+            "session_id": "3b16f97b-b6e8-4e6b-bc19-60baacdda3d5",
+            "session_name": "Week 3 - Back & Shoulders Day",
+            "session_type": "strength",
+            "occurred_at": "2025-11-17T16:22:54.933062+00:00",
+            "duration_minutes": 81,
+            "notes": "Week 3, Day 4 - Back and shoulders feeling solid!",
+            "metadata": {},
+            "volume_kg": 9324.5,
+            "exercise_count": 7,
+            "has_pr": false,
+            "muscle_groups": [
+              "back",
+              "legs",
+              "chest",
+              "shoulders"
+            ],
+            "intensity_level": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Get weekly summary",
+      "status": "PASS",
+      "result": {
+        "days": [
+          {
+            "date": "2025-11-24T00:00:00+00:00",
+            "day_name": "Mon",
+            "day_number": 24,
+            "has_workout": true,
+            "session_id": "65716b64-c2cc-42c0-9353-7f283470fedc",
+            "volume_kg": 4622.5,
+            "intensity_level": "very_heavy",
+            "has_pr": false,
+            "exercise_count": 9
+          },
+          {
+            "date": "2025-11-25T00:00:00+00:00",
+            "day_name": "Tue",
+            "day_number": 25,
+            "has_workout": true,
+            "session_id": "95a78981-18eb-4455-83f5-c3bea88c94e5",
+            "volume_kg": 4622.5,
+            "intensity_level": "very_heavy",
+            "has_pr": false,
+            "exercise_count": 9
+          },
+          {
+            "date": "2025-11-26T00:00:00+00:00",
+            "day_name": "Wed",
+            "day_number": 26,
+            "has_workout": false,
+            "session_id": null,
+            "volume_kg": 0.0,
+            "intensity_level": "light",
+            "has_pr": false,
+            "exercise_count": 0
+          },
+          {
+            "date": "2025-11-27T00:00:00+00:00",
+            "day_name": "Thu",
+            "day_number": 27,
+            "has_workout": false,
+            "session_id": null,
+            "volume_kg": 0.0,
+            "intensity_level": "light",
+            "has_pr": false,
+            "exercise_count": 0
+          },
+          {
+            "date": "2025-11-28T00:00:00+00:00",
+            "day_name": "Fri",
+            "day_number": 28,
+            "has_workout": false,
+            "session_id": null,
+            "volume_kg": 0.0,
+            "intensity_level": "light",
+            "has_pr": false,
+            "exercise_count": 0
+          },
+          {
+            "date": "2025-11-29T00:00:00+00:00",
+            "day_name": "Sat",
+            "day_number": 29,
+            "has_workout": false,
+            "session_id": null,
+            "volume_kg": 0.0,
+            "intensity_level": "light",
+            "has_pr": false,
+            "exercise_count": 0
+          },
+          {
+            "date": "2025-11-30T00:00:00+00:00",
+            "day_name": "Sun",
+            "day_number": 30,
+            "has_workout": false,
+            "session_id": null,
+            "volume_kg": 0.0,
+            "intensity_level": "light",
+            "has_pr": false,
+            "exercise_count": 0
+          }
+        ],
+        "week_start": "2025-11-24T00:00:00+00:00",
+        "week_end": "2025-11-30T23:59:59+00:00",
+        "is_current_week": true
+      }
+    },
+    {
+      "name": "Preload user context",
+      "status": "PASS",
+      "result": {
+        "user_id": "john-doe-e2e-test",
+        "status": "preloading",
+        "message": "FitAI is booting up and remembering you... Context will be ready shortly."
+      }
+    },
+    {
+      "name": "Chat with FitAI (streaming)",
       "status": "FAIL",
-      "error": "Expected 200, got 500: expected 384 dimensions, not 3072",
-      "message": "Database schema mismatch - Render database expects 384 dimensions but OpenAI text-embedding-3-large returns 3072 dimensions"
+      "error": "The read operation timed out"
+    },
+    {
+      "name": "Chat",
+      "status": "WARN",
+      "message": "Failed - may be backend issue: The read operation timed out"
+    },
+    {
+      "name": "Get user memories",
+      "status": "PASS",
+      "result": {
+        "items": [
+          {
+            "id": "2c4869e7-33a7-40bd-ab3d-8785fbb6c8cb",
+            "summary": "The user has an intermediate experience level and prefers strength training as their workout style. Their primary goal is to build muscle. This consistent focus on strength training indicates a commitment to achieving their muscle-building objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T17:36:05.081218+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T17:27:28.640170+00:00",
+              "date_range_start": "2025-11-28T16:52:29.937552+00:00"
+            },
+            "updated_at": "2025-11-28 17:36:02.590915+00:00"
+          },
+          {
+            "id": "3be69ba8-b7cb-4d87-a8f0-38bbce2a8f94",
+            "summary": "The user has an intermediate experience level and prefers strength training workouts. Their primary goal is to build muscle. This consistent focus on strength training indicates a commitment to achieving their fitness objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T17:32:44.336617+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T17:27:28.640170+00:00",
+              "date_range_start": "2025-11-28T16:52:29.937552+00:00"
+            },
+            "updated_at": "2025-11-28 17:32:42.099442+00:00"
+          },
+          {
+            "id": "ae5ffa63-fdf7-4af0-9446-afb379c9789a",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They have consistently logged workouts that align with their preference for strength-based exercises. Their primary goal remains centered on muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T17:27:10.994480+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T17:19:15.931415+00:00",
+              "date_range_start": "2025-11-28T16:37:46.116951+00:00"
+            },
+            "updated_at": "2025-11-28 17:27:08.729839+00:00"
+          },
+          {
+            "id": "5abdfe57-b2f6-4193-8429-ffa7d31cce09",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They have consistently logged workouts that align with their goal of muscle growth. Their preference for strength training indicates a commitment to developing their physical strength and physique.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T17:24:48.510999+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T17:19:15.931415+00:00",
+              "date_range_start": "2025-11-28T16:37:46.116951+00:00"
+            },
+            "updated_at": "2025-11-28 17:24:46.561264+00:00"
+          },
+          {
+            "id": "2deff6a6-4532-4c5f-a3a9-069e15f5e4dc",
+            "summary": "The user has an intermediate experience level and prefers strength training as their workout style. Their primary goal is to build muscle. This consistent focus on strength training indicates a commitment to achieving their muscle-building objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T17:18:55.505612+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:54:06.712987+00:00",
+              "date_range_start": "2025-11-28T16:18:04.251585+00:00"
+            },
+            "updated_at": "2025-11-28 17:18:53.003029+00:00"
+          },
+          {
+            "id": "d5361f52-6049-4365-838a-66e99a75921d",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training regimen. Their primary goal is to enhance muscle growth, reflecting a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T17:03:44.230836+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:54:06.712987+00:00",
+              "date_range_start": "2025-11-28T16:18:04.251585+00:00"
+            },
+            "updated_at": "2025-11-28 17:03:42.048215+00:00"
+          },
+          {
+            "id": "c9621a87-5da2-41d2-b6a1-c3189b1aedd8",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They have consistently logged workouts that align with their preference for strength-based exercises. Their primary goal remains centered on muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T17:00:12.695482+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:54:06.712987+00:00",
+              "date_range_start": "2025-11-28T16:18:04.251585+00:00"
+            },
+            "updated_at": "2025-11-28 17:00:10.012977+00:00"
+          },
+          {
+            "id": "ad21dacc-688f-49a9-a027-779fd5e1790b",
+            "summary": "The user has an intermediate experience level and prefers strength training workouts. Their primary goal is to build muscle. This consistent focus on strength training indicates a commitment to achieving their muscle-building objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:53:38.861740+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:52:29.937552+00:00",
+              "date_range_start": "2025-11-28T16:15:37.842157+00:00"
+            },
+            "updated_at": "2025-11-28 16:53:37.405214+00:00"
+          },
+          {
+            "id": "40fee393-f7d4-482f-b563-c0d9e5cf67d3",
+            "summary": "The user has an intermediate experience level and prefers strength training workouts. Their primary goal is to build muscle. They have consistently focused on these aspects in their recent training logs.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:52:12.209361+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:37:46.116951+00:00",
+              "date_range_start": "2025-11-28T16:06:54.161383+00:00"
+            },
+            "updated_at": "2025-11-28 16:52:09.826495+00:00"
+          },
+          {
+            "id": "b2eceb2b-7e8e-4e29-8efc-6ef3ff3a98a0",
+            "summary": "The user has an intermediate experience level and prefers strength training as their workout style. Their primary goal is to build muscle. This consistent focus on strength training indicates a commitment to achieving their muscle-building objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:44:16.602273+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:37:46.116951+00:00",
+              "date_range_start": "2025-11-28T16:06:54.161383+00:00"
+            },
+            "updated_at": "2025-11-28 16:44:14.076097+00:00"
+          },
+          {
+            "id": "a4bbe401-b6bd-4375-b659-042d2c779cb7",
+            "summary": "The user has an intermediate experience level and prefers strength training workouts. Their primary goal is to build muscle. This consistent focus on strength training indicates a commitment to enhancing their physical fitness and achieving their muscle-building objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:37:24.729583+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:18:04.251585+00:00",
+              "date_range_start": "2025-11-28T13:41:57.700992+00:00"
+            },
+            "updated_at": "2025-11-28 16:37:21.841794+00:00"
+          },
+          {
+            "id": "fa316123-0fe0-4440-a486-5de8b9d45bad",
+            "summary": "The user has an intermediate experience level and prefers strength training as their workout style. Their primary goal is to build muscle. This consistent focus on strength training indicates a commitment to achieving their fitness objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:27:47.998466+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:18:04.251585+00:00",
+              "date_range_start": "2025-11-28T13:41:57.700992+00:00"
+            },
+            "updated_at": "2025-11-28 16:27:45.781042+00:00"
+          },
+          {
+            "id": "026f5a95-9ab0-4e73-8abd-7c39522ffb12",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training regimen. Their primary goal is to enhance muscle growth.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:22:31.516762+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:18:04.251585+00:00",
+              "date_range_start": "2025-11-28T13:41:57.700992+00:00"
+            },
+            "updated_at": "2025-11-28 16:22:29.766189+00:00"
+          },
+          {
+            "id": "0bc25883-4182-46eb-9e0c-9ec1ae90cc11",
+            "summary": "The user prefers strength training and has an intermediate level of experience. Their primary goal is to build muscle. They have consistently focused on strength workouts in their recent training logs.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:17:35.064621+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:15:37.842157+00:00",
+              "date_range_start": "2025-11-28T05:15:12.983225+00:00"
+            },
+            "updated_at": "2025-11-28 16:17:33.151898+00:00"
+          },
+          {
+            "id": "87f29bbf-84c9-4055-9ac1-d0ace1f243d6",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts to achieve their primary goal of muscle growth.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 15,
+              "milestone": 200,
+              "created_at": "2025-11-28T16:16:43.900909+00:00",
+              "window_size": 15,
+              "date_range_end": "2025-11-28T16:15:37.842157+00:00",
+              "date_range_start": "2025-11-27T23:44:10.110859+00:00"
+            },
+            "updated_at": "2025-11-28 16:16:42.527878+00:00"
+          },
+          {
+            "id": "a5896671-27ba-4577-8680-5be553e6fc39",
+            "summary": "The user has an intermediate experience level and prefers strength training workouts. Their primary goal is to build muscle. This consistent focus on strength training indicates a commitment to achieving their fitness objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:15:18.573673+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:06:54.161383+00:00",
+              "date_range_start": "2025-11-27T23:44:23.202254+00:00"
+            },
+            "updated_at": "2025-11-28 16:15:16.287252+00:00"
+          },
+          {
+            "id": "24db09e4-e487-4dcc-a308-632b4f374c87",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They have consistently expressed a preference for strength workouts in their training logs. Their primary goal remains centered on muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:13:47.823956+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T16:06:54.161383+00:00",
+              "date_range_start": "2025-11-27T23:44:23.202254+00:00"
+            },
+            "updated_at": "2025-11-28 16:13:45.874339+00:00"
+          },
+          {
+            "id": "b975c978-1555-4a76-9486-c18756c344a4",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They have consistently expressed a preference for strength workouts in their training logs. Their primary goal remains centered on muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T16:06:33.327220+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T13:41:57.700992+00:00",
+              "date_range_start": "2025-11-27T23:02:34.131869+00:00"
+            },
+            "updated_at": "2025-11-28 16:06:30.695793+00:00"
+          },
+          {
+            "id": "33b9d96d-c0aa-4091-82e2-dca12db87368",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They have consistently logged workouts that align with their preference for strength-based exercises. Their primary goal remains centered on muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T13:48:16.630632+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T13:41:57.700992+00:00",
+              "date_range_start": "2025-11-27T23:02:34.131869+00:00"
+            },
+            "updated_at": "2025-11-28 13:48:14.173729+00:00"
+          },
+          {
+            "id": "58291d9b-d5ef-4c43-b7f6-f16a25d5ad5f",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training routine. Their primary goal is to enhance muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T13:41:39.232807+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T05:15:12.983225+00:00",
+              "date_range_start": "2025-11-27T20:57:23.925383+00:00"
+            },
+            "updated_at": "2025-11-28 13:41:36.563846+00:00"
+          },
+          {
+            "id": "999d0512-2784-40a0-9d9e-bb6fc5adf04e",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training regimen. Their primary goal is to enhance muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T05:23:05.233980+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-28T05:15:12.983225+00:00",
+              "date_range_start": "2025-11-27T20:57:23.925383+00:00"
+            },
+            "updated_at": "2025-11-28 05:23:03.037883+00:00"
+          },
+          {
+            "id": "b13a46ca-84c1-46e5-9e72-2e4e4dcb452a",
+            "summary": "The user has an intermediate experience level and prefers strength training workouts. Their primary goal is to build muscle. This consistent focus on strength training indicates a commitment to achieving their fitness objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T05:14:52.550283+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T23:44:23.202254+00:00",
+              "date_range_start": "2025-11-27T14:13:18.111996+00:00"
+            },
+            "updated_at": "2025-11-28 05:14:48.982815+00:00"
+          },
+          {
+            "id": "4aee09fb-871b-4365-a876-da96801d00d7",
+            "summary": "The user prefers strength training and has an intermediate level of experience. Their primary goal is to build muscle. They have consistently focused on these aspects in their recent training logs.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-28T03:00:07.929412+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T23:44:23.202254+00:00",
+              "date_range_start": "2025-11-27T14:13:18.111996+00:00"
+            },
+            "updated_at": "2025-11-28 03:00:03.566799+00:00"
+          },
+          {
+            "id": "1ef33dce-321c-46f7-bc1f-295690f027fa",
+            "summary": "The user has an intermediate experience level and prefers strength training as their workout style. Their primary goal is to build muscle. This consistent focus on strength training aligns with their muscle-building objectives.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-27T23:50:24.070092+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T23:44:23.202254+00:00",
+              "date_range_start": "2025-11-27T14:13:18.111996+00:00"
+            },
+            "updated_at": "2025-11-27 23:50:21.787907+00:00"
+          },
+          {
+            "id": "de99213c-00fa-46d8-94c0-666a28471e6d",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training regimen. Their primary goal is to enhance muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-27T23:44:04.630269+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T23:02:34.131869+00:00",
+              "date_range_start": "2025-11-27T13:32:37.583863+00:00"
+            },
+            "updated_at": "2025-11-27 23:44:02.034939+00:00"
+          },
+          {
+            "id": "ac5b00ba-baec-49b9-9d9c-5dc9396341a4",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training regimen. Their primary goal is to enhance muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-27T23:09:59.585318+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T23:02:34.131869+00:00",
+              "date_range_start": "2025-11-27T13:32:37.583863+00:00"
+            },
+            "updated_at": "2025-11-27 23:09:57.308605+00:00"
+          },
+          {
+            "id": "76d57615-05c6-48d1-91d4-8d0ac5f986bb",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts to achieve their primary goal of muscle growth.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 15,
+              "milestone": 100,
+              "created_at": "2025-11-27T23:03:36.784770+00:00",
+              "window_size": 15,
+              "date_range_end": "2025-11-27T23:02:34.131869+00:00",
+              "date_range_start": "2025-11-26T12:32:27.007255+00:00"
+            },
+            "updated_at": "2025-11-27 23:03:34.747864+00:00"
+          },
+          {
+            "id": "d286e86c-df5e-4474-8f68-63461825d17f",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They have consistently logged workouts that align with their preference for strength training exercises. Their primary goal remains centered on muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-27T23:02:14.846638+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T20:57:23.925383+00:00",
+              "date_range_start": "2025-11-26T12:32:38.110730+00:00"
+            },
+            "updated_at": "2025-11-27 23:02:11.327006+00:00"
+          },
+          {
+            "id": "a37d4991-775d-4243-b3be-83b87cb5ab32",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training routine. Their primary goal is to enhance muscle growth.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-27T21:08:53.614909+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T20:57:23.925383+00:00",
+              "date_range_start": "2025-11-26T12:32:38.110730+00:00"
+            },
+            "updated_at": "2025-11-27 21:08:51.421433+00:00"
+          },
+          {
+            "id": "033eaafe-2b06-4ffc-91eb-7c71bc077828",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training regimen. Their primary goal is to enhance muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-27T20:57:02.357550+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T14:13:18.111996+00:00",
+              "date_range_start": "2025-11-26T12:27:44.808624+00:00"
+            },
+            "updated_at": "2025-11-27 20:56:59.263239+00:00"
+          },
+          {
+            "id": "1053ce20-6bc8-451d-938e-cec21318fdd5",
+            "summary": "The user prefers strength training and has an intermediate level of experience. Their primary goal is to build muscle. They have consistently focused on strength workouts in their recent training logs.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-27T14:23:20.294943+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T14:13:18.111996+00:00",
+              "date_range_start": "2025-11-26T12:27:44.808624+00:00"
+            },
+            "updated_at": "2025-11-27 14:23:18.602043+00:00"
+          },
+          {
+            "id": "9e62f461-8549-4a41-96f8-054c4396d821",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They have consistently logged workouts that align with their preference for strength-based exercises. Their primary goal remains centered on muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-27T14:12:58.789923+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-27T13:32:37.583863+00:00",
+              "date_range_start": "2025-11-26T12:26:00.123902+00:00"
+            },
+            "updated_at": "2025-11-27 14:12:56.653467+00:00"
+          },
+          {
+            "id": "321cb270-a915-4fc4-8f30-dc7ad37fbd10",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts to achieve their primary goal of muscle growth.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 15,
+              "milestone": 50,
+              "created_at": "2025-11-27T13:34:43.598916+00:00",
+              "window_size": 15,
+              "date_range_end": "2025-11-27T13:32:37.583863+00:00",
+              "date_range_start": "2025-11-26T12:20:17.775905+00:00"
+            },
+            "updated_at": "2025-11-27 13:34:41.032019+00:00"
+          },
+          {
+            "id": "d0aeee5a-885e-4911-bd22-02f9dcdaccfe",
+            "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training regimen. Their primary goal is to enhance muscle growth, indicating a commitment to their fitness journey.",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-27T13:32:18.654414+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-26T12:32:38.110730+00:00",
+              "date_range_start": "2025-11-26T12:20:29.030490+00:00"
+            },
+            "updated_at": "2025-11-27 13:32:15.530035+00:00"
+          },
+          {
+            "id": "759c0ffb-ff6e-4b53-b79a-7693190d75f2",
+            "summary": "coach: You're making great progress, but I want to focus on your weaknesses. You're still struggling with your squat form. \nuser: I'm not sure I agree with that. I feel like I've made a lot of progress. \ncoach: I understand where you're coming from, but let's take a look at the video footage from last week's session. \nuser: Okay, I'll take a look. I'm a bit frustrated, though. I feel like I'm doing everything right. \ncoach: I'm not saying you're not, but let's analyze the footage together and see if we can identify any areas for improvement. \nuser: Alright, let's do it. I'm just worried that I'm going to get discouraged if I see something I don't like. \ncoach: That's a valid concern, but I want to emphasize that we're not trying to criticize you, we're trying to help you improve. \n\n## Step 1: Identify the key points of the conversation\nThe conversation revolves around the user's progress in a fitness program, specifically their squat form. The coach wants to focus on weaknesses, but the user feels they've made progress and is frustrated.\n\n## Step 2: Determine the user's",
+            "source": "conversation_summary",
+            "metadata": {
+              "days": 7,
+              "redacted": true,
+              "created_at": "2025-11-26T12:37:05.683021+00:00",
+              "message_count": 1,
+              "date_range_end": "2025-11-26T12:36:37.114429+00:00",
+              "date_range_start": "2025-11-26T12:36:37.114429+00:00"
+            },
+            "updated_at": "2025-11-26 12:36:40.100431+00:00"
+          },
+          {
+            "id": "4cbf8571-b9fb-4b5f-b716-a7bfe8ca60a0",
+            "summary": "Workout: Week 4 - Leg Press Day; Type: strength; Exercises: Leg Press; Notes: Leg Press is a great exercise for targeting the quadriceps.\n\nWorkout: Week 4 - Chest Press Day; Type: strength; Exercises: Chest Press; Notes: Chest Press is a great exercise for targeting the chest muscles.\n\nWorkout: Week 4 - Shoulder Press Day; Type: strength; Exercises: Shoulder Press; Notes: Shoulder Press is a great exercise for targeting the shoulder muscles.\n\nWorkout: Week 4 - Bicep Curl Day; Type: strength; Exercises: Bicep Curl; Notes: Bicep Curls are a great exercise for targeting the bicep muscles.\n\nWorkout: Week 4 - Tricep Extension Day; Type: strength; Exercises: Tricep Extension; Notes: Tricep Extensions are a great exercise for targeting the tricep muscles.\n\nWorkout: Week 4 - Back Day; Type: strength; Exercises: Pull-up, Barbell Row; Notes: Back Day is a great way to target the back muscles.\n\nWorkout: Week 4 - Core Day; Type: strength; Exercises: Plank, Russian Twist; Notes: Core Day is a great way to",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 15,
+              "milestone": 25,
+              "created_at": "2025-11-26T12:33:33.649791+00:00",
+              "window_size": 15,
+              "date_range_end": "2025-11-26T12:32:38.110730+00:00",
+              "date_range_start": "2025-11-19T12:28:30.804876+00:00"
+            },
+            "updated_at": "2025-11-26 12:33:21.832040+00:00"
+          },
+          {
+            "id": "6b97dc63-a100-4ac1-8502-29d56375be94",
+            "summary": "Workout: Week 4 - Leg Press Day; Type: strength; Exercises: Leg Press; Notes: Leg Press is a great exercise for legs.\n\nWorkout: Week 4 - Chest Press Day; Type: strength; Exercises: Chest Press; Notes: Chest Press is a great exercise for chest.\n\nWorkout: Week 4 - Shoulder Press Day; Type: strength; Exercises: Shoulder Press; Notes: Shoulder Press is a great exercise for shoulders.\n\nWorkout: Week 4 - Bicep Curl Day; Type: strength; Exercises: Bicep Curl; Notes: Bicep Curls are a great exercise for biceps.\n\nWorkout: Week 4 - Tricep Extension Day; Type: strength; Exercises: Tricep Extension; Notes: Tricep Extensions are a great exercise for triceps.\n\nWorkout: Week 4 - Back Day; Type: strength; Exercises: Deadlift, Bent Over Row, Pull Up; Notes: Back Day is a great day to work on back muscles.\n\nWorkout: Week 4 - Core Day; Type: strength; Exercises: Plank, Russian Twist; Notes: Core Day is a great day to work on core muscles.\n\nWorkout: Week 4 - Cardio Day",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 15,
+              "milestone": 25,
+              "created_at": "2025-11-26T12:33:24.358328+00:00",
+              "window_size": 15,
+              "date_range_end": "2025-11-26T12:32:38.110730+00:00",
+              "date_range_start": "2025-11-19T12:28:30.804876+00:00"
+            },
+            "updated_at": "2025-11-26 12:33:14.336289+00:00"
+          },
+          {
+            "id": "312081f2-56c4-4484-8255-5841f4e01d4e",
+            "summary": "Increased weight by 5lbs. \n\nWorkout: Week 4 - Chest Day; Type: strength; Exercises: Bench Press, Incline Dumbbell Press; Notes: Week 4, Day 3 - Feeling good, but struggled with form on incline press. Need to work on that. \n\nWorkout: Week 4 - Back Day; Type: strength; Exercises: Pull-ups, Barbell Rows; Notes: Week 4, Day 2 - Had a great workout today! Increased weight on rows by 10lbs. \n\nWorkout: Week 4 - Leg Day; Type: strength; Exercises: Squats, Leg Press; Notes: Week 4, Day 1 - Feeling strong today! Increased weight on squats by 5lbs. \n\nWorkout: Week 3 - Chest Day; Type: strength; Exercises: Bench Press, Incline Dumbbell Press; Notes: Week 3, Day 3 - Had a tough workout today. Struggled with form on incline press again. \n\nWorkout: Week 3 - Back Day; Type: strength; Exercises: Pull-ups, Barbell Rows; Notes: Week 3, Day 2 - Had a great workout today! Increased weight on rows",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-26T12:32:22.061875+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-26T12:27:44.808624+00:00",
+              "date_range_start": "2025-11-23T12:28:40.622167+00:00"
+            },
+            "updated_at": "2025-11-26 12:31:56.171984+00:00"
+          },
+          {
+            "id": "12cb0a0f-38d1-4cfc-a8cf-977c6dd6ba37",
+            "summary": "Workout: Week 1 - Squat Day; Type: strength; Exercises: Squat; Notes: Week 1, Day 3 - Feeling strong!\n\nWorkout: Week 1 - Bench Press Day; Type: strength; Exercises: Bench Press; Notes: Week 1, Day 1 - Feeling strong!\n\nThis user is an intermediate strength trainer who prefers strength training and is focused on building muscle. They have been consistently feeling strong throughout their workouts, indicating a good level of physical fitness and adherence to their training plan. \n\nHere is a rewritten version of the summary in 2-4 short sentences:\n\nThis intermediate strength trainer is focused on building muscle and prefers strength training. They have been consistently feeling strong throughout their workouts, indicating a good level of physical fitness. Their training plan appears to be going well, with a focus on exercises like squats, bench press, and deadlifts. They have been working out regularly, with a full week of strength training exercises completed. \n\nNote: I removed the phrase \"indicating a good level of physical fitness and adherence to their training plan\" as it was not necessary and made the summary a bit wordy. I also removed the phrase \"with a focus on exercises like squats, bench press,",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 10,
+              "created_at": "2025-11-26T12:27:29.033341+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-26T12:26:00.123902+00:00",
+              "date_range_start": "2025-11-02T12:26:11.002153+00:00"
+            },
+            "updated_at": "2025-11-26 12:27:18.150212+00:00"
+          },
+          {
+            "id": "d540a8b7-b3fa-4abe-ae75-338bbfae51bf",
+            "summary": "Training log for week 1:\n- Monday: Chest and Triceps\n  - Barbell Bench Press (3 sets of 8-12 reps)\n  - Incline Dumbbell Press (3 sets of 10-15 reps)\n  - Tricep Pushdowns (3 sets of 12-15 reps)\n  - Tricep Dips (3 sets of 12-15 reps)\n- Tuesday: Back and Biceps\n  - Pull-ups (3 sets of 8-12 reps)\n  - Barbell Rows (3 sets of 8-12 reps)\n  - Dumbbell Bicep Curls (3 sets of 10-15 reps)\n  - Hammer Curls (3 sets of 10-15 reps)\n- Wednesday: Rest day\n- Thursday: Legs\n  - Squats (3 sets of 8-12 reps)\n  - Leg Press (3 sets of 10-15 reps)\n  - Lunges (3 sets of 10-15 reps)\n  - Leg Extensions (3 sets of 12-15 reps)\n- Friday: Shoulders and Abs\n  - Dumbbell Shoulder Press (3 sets of 8-12 reps)\n  - Lateral Raises (3",
+            "source": "workout_summary",
+            "metadata": {
+              "redacted": true,
+              "log_count": 3,
+              "created_at": "2025-11-26T12:25:43.553465+00:00",
+              "window_size": 10,
+              "date_range_end": "2025-11-26T12:20:29.030490+00:00",
+              "date_range_start": "2025-11-26T12:20:17.775905+00:00"
+            },
+            "updated_at": "2025-11-26 12:24:51.697981+00:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Refresh user memory",
+      "status": "PASS",
+      "result": {
+        "user_id": "john-doe-e2e-test",
+        "updated": true,
+        "memory_id": "fbbed9b9-b21f-4ead-af08-b8f40f30c1b3",
+        "reason": null,
+        "summary": "The user is an intermediate-level fitness enthusiast focused on building muscle through strength training. They consistently prefer strength workouts in their training regimen. Their primary goal is to enhance muscle growth, reflecting a commitment to their fitness journey."
+      }
     }
-  ],
-  "blocking_issue": {
-    "type": "database_schema_mismatch",
-    "description": "Render database has 384-dimension vector columns, but code is using text-embedding-3-large (3072 dimensions)",
-    "solution": "1. Deploy code changes (switches to text-embedding-3-small)\n2. Run migration on Render database\n3. Set OPENAI_EMBED_MODEL=text-embedding-3-small in Render environment"
-  }
+  ]
 }

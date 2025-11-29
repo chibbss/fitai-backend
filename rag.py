@@ -53,7 +53,7 @@ class RAGService:
         self.generator_model = None
         self.generator_tokenizer = None
         self.generator_pipe = None
-        self._remote_session = None  # for remote generation (Modal - deprecated)
+        self._remote_session = None  # for OpenAI-compatible remote generation (deprecated, using OpenAI directly)
         self._openai_client = None  # OpenAI client for generation and embeddings
         self._reranker_model = None  # Cross-encoder model when using local reranker
 
@@ -86,10 +86,6 @@ class RAGService:
         self._metrics: Dict[str, int] = {
             "rerank_total": 0,
             "rerank_changed": 0,
-            "modal_cold_starts": 0,  # Count of cold starts detected (>10s response)
-            "modal_warm_requests": 0,  # Count of warm requests (<10s response)
-            "modal_warm_ups_triggered": 0,  # Count of warm-up calls
-            "modal_warm_ups_succeeded": 0,  # Count of successful warm-ups
         }
         # In-memory cache for workout hooks (fallback when Redis unavailable)
         self._workout_hooks_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (hooks, timestamp)}
@@ -98,160 +94,6 @@ class RAGService:
         self._patterns_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (patterns, timestamp)}
         # Cache for pre-loaded user context (10 minute TTL)
         self._user_context_cache: Dict[str, Tuple[Dict[str, Any], float]] = {}  # {user_id: (context_dict, timestamp)}
-        
-        # Circuit breaker state for Modal services
-        # Format: {service_name: {"failures": int, "last_failure": float, "state": "closed"|"open"|"half_open"}}
-        self._circuit_breaker: Dict[str, Dict[str, Any]] = {}
-        self._circuit_breaker_config = {
-            "failure_threshold": int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD", "5")),  # Open after 5 failures
-            "timeout_seconds": int(os.getenv("CIRCUIT_BREAKER_TIMEOUT", "60")),  # Stay open for 60s
-            "half_open_max_attempts": int(os.getenv("CIRCUIT_BREAKER_HALF_OPEN_ATTEMPTS", "2")),  # Try 2 requests in half-open
-        }
-    
-    def _call_modal_with_timing(self, service_name: str, url: str, payload: Dict[str, Any], timeout: float, fallback_callback=None, max_retries: int = 3):
-        """
-        Wrapper for Modal API calls with timing, logging, retry/backoff, circuit breaker, and fallback handling.
-        
-        Args:
-            service_name: Name of the service (e.g., "embed", "generation", "reranker")
-            url: Modal endpoint URL
-            payload: Request payload
-            timeout: Request timeout in seconds
-            fallback_callback: Optional callback function if Modal call fails
-            max_retries: Maximum number of retry attempts (default: 3)
-        
-        Returns:
-            Response JSON data
-        
-        Raises:
-            Exception if call fails and no fallback available
-        """
-        import time as time_module
-        import random
-        
-        # Check circuit breaker state
-        cb_state = self._circuit_breaker.get(service_name, {"failures": 0, "last_failure": 0, "state": "closed", "half_open_attempts": 0})
-        current_time = time_module.time()
-        
-        # Circuit breaker logic
-        if cb_state["state"] == "open":
-            # Check if timeout has passed, transition to half-open
-            if current_time - cb_state["last_failure"] >= self._circuit_breaker_config["timeout_seconds"]:
-                cb_state["state"] = "half_open"
-                cb_state["half_open_attempts"] = 0
-                self.logger.info("Circuit breaker for %s: transitioning to half-open", service_name)
-            else:
-                # Circuit is open, fail fast
-                self.logger.warning("Circuit breaker for %s is OPEN, failing fast", service_name)
-                if fallback_callback:
-                    self.logger.warning("Using fallback for %s due to open circuit breaker", service_name)
-                    try:
-                        return fallback_callback()
-                    except Exception as fallback_error:
-                        self.logger.error("Fallback %s also failed: %s", service_name, fallback_error, exc_info=True)
-                        raise RuntimeError(f"Modal {service_name} circuit breaker open and fallback failed: {fallback_error}")
-                raise RuntimeError(f"Modal {service_name} circuit breaker is open")
-        
-        # Initialize session if needed
-        if not self._remote_session:
-            import requests
-            self._remote_session = requests.Session()
-        
-        # Retry loop with exponential backoff
-        last_exception = None
-        overall_start_time = time_module.time()
-        for attempt in range(max_retries):
-            start_time = time_module.time()
-            try:
-                self.logger.debug("Calling Modal %s service at %s (attempt %d/%d)", service_name, url, attempt + 1, max_retries)
-                resp = self._remote_session.post(url, json=payload, timeout=timeout)
-                resp.raise_for_status()
-                data = resp.json()
-                
-                duration_ms = (time_module.time() - start_time) * 1000
-                duration_seconds = duration_ms / 1000.0
-                
-                # Detect cold start: response time >10 seconds indicates Modal was cold
-                is_cold_start = duration_seconds > 10.0
-                if is_cold_start:
-                    self._metrics["modal_cold_starts"] = self._metrics.get("modal_cold_starts", 0) + 1
-                    self.logger.warning(
-                        "Modal %s COLD START detected (duration=%.2fs, url=%s, attempt=%d) - consider keeping instance warm if frequent",
-                        service_name, duration_seconds, url, attempt + 1
-                    )
-                else:
-                    self._metrics["modal_warm_requests"] = self._metrics.get("modal_warm_requests", 0) + 1
-                
-                self.logger.info(
-                    "Modal %s call succeeded (duration=%.2fs, cold_start=%s, url=%s, attempt=%d)",
-                    service_name, duration_seconds, is_cold_start, url, attempt + 1
-                )
-                
-                # Success - reset circuit breaker
-                if cb_state["state"] == "half_open":
-                    cb_state["state"] = "closed"
-                    cb_state["half_open_attempts"] = 0
-                    self.logger.info("Circuit breaker for %s: transitioning to closed (recovered)", service_name)
-                cb_state["failures"] = 0
-                self._circuit_breaker[service_name] = cb_state
-                
-                return data
-                
-            except Exception as e:
-                duration_ms = (time_module.time() - start_time) * 1000
-                last_exception = e
-                
-                # Update circuit breaker state
-                cb_state["failures"] += 1
-                cb_state["last_failure"] = time_module.time()
-                
-                # Check if we should open the circuit
-                if cb_state["failures"] >= self._circuit_breaker_config["failure_threshold"]:
-                    cb_state["state"] = "open"
-                    self.logger.warning(
-                        "Circuit breaker for %s: OPENING after %d failures",
-                        service_name, cb_state["failures"]
-                    )
-                
-                # Handle half-open state
-                if cb_state["state"] == "half_open":
-                    cb_state["half_open_attempts"] += 1
-                    if cb_state["half_open_attempts"] >= self._circuit_breaker_config["half_open_max_attempts"]:
-                        cb_state["state"] = "open"
-                        self.logger.warning("Circuit breaker for %s: re-opening after half-open attempts failed", service_name)
-                
-                self._circuit_breaker[service_name] = cb_state
-                
-                # If this is the last attempt, don't retry
-                if attempt == max_retries - 1:
-                    break
-                
-                # Exponential backoff with jitter
-                backoff_seconds = (2 ** attempt) + random.uniform(0, 1)
-                self.logger.warning(
-                    "Modal %s call failed (attempt %d/%d, duration=%.2fms, error=%s), retrying in %.2fs",
-                    service_name, attempt + 1, max_retries, duration_ms, str(e), backoff_seconds
-                )
-                time_module.sleep(backoff_seconds)
-        
-        # All retries exhausted
-        total_duration_ms = (time_module.time() - overall_start_time) * 1000
-        self.logger.error(
-            "Modal %s call failed after %d attempts (total_duration=%.2fms, url=%s, error=%s)",
-            service_name, max_retries, total_duration_ms, url, str(last_exception),
-            exc_info=True
-        )
-        
-        # Try fallback if available
-        if fallback_callback:
-            self.logger.warning("Falling back to local %s after Modal failure (all retries exhausted)", service_name)
-            try:
-                return fallback_callback()
-            except Exception as fallback_error:
-                self.logger.error("Fallback %s also failed: %s", service_name, fallback_error, exc_info=True)
-                raise RuntimeError(f"Modal {service_name} failed after {max_retries} retries and fallback failed: {fallback_error}") from last_exception
-        
-        raise RuntimeError(f"Modal {service_name} call failed after {max_retries} retries: {last_exception}") from last_exception
 
     # ------------------------
     # Initialization
@@ -263,20 +105,20 @@ class RAGService:
                 # Run database migrations automatically if enabled
                 if os.getenv("AUTO_RUN_MIGRATIONS", "1") in ("1", "true", "True"):
                     self._run_migrations()
-                self._init_db()
+            self._init_db()
             except Exception as e:
                 self.logger.error("Failed to initialize database: %s", e)
                 raise  # Database is critical, fail if it doesn't work
             
             try:
-                self._init_models()
+            self._init_models()
             except Exception as e:
                 self.logger.error("Failed to initialize models: %s", e)
                 # Models are not critical for health check, but log the error
                 # The app can still start and health check will work
             
             try:
-                self._init_redis()
+            self._init_redis()
             except Exception as e:
                 self.logger.warning("Failed to initialize Redis: %s", e)
                 # Redis is optional, continue without it
@@ -431,49 +273,13 @@ class RAGService:
                 self.logger.warning("Failed to load embedding model: %s", e)
                 self.embedding_model = None
 
-        # Tokenizer for chunking
-        try:
-            from transformers import AutoTokenizer as HFTokenizer
-            self.embedding_tokenizer = HFTokenizer.from_pretrained(
-                self.config.embedding_model_name, use_fast=True
-            )
-        except Exception:
-            self.embedding_tokenizer = None
-        
-        if self.config.embedding_provider == "modal":
-            self.logger.info("Using REMOTE embedding provider (Modal) at %s", self.config.remote_embed_url)
-            if not self.config.remote_embed_url:
-                self.logger.warning("REMOTE_EMBED_URL not set - will use local fallback")
-            if self.config.remote_embed_api_key:
-                self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
-            # Load local model as fallback for "never forgets" - ensures workouts always searchable
-            # Skip on memory-constrained environments (e.g., Render free tier) by setting LOAD_LOCAL_EMBEDDING_FALLBACK=false
-            self.logger.info("LOAD_LOCAL_EMBEDDING_FALLBACK=%s (env: %s)", 
-                           self.config.load_local_embedding_fallback,
-                           os.getenv("LOAD_LOCAL_EMBEDDING_FALLBACK", "not set"))
-            if self.config.load_local_embedding_fallback:
-                try:
-                    from sentence_transformers import SentenceTransformer
-                    import torch
-                    device_str = self._resolve_torch_device()
-                    self.logger.info("Loading local embedding model as fallback: %s on %s", self.config.embedding_model_name, device_str)
-                    self.embedding_model = SentenceTransformer(self.config.embedding_model_name, device=device_str)
-                    # Load tokenizer for chunking
-                    try:
-                        from transformers import AutoTokenizer as HFTokenizer
-                        self.embedding_tokenizer = HFTokenizer.from_pretrained(
-                            self.config.embedding_model_name, use_fast=True
-                        )
-                    except Exception:
-                        self.embedding_tokenizer = None
-                    self.logger.info("Local embedding model loaded as fallback - workouts will always be searchable (never forgets)")
-                except Exception as e:
-                    self.logger.error("CRITICAL: Failed to load local embedding fallback: %s - Modal must work for embeddings", e)
-                    self.embedding_model = None
-                    self.embedding_tokenizer = None
-            else:
-                self.logger.info("Skipping local embedding fallback (LOAD_LOCAL_EMBEDDING_FALLBACK=false) - using Modal only. Ensure Modal service is reliable.")
-                self.embedding_model = None
+            # Tokenizer for chunking
+            try:
+                from transformers import AutoTokenizer as HFTokenizer
+                self.embedding_tokenizer = HFTokenizer.from_pretrained(
+                    self.config.embedding_model_name, use_fast=True
+                )
+            except Exception:
                 self.embedding_tokenizer = None
         elif self.config.embedding_provider == "openai":
             self.logger.info("Using OpenAI embedding provider")
@@ -488,12 +294,20 @@ class RAGService:
             self.embedding_tokenizer = None
 
         # Generation backend: Only load locally if using local backend
-        if self.config.gen_backend == "remote":
+        if self.config.gen_backend == "openai":
+            self.logger.info("Using OpenAI generation backend")
+            if not self.config.openai_api_key:
+                self.logger.warning("OPENAI_API_KEY not set - generation will fail at runtime")
+            # No local model loading needed
+            self.generator_model = None
+            self.generator_tokenizer = None
+        elif self.config.gen_backend == "remote":
+            # Legacy remote backend (OpenAI-compatible, not Modal)
             self.logger.info("Using REMOTE generation backend at %s", self.config.remote_gen_url)
             if not self.config.remote_gen_url:
                 self.logger.warning("REMOTE_GEN_URL not set - generation will fail at runtime")
-                if self.config.remote_gen_api_key:
-                    self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_gen_api_key}"})
+            if self.config.remote_gen_api_key:
+                self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_gen_api_key}"})
             # No local model loading needed
             self.generator_model = None
             self.generator_tokenizer = None
@@ -522,12 +336,12 @@ class RAGService:
 
             # Phi-3 models may require authentication
             try:
-                self.generator_tokenizer = AutoTokenizer.from_pretrained(
-                    self.config.hf_model_id, token=token, trust_remote_code=True
-                )
-                self.generator_model = AutoModelForCausalLM.from_pretrained(
-                    self.config.hf_model_id, token=token, device_map=None, **model_kwargs
-                )
+            self.generator_tokenizer = AutoTokenizer.from_pretrained(
+                self.config.hf_model_id, token=token, trust_remote_code=True
+            )
+            self.generator_model = AutoModelForCausalLM.from_pretrained(
+                self.config.hf_model_id, token=token, device_map=None, **model_kwargs
+            )
             except OSError as e:
                 if "401" in str(e) or "Unauthorized" in str(e):
                     self.logger.error(
@@ -564,7 +378,7 @@ class RAGService:
             self.generator_pipe = None
 
         # Reranker: Only load locally if using local backend
-        if self.config.reranker_backend == "local":
+            if self.config.reranker_backend == "local":
             try:
                 # Lazy import only when using local reranker
                 try:
@@ -585,13 +399,11 @@ class RAGService:
                     # sentence-transformers CrossEncoder accepts device identifier; map 'cuda' to 0
                     device_arg = 0 if (device_str == "cuda" and torch.cuda.is_available()) else device_str
                     self._reranker_model = CrossEncoder(self.config.reranker_model_name, device=device_arg)  # type: ignore
-            except Exception as e:
-                self.logger.error("Failed to initialize reranker: %s", e)
-                self._reranker_model = None
-        elif self.config.reranker_backend == "remote":
-            self.logger.info("Using REMOTE reranker backend at %s", self.config.reranker_remote_url)
-            if not self.config.reranker_remote_url:
-                self.logger.warning("RERANKER_REMOTE_URL not set - reranking will be skipped")
+        except Exception as e:
+            self.logger.error("Failed to initialize reranker: %s", e)
+            self._reranker_model = None
+        elif self.config.reranker_backend == "none":
+            self.logger.info("Reranker disabled (reranker_backend=none)")
             # No local model loading needed
             self._reranker_model = None
         else:
@@ -832,36 +644,6 @@ class RAGService:
         if self.config.embedding_provider == "local":
             assert self.embedding_model is not None
             return self._embed_local(texts)
-        
-        if self.config.embedding_provider == "modal":
-            import requests
-            if not self._remote_session:
-                self._remote_session = requests.Session()
-                if self.config.remote_embed_api_key:
-                    self._remote_session.headers.update({"Authorization": f"Bearer {self.config.remote_embed_api_key}"})
-            
-            # Try Modal first (preferred - faster, GPU)
-            if self.config.remote_embed_url:
-                try:
-                    resp = self._remote_session.post(self.config.remote_embed_url, json={"texts": texts}, timeout=60)
-                    resp.raise_for_status()
-                    data = resp.json()
-                    vecs = data.get("embeddings") or data.get("data")
-                    if not vecs:
-                        raise RuntimeError("Remote embed response missing 'embeddings'")
-                    return np.array(vecs, dtype="float32")
-                except Exception as e:
-                    # Fallback to local embeddings if Modal fails - ensures "never forgets"
-                    if self.embedding_model is not None:
-                        self.logger.warning("Modal embedding failed (%s), falling back to local embeddings to ensure workout is searchable", e)
-                        return self._embed_local(texts)
-                    raise RuntimeError(f"Modal embedding failed and no local fallback available: {e}")
-            else:
-                # No Modal URL configured - use local fallback
-                if self.embedding_model is not None:
-                    self.logger.warning("Modal embed URL not configured, using local embeddings")
-                    return self._embed_local(texts)
-                raise RuntimeError("REMOTE_EMBED_URL not configured and no local fallback available")
         elif self.config.embedding_provider == "openai":
             try:
                 from openai import OpenAI  # type: ignore
@@ -881,7 +663,7 @@ class RAGService:
         raise RuntimeError(f"Unknown embedding provider: {self.config.embedding_provider}")
     
     def _embed_local(self, texts: List[str]) -> np.ndarray:
-        """Generate embeddings using local model (fallback for Modal failures)."""
+        """Generate embeddings using local model."""
         assert self.embedding_model is not None, "Local embedding model not loaded"
         vectors = self.embedding_model.encode(
             texts,
@@ -1108,10 +890,10 @@ class RAGService:
             except Exception:
                 occurred_at = None
         
-        # Embedding is required for "never forgets" - always generated (Modal with local fallback)
+        # Embedding is required for "never forgets" - always generated
         embedding = None
         try:
-            embedding = self._embed([text])[0].tolist()
+        embedding = self._embed([text])[0].tolist()
         except Exception as e:
             # This should never happen with fallback
             self.logger.error("CRITICAL: Failed to generate embedding for training log even with fallback: %s", e, exc_info=True)
@@ -1263,9 +1045,9 @@ class RAGService:
                 summary_text = "; ".join(summary_parts) if summary_parts else "Workout session completed"
                 
                 # Create training log for semantic retrieval - REQUIRED for "never forgets"
-                # Embedding is always generated (Modal with local fallback ensures this)
+                # Embedding is always generated
                 try:
-                    embedding = self._embed([summary_text])[0].tolist()
+                embedding = self._embed([summary_text])[0].tolist()
                 except Exception as e:
                     # This should never happen with fallback, but log if it does
                     self.logger.error("CRITICAL: Failed to generate embedding even with fallback: %s", e, exc_info=True)
@@ -2446,25 +2228,6 @@ Generate an analytical insight based on the data above. Include specific numbers
                     self.logger.warning("OpenAI insight generation failed: %s", e)
                     # Fall through to template fallback
             
-            # Modal/Remote generation (backward compatibility)
-            elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
-                prompt = f"{system_msg}\n\n{prompt_context}\n\nMessage:"
-                payload = {
-                    "model": self.config.hf_model_id,
-                    "prompt": prompt,
-                    "max_tokens": 60,
-                    "temperature": 0.7,
-                }
-                resp = self._remote_session.post(self.config.remote_gen_url, json=payload, timeout=10)
-                resp.raise_for_status()
-                data = resp.json()
-                if isinstance(data, dict) and data.get("choices"):
-                    choice = data["choices"][0]
-                    if "text" in choice:
-                        return str(choice["text"]).strip().split("\n")[0]
-                    if "message" in choice and "content" in choice["message"]:
-                        return str(choice["message"]["content"]).strip().split("\n")[0]
-            
             # Fallback to analytical template
             return f"Analytical insight for {insight_type}: {context}"
         
@@ -3004,9 +2767,9 @@ Generate an analytical insight based on the data above. Include specific numbers
                                 
                                 pr_message = self._generate_insight_message("pr_context", pr_context)
                                 
-                                insights.append({
-                                    "exercise": exercise_name,
-                                    "status": "pr",
+                            insights.append({
+                                "exercise": exercise_name,
+                                "status": "pr",
                                     "message": pr_message,
                                     "weight_increase": weight_increase,
                                 })
@@ -3045,11 +2808,11 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Fallback if generation fails - analytical fallbacks
             if not overall_message or overall_message == "Great work on exercise!":
-                if avg_delta > 10:
+            if avg_delta > 10:
                     overall_message = f"Session volume increased by {avg_delta:+.1f}% vs previous session. Strong progression pattern."
-                elif avg_delta > 0:
+            elif avg_delta > 0:
                     overall_message = f"Volume up {avg_delta:+.1f}% from last session. Maintaining positive trajectory."
-                elif avg_delta < -10:
+            elif avg_delta < -10:
                     overall_message = f"Volume decreased {abs(avg_delta):.1f}% vs previous session. Lower intensity may indicate recovery need."
                 else:
                     overall_message = f"Session volume maintained (±{abs(avg_delta):.1f}% change). Consistent performance."
@@ -3784,32 +3547,10 @@ Generate an analytical insight based on the data above. Include specific numbers
             return []
         # Enforce reranking as a required step; if misconfigured, fall back to distance order
         pre_ids = [it.chunk_id for it in items[:top_k]]
-        if self.config.reranker_backend in ("remote", "auto"):
-            if not self.config.reranker_remote_url:
-                self.logger.warning("RERANKER_REMOTE_URL not set; skipping rerank")
-                res = items[:top_k]
-                post_ids = [it.chunk_id for it in res]
-                self._metrics["rerank_total"] += 1
-                if post_ids != pre_ids:
-                    self._metrics["rerank_changed"] += 1
-                    self.logger.info("rerank(remote) changed order: pre=%s post=%s", pre_ids, post_ids)
-                return res
-            try:
-                import requests
-                sess = self._remote_session or requests.Session()
-                payload = {"query": query, "texts": [it.text for it in items], "model": self.config.reranker_model_name}
-                resp = sess.post(self.config.reranker_remote_url, json=payload, timeout=30)
-                resp.raise_for_status()
-                data = resp.json()
-                scores = data.get("scores") or data.get("data")
-                if not isinstance(scores, list) or len(scores) != len(items):
-                    raise RuntimeError("Invalid reranker response")
-                ranked = sorted(zip(items, scores), key=lambda t: float(t[1]), reverse=True)
-                return [RetrievedChunk(doc_id=it.doc_id, chunk_id=it.chunk_id, text=it.text, score=float(sc), metadata=it.metadata) for it, sc in ranked[:top_k]]
-            except Exception as e:
-                self.logger.error("Remote rerank failed: %s", e)
-                return items[:top_k]
-        if self.config.reranker_backend in ("local", "auto") and self._reranker_model is not None:
+        if self.config.reranker_backend == "none":
+            return items[:top_k]
+        
+        if self.config.reranker_backend == "local" and self._reranker_model is not None:
             try:
                 pairs = [(query, it.text) for it in items]
                 scores = self._reranker_model.predict(pairs)  # type: ignore[attr-defined]
@@ -4362,7 +4103,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
         else:
             # Fallback: load context on-demand (slower, but works if preload wasn't called)
-            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
             memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
@@ -4398,11 +4139,11 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
-            dyn_blocks = [
-                f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
-            ]
-            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
-        
+        dyn_blocks = [
+            f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
+        ]
+        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+
         # Session recap - retrieve conversation history (optimized: limit to 20 messages)
         # This is session-specific, so always load fresh
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
@@ -4559,37 +4300,8 @@ Generate an analytical insight based on the data above. Include specific numbers
                     error_msg = f"OpenAI API error: {str(last_error)}" if last_error else "OpenAI generation failed"
                     return {"answer": "", "references": [], "dynamic_refs": [], "error": error_msg}
         
-        # Modal/Remote generation (backward compatibility)
-        elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
-            try:
-                payload = {
-                    "model": self.config.hf_model_id,
-                    "prompt": prompt,
-                    "max_tokens": max_new_tokens or self.config.max_new_tokens,
-                    "temperature": temperature if temperature is not None else self.config.temperature,
-                }
-                resp = self._remote_session.post(self.config.remote_gen_url, json=payload, timeout=self.config.gen_timeout_ms / 1000.0)
-                resp.raise_for_status()
-                data = resp.json()
-                # Expect OpenAI/vLLM style {choices: [{text|message: {content}}]}
-                if isinstance(data, dict) and "choices" in data and data["choices"]:
-                    choice = data["choices"][0]
-                    if "text" in choice:
-                        ans = str(choice["text"]).strip()
-                    elif "message" in choice and "content" in choice["message"]:
-                        ans = str(choice["message"]["content"]).strip()
-                    else:
-                        ans = str(data)
-                else:
-                    ans = str(data)
-            except Exception as e:
-                self.logger.error("Remote generation failed: %s", e)
-                if self.config.remote_fallback_local:
-                    self.logger.info("Falling back to local generation backend")
-                else:
-                    return {"answer": "", "references": [], "dynamic_refs": [], "error": str(e)}
-        if self.config.gen_backend == "remote" and not self.config.remote_fallback_local:
-            # If remote only and we didn't return earlier, ans should be ready
+        # If OpenAI generation succeeded, return the answer
+        if self.config.gen_backend == "openai" and ans:
             references = [
                 {
                     "doc_id": r.doc_id,
@@ -4617,7 +4329,9 @@ Generate an analytical insight based on the data above. Include specific numbers
             if user_id and ans:
                 self.append_session_message(user_id, session_id, role="assistant", content=ans)
             return {"answer": ans, "references": references, "citations": citations, "claims": claims, "dynamic_refs": dyn[:5]}
-        else:
+        
+        # Local generation fallback
+        if self.config.gen_backend != "openai":
             if self.generator_tokenizer is None or self.generator_model is None:
                 raise RuntimeError("Generation model is not initialized")
 
@@ -4689,7 +4403,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 try:
                     text = self.tokenizer.decode(recent_tokens, skip_special_tokens=True)
                     # Only check stop strings that might appear in recent text
-                    return any(s in text for s in self.stop_strings)
+                return any(s in text for s in self.stop_strings)
                 except Exception:
                     return False
 
@@ -4845,7 +4559,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
         else:
             # Fallback: load context on-demand
-            static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
+        static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
             memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
             mem_lines = [f"- {m['summary']}" for m in memories]
             memory_text = "\n".join(mem_lines) if mem_lines else "(no long-term memory yet)"
@@ -5037,84 +4751,6 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             except Exception as e:
                 self.logger.error("OpenAI streaming failed: %s", e)
-                if not self.config.remote_fallback_local:
-                    yield {"type": "error", "content": str(e)}
-                    return
-        
-        # Modal/Remote streaming (backward compatibility)
-        elif self.config.gen_backend == "remote" and self._remote_session and self.config.remote_gen_url:
-            try:
-                payload = {
-                    "model": self.config.hf_model_id,
-                    "prompt": prompt,
-                    "max_tokens": max_new_tokens or self.config.max_new_tokens,
-                    "temperature": temperature if temperature is not None else self.config.temperature,
-                    "stream": True,
-                }
-                resp = self._remote_session.post(
-                    self.config.remote_gen_url,
-                    json=payload,
-                    timeout=self.config.gen_timeout_ms / 1000.0,
-                    stream=True,
-                )
-                resp.raise_for_status()
-                
-                full_answer = ""
-                for line in resp.iter_lines():
-                    if not line:
-                        continue
-                    line_str = line.decode("utf-8")
-                    if line_str.startswith("data: "):
-                        data_str = line_str[6:]
-                        if data_str.strip() == "[DONE]":
-                            break
-                        try:
-                            import json
-                            data = json.loads(data_str)
-                            if "choices" in data and data["choices"]:
-                                choice = data["choices"][0]
-                                if "delta" in choice and "content" in choice["delta"]:
-                                    token = choice["delta"]["content"]
-                                    full_answer += token
-                                    yield {"type": "token", "content": token}
-                                elif "text" in choice:
-                                    token = choice["text"]
-                                    full_answer += token
-                                    yield {"type": "token", "content": token}
-                        except Exception:
-                            continue
-                
-                generation_time_ms = (time.time() - generation_start) * 1000
-                total_time_ms = (time.time() - start_time) * 1000
-                
-                # Append to session
-                if user_id and full_answer:
-                    self.append_session_message(user_id, session_id, role="assistant", content=full_answer)
-                
-                # Log RAGAS metrics
-                if os.getenv("RAGAS_LOGGING_ENABLED", "1") in ("1", "true", "True"):
-                    try:
-                        self.log_ragas_metrics(
-                            user_id=user_id,
-                            session_id=session_id,
-                            query=query,
-                            answer=full_answer,
-                            retrieved_chunks=retrieved,
-                            dynamic_refs=dyn,
-                            memories=memories,
-                            citations=citations,
-                            retrieval_time_ms=retrieval_time_ms,
-                            generation_time_ms=generation_time_ms,
-                            total_time_ms=total_time_ms,
-                        )
-                    except Exception as e:
-                        self.logger.warning("RAGAS logging failed: %s", e)
-                
-                yield {"type": "done", "content": {"answer": full_answer, "total_time_ms": total_time_ms}}
-                return
-            
-            except Exception as e:
-                self.logger.error("Remote streaming failed: %s", e)
                 if not self.config.remote_fallback_local:
                     yield {"type": "error", "content": str(e)}
                     return

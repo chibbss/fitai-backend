@@ -502,11 +502,11 @@ async def readiness() -> ReadinessResponse:
     except Exception:
         db_ok = False
     try:
-        if rag_service.config.gen_backend == "remote" and rag_service._remote_session and rag_service.config.remote_gen_url:
+        if rag_service.config.gen_backend == "openai" and rag_service._openai_client:
             gen_ok = True
         else:
             # If local backend, ensure tokenizer/model loaded
-            gen_ok = rag_service.generator_tokenizer is not None or (rag_service._remote_session is not None)
+            gen_ok = rag_service.generator_tokenizer is not None
     except Exception:
         gen_ok = False
     return ReadinessResponse(ok=db_ok and gen_ok, db_ok=db_ok, gen_ok=gen_ok)
@@ -1255,27 +1255,6 @@ async def get_onboarding_completion_message(
                     logger.warning("OpenAI onboarding generation failed: %s", e)
                     message = None
             
-            # Generate using remote backend if configured (backward compatibility)
-            elif rag_service.config.gen_backend == "remote" and rag_service._remote_session and rag_service.config.remote_gen_url:
-                payload = {
-                    "model": rag_service.config.hf_model_id,
-                    "prompt": prompt,
-                    "max_tokens": 150,  # Short welcome message
-                    "temperature": 0.7,  # Slightly warmer for welcome message
-                }
-                resp = rag_service._remote_session.post(rag_service.config.remote_gen_url, json=payload, timeout=rag_service.config.gen_timeout_ms / 1000.0)
-                resp.raise_for_status()
-                data = resp.json()
-                if isinstance(data, dict) and "choices" in data and data["choices"]:
-                    choice = data["choices"][0]
-                    if "text" in choice:
-                        message = str(choice["text"]).strip()
-                    elif "message" in choice and "content" in choice["message"]:
-                        message = str(choice["message"]["content"]).strip()
-                    else:
-                        message = None
-                else:
-                    message = None
             else:
                 # Fallback to local generation or template
                 if rag_service.generator_model and rag_service.generator_tokenizer:
