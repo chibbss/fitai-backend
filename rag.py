@@ -4115,6 +4115,8 @@ Generate an analytical insight based on the data above. Include specific numbers
 
         # Initialize dyn to empty list - will be populated in both code paths
         dyn = []
+        # Initialize memories to empty list - will be populated in both code paths
+        memories = []
 
         # Use pre-loaded context or load on-demand
         if preloaded_context:
@@ -4125,6 +4127,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
             # Still need to retrieve dyn for dynamic_refs even when using preloaded context
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
+            # Still need to retrieve memories for RAGAS logging even when using preloaded context
+            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
         else:
             # Fallback: load context on-demand (slower, but works if preload wasn't called)
             static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
@@ -4566,6 +4570,8 @@ Generate an analytical insight based on the data above. Include specific numbers
         
         # Initialize dyn to empty list - will be populated in both code paths
         dyn = []
+        # Initialize memories to empty list - will be populated in both code paths
+        memories = []
         
         # Use pre-loaded context or load on-demand
         if preloaded_context:
@@ -4576,6 +4582,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
             # Still need to retrieve dyn for dynamic_refs even when using preloaded context
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
+            # Still need to retrieve memories for RAGAS logging even when using preloaded context
+            memories = self.retrieve_memories(user_id=user_id, query=query, top_k=3) if user_id else []
         else:
             # Fallback: load context on-demand
             static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
