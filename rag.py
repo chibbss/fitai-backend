@@ -4170,12 +4170,6 @@ Generate an analytical insight based on the data above. Include specific numbers
             ]
             dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
 
-        # Session recap - retrieve conversation history (optimized: limit to 20 messages)
-        # This is session-specific, so always load fresh
-        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
-        session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
-        session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
-
         # Limit KB chunks to top 3 for faster processing
         kb_blocks = [f"[KB {i+1}] {rc.text}" for i, rc in enumerate(retrieved[:3])]
         kb_text = "\n\n".join(kb_blocks) if kb_blocks else "(no KB context)"
