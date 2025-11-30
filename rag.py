@@ -4113,6 +4113,9 @@ Generate an analytical insight based on the data above. Include specific numbers
         retrieval_time = (time.time() - retrieval_start) * 1000
         self.logger.debug("KB retrieval took %.1fms", retrieval_time)
 
+        # Initialize dyn to empty list - will be populated in both code paths
+        dyn = []
+
         # Use pre-loaded context or load on-demand
         if preloaded_context:
             static_summary = preloaded_context.get("static_summary", "")
@@ -4120,6 +4123,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             fitness_overview = preloaded_context.get("fitness_overview", "")
             user_patterns = preloaded_context.get("user_patterns", [])
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
+            # Still need to retrieve dyn for dynamic_refs even when using preloaded context
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
         else:
             # Fallback: load context on-demand (slower, but works if preload wasn't called)
             static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
@@ -4160,16 +4165,10 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
-        dyn_blocks = [
-            f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
-        ]
-        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
-
-        # Session recap - retrieve conversation history (optimized: limit to 20 messages)
-        # This is session-specific, so always load fresh
-        session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
-        session_text_lines = [f"{m['role']}: {m['content']}" for m in session_msgs]
-        session_context = "\n".join(session_text_lines) if session_text_lines else "(no recent messages)"
+            dyn_blocks = [
+                f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)
+            ]
+            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
 
         # Session recap - retrieve conversation history (optimized: limit to 20 messages)
         # This is session-specific, so always load fresh
@@ -4571,6 +4570,9 @@ Generate an analytical insight based on the data above. Include specific numbers
         retrieved = self.retrieve(query, user_id=user_id, top_k=top_k)
         retrieval_time_ms = (time.time() - retrieval_start) * 1000
         
+        # Initialize dyn to empty list - will be populated in both code paths
+        dyn = []
+        
         # Use pre-loaded context or load on-demand
         if preloaded_context:
             static_summary = preloaded_context.get("static_summary", "")
@@ -4578,6 +4580,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             fitness_overview = preloaded_context.get("fitness_overview", "")
             user_patterns = preloaded_context.get("user_patterns", [])
             dyn_text = preloaded_context.get("dyn_text", "(no personal history found)")
+            # Still need to retrieve dyn for dynamic_refs even when using preloaded context
+            dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
         else:
             # Fallback: load context on-demand
             static_summary = self._summarize_user(self.get_user(user_id) if user_id else None)
@@ -4618,8 +4622,8 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
-        dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
-        dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
+            dyn_blocks = [f"[Log {i+1}] ({d.get('topic') or d.get('kind')}) {d['notes']}" for i, d in enumerate(dyn)]
+            dyn_text = "\n\n".join(dyn_blocks) if dyn_blocks else "(no personal history found)"
         
         # Session recap - always load fresh (session-specific)
         session_msgs = self.get_session_messages(user_id or "anonymous", session_id, max_messages=20) if user_id else []
