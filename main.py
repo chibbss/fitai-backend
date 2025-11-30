@@ -591,10 +591,16 @@ async def chat(
             len(q),
         )
         
-        result = rag_service.chat(
-            query=q,
-            user_id=user.user_id,
-            session_id=body.session_id,
+        # Run blocking chat operation in executor to avoid blocking event loop
+        import asyncio
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: rag_service.chat(
+                query=q,
+                user_id=user.user_id,
+                session_id=body.session_id,
+            )
         )
         
         # Performance monitoring: log total time
@@ -1809,26 +1815,77 @@ async def chat_stream(
         
         async def event_generator():
             nonlocal first_token_time, token_count
-            for chunk in rag_service.chat_stream(
-                query=q,
-                user_id=user.user_id,
-                session_id=body.session_id,
-            ):
-                if first_token_time is None and chunk.get("type") == "token":
-                    first_token_time = time.time() - stream_start_time
-                    logger.info(
-                        "Chat stream first token (user_id=%s, time_to_first_token=%.2fs)",
-                        user.user_id,
-                        first_token_time,
-                    )
+            # Run blocking generator in thread to avoid blocking event loop
+            import asyncio
+            import queue
+            import threading
+            
+            # Create a queue to pass chunks from thread to async generator
+            chunk_queue = queue.Queue()
+            exception_holder = [None]
+            
+            def run_generator():
+                """Run blocking generator in thread"""
+                try:
+                    for chunk in rag_service.chat_stream(
+                        query=q,
+                        user_id=user.user_id,
+                        session_id=body.session_id,
+                    ):
+                        chunk_queue.put(chunk)
+                    chunk_queue.put(None)  # Signal end
+                except Exception as e:
+                    exception_holder[0] = e
+                    chunk_queue.put(None)  # Signal end
+            
+            # Start generator in thread
+            thread = threading.Thread(target=run_generator, daemon=True)
+            thread.start()
+            
+            # Yield chunks as they arrive
+            try:
+                while True:
+                    # Wait for chunk with timeout to allow checking for exceptions
+                    try:
+                        chunk = chunk_queue.get(timeout=0.1)
+                    except queue.Empty:
+                        # Check for exceptions
+                        if exception_holder[0]:
+                            raise exception_holder[0]
+                        # Check if thread is still alive
+                        if not thread.is_alive() and chunk_queue.empty():
+                            break
+                        continue
+                    
+                    if chunk is None:  # End signal
+                        break
+                    
+                    if first_token_time is None and chunk.get("type") == "token":
+                        first_token_time = time.time() - stream_start_time
+                        logger.info(
+                            "Chat stream first token (user_id=%s, time_to_first_token=%.2fs)",
+                            user.user_id,
+                            first_token_time,
+                        )
+                    
+                    if chunk.get("type") == "token":
+                        token_count += 1
+                    
+                    yield {
+                        "event": chunk["type"],
+                        "data": json.dumps(chunk["content"]),
+                    }
+                    
+                    # Yield control to event loop
+                    await asyncio.sleep(0)
                 
-                if chunk.get("type") == "token":
-                    token_count += 1
-                
-                yield {
-                    "event": chunk["type"],
-                    "data": json.dumps(chunk["content"]),
-                }
+                # Wait for thread to complete
+                thread.join(timeout=5.0)
+                if exception_holder[0]:
+                    raise exception_holder[0]
+            except Exception as e:
+                logger.error("Error in chat stream generator: %s", e, exc_info=True)
+                raise
             
             # Performance monitoring: log streaming completion
             total_time = time.time() - stream_start_time

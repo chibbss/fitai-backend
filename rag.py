@@ -88,12 +88,27 @@ class RAGService:
             "rerank_changed": 0,
         }
         # In-memory cache for workout hooks (fallback when Redis unavailable)
+        # Max 1000 entries to prevent memory leaks
         self._workout_hooks_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (hooks, timestamp)}
-        # Cache for fitness overview and patterns (5 minute TTL)
+        self._workout_hooks_cache_max_size = 1000
+        # Cache for fitness overview and patterns (15 minute TTL, max 1000 entries)
         self._fitness_overview_cache: Dict[str, Tuple[str, float]] = {}  # {user_id: (overview, timestamp)}
+        self._fitness_overview_cache_max_size = 1000
         self._patterns_cache: Dict[str, Tuple[List[str], float]] = {}  # {user_id: (patterns, timestamp)}
-        # Cache for pre-loaded user context (10 minute TTL)
+        self._patterns_cache_max_size = 1000
+        # Cache for pre-loaded user context (10 minute TTL, max 500 entries)
         self._user_context_cache: Dict[str, Tuple[Dict[str, Any], float]] = {}  # {user_id: (context_dict, timestamp)}
+        self._user_context_cache_max_size = 500
+    
+    def _enforce_cache_size_limit(self, cache: Dict, max_size: int):
+        """Enforce cache size limit by removing oldest entries (LRU-style)"""
+        if len(cache) > max_size:
+            # Remove oldest entries (sorted by timestamp, remove oldest 20%)
+            items = list(cache.items())
+            items.sort(key=lambda x: x[1][1] if isinstance(x[1], tuple) and len(x[1]) > 1 else 0)
+            to_remove = len(cache) - max_size
+            for key, _ in items[:to_remove]:
+                del cache[key]
 
     # ------------------------
     # Initialization
@@ -1984,6 +1999,7 @@ class RAGService:
             
             # Also cache in memory
             self._workout_hooks_cache[user_id] = (result, time.time())
+            self._enforce_cache_size_limit(self._workout_hooks_cache, self._workout_hooks_cache_max_size)
             
             return result
         except Exception as e:
@@ -3782,6 +3798,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             }
             
             self._user_context_cache[user_id] = (context_dict, current_time)
+            self._enforce_cache_size_limit(self._user_context_cache, self._user_context_cache_max_size)
             self.logger.info("Pre-loaded context for user %s (FitAI ready!)", user_id)
             
             return context_dict
@@ -3943,6 +3960,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             if not fitness_overview:
                 fitness_overview = self._get_user_fitness_overview(user_id)
                 self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
+                self._enforce_cache_size_limit(self._fitness_overview_cache, self._fitness_overview_cache_max_size)
             
             # Check patterns cache
             if user_id in self._patterns_cache:
@@ -3955,6 +3973,7 @@ Generate an analytical insight based on the data above. Include specific numbers
             if not user_patterns:
                 user_patterns = self._detect_user_patterns(user_id)
                 self._patterns_cache[user_id] = (user_patterns, current_time)
+                self._enforce_cache_size_limit(self._patterns_cache, self._patterns_cache_max_size)
         
         if fitness_overview:
             context_text += f"{fitness_overview}\n\n"
@@ -4125,6 +4144,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 if not fitness_overview:
                     fitness_overview = self._get_user_fitness_overview(user_id)
                     self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
+                    self._enforce_cache_size_limit(self._fitness_overview_cache, self._fitness_overview_cache_max_size)
                 
                 if user_id in self._patterns_cache:
                     patterns, timestamp = self._patterns_cache[user_id]
@@ -4136,6 +4156,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 if not user_patterns:
                     user_patterns = self._detect_user_patterns(user_id)
                     self._patterns_cache[user_id] = (user_patterns, current_time)
+                    self._enforce_cache_size_limit(self._patterns_cache, self._patterns_cache_max_size)
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []
@@ -4581,6 +4602,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 if not fitness_overview:
                     fitness_overview = self._get_user_fitness_overview(user_id)
                     self._fitness_overview_cache[user_id] = (fitness_overview, current_time)
+                    self._enforce_cache_size_limit(self._fitness_overview_cache, self._fitness_overview_cache_max_size)
                 
                 if user_id in self._patterns_cache:
                     patterns, timestamp = self._patterns_cache[user_id]
@@ -4592,6 +4614,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 if not user_patterns:
                     user_patterns = self._detect_user_patterns(user_id)
                     self._patterns_cache[user_id] = (user_patterns, current_time)
+                    self._enforce_cache_size_limit(self._patterns_cache, self._patterns_cache_max_size)
             
             # Get recent workouts
             dyn = self.retrieve_training_logs(user_id=user_id, query=query, top_k=min(3, (top_k or self.config.top_k))) if user_id else []

@@ -190,11 +190,11 @@ class FitAIUser(HttpUser):
                         
                         # Read streaming response line by line
                         try:
-                            for line_bytes in response.iter_lines():
-                                if not line_bytes:
+                            for line in response.iter_lines():
+                                if not line:
                                     continue
                                 
-                                line = line_bytes.decode('utf-8', errors='ignore').strip()
+                                line = line.strip()
                                 
                                 # Skip empty lines and ping comments
                                 if not line or line.startswith(': '):
