@@ -4727,61 +4727,78 @@ Generate an analytical insight based on the data above. Include specific numbers
         # Generation phase
         generation_start = time.time()
         
-        # OpenAI streaming (preferred)
+        # OpenAI streaming (preferred) with retry logic
         if self.config.gen_backend == "openai" and self._openai_client:
-            try:
-                messages = [
-                    {"role": "system", "content": system_text},
-                    {"role": "user", "content": context_text + f"User message: {query}"}
-                ]
-                stream = self._openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=messages,
-                    max_tokens=max_new_tokens or self.config.max_new_tokens,
-                    temperature=temperature if temperature is not None else self.config.temperature,
-                    stream=True,
-                )
-                
-                full_answer = ""
-                for chunk in stream:
-                    if chunk.choices[0].delta.content:
-                        token = chunk.choices[0].delta.content
-                        full_answer += token
-                        yield {"type": "token", "content": token}
-                
-                generation_time_ms = (time.time() - generation_start) * 1000
-                total_time_ms = (time.time() - start_time) * 1000
-                
-                # Append to session
-                if user_id and full_answer:
-                    self.append_session_message(user_id, session_id, role="assistant", content=full_answer)
-                
-                # Log RAGAS metrics
-                if os.getenv("RAGAS_LOGGING_ENABLED", "1") in ("1", "true", "True"):
-                    try:
-                        self.log_ragas_metrics(
-                            user_id=user_id,
-                            session_id=session_id,
-                            query=query,
-                            answer=full_answer,
-                            retrieved_chunks=retrieved,
-                            dynamic_refs=dyn,
-                            memories=memories,
-                            citations=citations,
-                            retrieval_time_ms=retrieval_time_ms,
-                            generation_time_ms=generation_time_ms,
-                            total_time_ms=total_time_ms,
-                        )
-                    except Exception as e:
-                        self.logger.warning("RAGAS logging failed: %s", e)
-                
-                yield {"type": "done", "content": {"answer": full_answer, "total_time_ms": total_time_ms}}
-                return
+            import time as time_module
+            max_retries = 3
+            retry_delay = 1.0
+            stream_success = False
+            last_error = None
             
-            except Exception as e:
-                self.logger.error("OpenAI streaming failed: %s", e)
+            messages = [
+                {"role": "system", "content": system_text},
+                {"role": "user", "content": context_text + f"User message: {query}"}
+            ]
+            
+            for attempt in range(max_retries):
+                try:
+                    stream = self._openai_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=messages,
+                        max_tokens=max_new_tokens or self.config.max_new_tokens,
+                        temperature=temperature if temperature is not None else self.config.temperature,
+                        stream=True,
+                    )
+                    
+                    full_answer = ""
+                    for chunk in stream:
+                        if chunk.choices[0].delta.content:
+                            token = chunk.choices[0].delta.content
+                            full_answer += token
+                            yield {"type": "token", "content": token}
+                    
+                    generation_time_ms = (time.time() - generation_start) * 1000
+                    total_time_ms = (time.time() - start_time) * 1000
+                    
+                    # Append to session
+                    if user_id and full_answer:
+                        self.append_session_message(user_id, session_id, role="assistant", content=full_answer)
+                    
+                    # Log RAGAS metrics
+                    if os.getenv("RAGAS_LOGGING_ENABLED", "1") in ("1", "true", "True"):
+                        try:
+                            self.log_ragas_metrics(
+                                user_id=user_id,
+                                session_id=session_id,
+                                query=query,
+                                answer=full_answer,
+                                retrieved_chunks=retrieved,
+                                dynamic_refs=dyn,
+                                memories=memories,
+                                citations=citations,
+                                retrieval_time_ms=retrieval_time_ms,
+                                generation_time_ms=generation_time_ms,
+                                total_time_ms=total_time_ms,
+                            )
+                        except Exception as e:
+                            self.logger.warning("RAGAS logging failed: %s", e)
+                    
+                    yield {"type": "done", "content": {"answer": full_answer, "total_time_ms": total_time_ms}}
+                    stream_success = True
+                    break  # Success, exit retry loop
+                
+                except Exception as e:
+                    last_error = e
+                    self.logger.warning("OpenAI streaming attempt %d/%d failed: %s", attempt + 1, max_retries, e)
+                    if attempt < max_retries - 1:
+                        time_module.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                    else:
+                        self.logger.error("OpenAI streaming failed after %d attempts: %s", max_retries, e)
+            
+            if not stream_success:
                 if not self.config.remote_fallback_local:
-                    yield {"type": "error", "content": str(e)}
+                    error_msg = f"OpenAI API error: {str(last_error)}" if last_error else "OpenAI streaming failed"
+                    yield {"type": "error", "content": error_msg}
                     return
         
         # Local streaming generation
