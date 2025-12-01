@@ -536,7 +536,7 @@ async def report_bug(
                 sql_text(
                     """
                     INSERT INTO bug_reports (id, user_id, title, description, status, metadata, created_at)
-                    VALUES (:id, :user_id, :title, :description, :status, :metadata::jsonb, CURRENT_TIMESTAMP)
+                    VALUES (:id, :user_id, :title, :description, :status, CAST(:metadata AS jsonb), CURRENT_TIMESTAMP)
                     """
                 ),
                 {
