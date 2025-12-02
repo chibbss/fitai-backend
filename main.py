@@ -659,6 +659,12 @@ async def chat(
         
         refs = [Reference(**r) for r in result.get("references", [])]
         return ChatResponse(answer=result.get("answer", ""), references=refs, citations=result.get("citations") or [])
+    except ValueError as e:
+        logger.warning("/chat validation error: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+    except TimeoutError as e:
+        logger.warning("/chat timeout: %s", e)
+        raise HTTPException(status_code=504, detail="Request timeout - please try again")
     except Exception as e:
         logger.error("/chat error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
@@ -683,6 +689,9 @@ async def search(
         return SearchResponse(results=items, citations=res.get("citations", []), count=res.get("count", len(items)))
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.warning("/search validation error: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error("/search error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
@@ -1142,19 +1151,37 @@ async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse
         goals = user.get("goals", {})
         metadata = user.get("metadata", {}) or {}
         
+        # Helper function to safely extract value from data
+        def safe_get_value(data: Dict[str, Any], key: str) -> Optional[Any]:
+            """Safely extract value from data dict, with fallback to first value if key not found."""
+            if not data:
+                return None
+            value = data.get(key)
+            if value is not None:
+                return value
+            # Fallback: get first value if available
+            values = list(data.values())
+            return values[0] if values else None
+        
         # Map new step names to proper storage locations
         if body.step == "why":
             # Store in goals
-            goals.update({"primary_goal": body.data.get("primary_goal") or list(body.data.values())[0] if body.data else None})
+            primary_goal = safe_get_value(body.data, "primary_goal")
+            if primary_goal:
+                goals.update({"primary_goal": primary_goal})
         elif body.step == "experience":
             # Store in profile
-            profile.update({"experience_level": body.data.get("experience_level") or list(body.data.values())[0] if body.data else None})
+            experience_level = safe_get_value(body.data, "experience_level")
+            if experience_level:
+                profile.update({"experience_level": experience_level})
         elif body.step == "training_style":
             # Store in profile
-            profile.update({"workout_preference": body.data.get("workout_preference") or list(body.data.values())[0] if body.data else None})
+            workout_preference = safe_get_value(body.data, "workout_preference")
+            if workout_preference:
+                profile.update({"workout_preference": workout_preference})
         elif body.step == "notes":
             # Store constraints/notes in profile
-            constraints = body.data.get("constraints") or body.data.get("notes") or list(body.data.values())[0] if body.data else None
+            constraints = safe_get_value(body.data, "constraints") or safe_get_value(body.data, "notes")
             if constraints:
                 profile.update({"constraints": constraints})
         elif body.step in {"basic", "profile", "experience", "training_style", "notes"}:
@@ -1180,6 +1207,17 @@ async def onboarding_step(body: OnboardingStepRequest) -> OnboardingStepResponse
         rag_service.add_training_log(user_id=body.user_id, notes=summary_text, kind="onboarding", topic=body.step)
 
         return OnboardingStepResponse(user=UserResponse(**updated))
+    except ValueError as e:
+        # Handle validation errors (e.g., duplicate email)
+        error_msg = str(e)
+        if "already registered" in error_msg.lower() or "email" in error_msg.lower():
+            logger.warning("/onboarding_step duplicate email: %s", error_msg)
+            raise HTTPException(status_code=409, detail=error_msg)
+        logger.warning("/onboarding_step validation error: %s", error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
+    except KeyError as e:
+        logger.warning("/onboarding_step missing key: %s", e)
+        raise HTTPException(status_code=400, detail=f"Missing required field: {str(e)}")
     except Exception as e:
         logger.error("/onboarding_step error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))

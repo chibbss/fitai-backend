@@ -42,6 +42,23 @@ class RetrievedChunk:
     metadata: Dict[str, Any]
 
 
+# Constants for workout intensity thresholds (in kg)
+INTENSITY_VERY_HEAVY_THRESHOLD = 3000
+INTENSITY_HEAVY_THRESHOLD = 2000
+INTENSITY_MEDIUM_THRESHOLD = 1000
+
+# Constants for intensity ratio thresholds
+INTENSITY_RATIO_VERY_HEAVY = 1.5
+INTENSITY_RATIO_HEAVY = 1.2
+INTENSITY_RATIO_MEDIUM = 0.8
+
+# Query limits to prevent fetching excessive data
+MAX_WORKOUTS_PER_QUERY = 1000
+MAX_TRAINING_LOGS_PER_QUERY = 1000
+MAX_MEMORIES_PER_QUERY = 500
+MAX_CHAT_MESSAGES_PER_QUERY = 1000
+
+
 class RAGService:
     def __init__(self, config: Optional[AppConfig] = None) -> None:
         self.config = config or get_config()
@@ -1503,11 +1520,11 @@ class RAGService:
                     return "light"
             
             # Fallback: absolute thresholds (kg)
-            if volume_kg >= 3000:
+            if volume_kg >= INTENSITY_VERY_HEAVY_THRESHOLD:
                 return "very_heavy"
-            elif volume_kg >= 2000:
+            elif volume_kg >= INTENSITY_HEAVY_THRESHOLD:
                 return "heavy"
-            elif volume_kg >= 1000:
+            elif volume_kg >= INTENSITY_MEDIUM_THRESHOLD:
                 return "medium"
             else:
                 return "light"
@@ -1769,21 +1786,21 @@ class RAGService:
             
             if avg_session_volume and avg_session_volume > 0:
                 ratio = volume_kg / avg_session_volume
-                if ratio >= 1.5:
+                if ratio >= INTENSITY_RATIO_VERY_HEAVY:
                     return "very_heavy"
-                elif ratio >= 1.2:
+                elif ratio >= INTENSITY_RATIO_HEAVY:
                     return "heavy"
-                elif ratio >= 0.8:
+                elif ratio >= INTENSITY_RATIO_MEDIUM:
                     return "medium"
                 else:
                     return "light"
             
             # Fallback: absolute thresholds
-            if volume_kg >= 3000:
+            if volume_kg >= INTENSITY_VERY_HEAVY_THRESHOLD:
                 return "very_heavy"
-            elif volume_kg >= 2000:
+            elif volume_kg >= INTENSITY_HEAVY_THRESHOLD:
                 return "heavy"
-            elif volume_kg >= 1000:
+            elif volume_kg >= INTENSITY_MEDIUM_THRESHOLD:
                 return "medium"
             else:
                 return "light"
@@ -1816,10 +1833,13 @@ class RAGService:
             ).unique().scalars().all()
             
             # Get average session volume for intensity calculation (with eager loading)
+            # Limit to prevent fetching excessive data
             all_workouts = session.execute(
                 select(WorkoutSessionModel)
                 .options(joinedload(WorkoutSessionModel.exercises))
                 .where(WorkoutSessionModel.user_id == user_id)
+                .order_by(WorkoutSessionModel.occurred_at.desc())
+                .limit(MAX_WORKOUTS_PER_QUERY)
             ).unique().scalars().all()
             
             avg_volume = None
