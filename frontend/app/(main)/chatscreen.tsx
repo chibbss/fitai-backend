@@ -38,6 +38,7 @@ import { API_URL, MOCK_MODE } from '@/utils/config';
 import { getAccentColor, getGradientColors } from '@/utils/settings';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/context/ThemeContext';
+import { generatePersonalizedGreeting, GreetingData } from '@/utils/greetingUtils';
 
 interface Message {
     id: string;
@@ -164,9 +165,15 @@ const ChatScreen = () => {
         }, [])
     );
 
+    // State for personalized greeting
+    const [personalizedGreeting, setPersonalizedGreeting] = useState<GreetingData | null>(null);
+    const [isLoadingGreeting, setIsLoadingGreeting] = useState(true);
+
     // Add effect to show completion message on mount if provided
     useEffect(() => {
         const initialMessage = params.initialMessage as string | undefined;
+        const prefillQuery = params.prefillQuery as string | undefined;
+        
         if (initialMessage && messages.length === 0) {
             // Add bot message with completion message
             const botMsgId = Date.now().toString();
@@ -180,7 +187,34 @@ const ChatScreen = () => {
             // Initialize displayed text as empty so typewriter effect works
             setDisplayedTexts({ [botMsgId]: '' });
         }
-    }, [params.initialMessage]);
+        
+        // Handle pre-filled query from insights screen
+        if (prefillQuery && input === '') {
+            setInput(prefillQuery);
+        }
+    }, [params.initialMessage, params.prefillQuery]);
+
+    // Load personalized greeting on mount (only if chat is empty)
+    useEffect(() => {
+        const loadGreeting = async () => {
+            // Only show personalized greeting if chat is empty
+            if (messages.length === 0 && !params.initialMessage && !params.prefillQuery) {
+                setIsLoadingGreeting(true);
+                try {
+                    const greeting = await generatePersonalizedGreeting();
+                    setPersonalizedGreeting(greeting);
+                } catch (error) {
+                    console.error('Failed to load greeting:', error);
+                } finally {
+                    setIsLoadingGreeting(false);
+                }
+            } else {
+                setIsLoadingGreeting(false);
+            }
+        };
+        
+        loadGreeting();
+    }, []); // Only run once on mount
 
     const [input, setInput] = useState('');
     const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -813,13 +847,44 @@ const ChatScreen = () => {
                         ]}
                         pointerEvents="auto"
                     >
-                        <Greeting
-                            gradientColors={gradientColors}
-                            onPromptPress={(prompt) => {
-                                setInput(prompt)
-                                // Optionally auto-send: sendText()
-                            }}
-                        />
+                        {isLoadingGreeting ? (
+                            <View style={styles.loadingGreeting}>
+                                <ActivityIndicator size="small" color={colors.primary} />
+                            </View>
+                        ) : personalizedGreeting ? (
+                            <View style={styles.personalizedGreetingContainer}>
+                                <View style={styles.greetingMessage}>
+                                    <Typo size={18} fontWeight="600" color={themeColors.textPrimary}>
+                                        {personalizedGreeting.message}
+                                    </Typo>
+                                </View>
+                                {personalizedGreeting.prompts && personalizedGreeting.prompts.length > 0 && (
+                                    <View style={styles.promptButtons}>
+                                        {personalizedGreeting.prompts.map((prompt, index) => (
+                                            <TouchableOpacity
+                                                key={index}
+                                                style={styles.promptButton}
+                                                onPress={() => {
+                                                    setInput(prompt);
+                                                }}
+                                            >
+                                                <Typo size={14} color={colors.primary} fontWeight="500">
+                                                    {prompt}
+                                                </Typo>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+                            </View>
+                        ) : (
+                            <Greeting
+                                gradientColors={gradientColors}
+                                onPromptPress={(prompt) => {
+                                    setInput(prompt)
+                                    // Optionally auto-send: sendText()
+                                }}
+                            />
+                        )}
                     </Animated.View>
                 )}
 
@@ -1207,5 +1272,31 @@ const styles = StyleSheet.create({
         maxWidth: '80%',
         marginVertical: 4,
         elevation: 3,
+    },
+    loadingGreeting: {
+        padding: spacingY._20,
+        alignItems: 'center',
+    },
+    personalizedGreetingContainer: {
+        padding: spacingX._20,
+        backgroundColor: colors.neutral50,
+        borderRadius: radius._15,
+        margin: spacingX._20,
+    },
+    greetingMessage: {
+        marginBottom: spacingY._15,
+    },
+    promptButtons: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacingX._10,
+    },
+    promptButton: {
+        paddingHorizontal: spacingX._15,
+        paddingVertical: spacingY._10,
+        backgroundColor: colors.white,
+        borderRadius: radius._10,
+        borderWidth: 1,
+        borderColor: colors.primary,
     },
 });

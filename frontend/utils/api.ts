@@ -95,6 +95,28 @@ export const workoutApi = {
         return await response.json();
     },
 
+    //Get weekly summary
+    async getWeeklySummary(startDate?: string) {
+        const token = await getAuthToken();
+        if (!token) throw new Error('Authentication required');
+
+        let url = `${API_URL}/workouts/weekly-summary`;
+        if (startDate) url += `?start_date=${startDate}`;
+
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        }
+
+        return await response.json();
+    },
+
     //Get workout details (for editing)
     async getWorkoutDetails(sessionId: string) {
         const token = await getAuthToken();

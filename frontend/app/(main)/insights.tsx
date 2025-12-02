@@ -24,9 +24,17 @@ interface Insight {
     weight_increase?: number | null;
 }
 
+interface SessionInsight {
+    type: string;  // 'consistency' | 'recovery' | 'pr_context'
+    message: string;
+    priority: number;
+}
+
 interface InsightsData {
     session_id: string;
     insights: Insight[];
+    session_insights?: SessionInsight[];
+    conversation_hooks?: string[];
     overall_message: string;
     avg_volume_change_pct: number;
     exercise_count: number;
@@ -37,6 +45,7 @@ const InsightsScreen = () => {
     const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
     const [insights, setInsights] = useState<InsightsData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [chatPrompt, setChatPrompt] = useState<string | null>(null);
 
     useEffect(() => {
         if (sessionId) {
@@ -51,12 +60,61 @@ const InsightsScreen = () => {
         try {
             const data = await workoutApi.getInsights(sessionId);
             setInsights(data);
+            // Generate chat prompt based on insights
+            const prompt = generateChatPrompt(data);
+            setChatPrompt(prompt);
         } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to load insights');
             router.back();
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const generateChatPrompt = (data: InsightsData): string => {
+        // Priority 1: PR detected
+        const prInsight = data.insights.find(i => i.status === 'pr');
+        if (prInsight) {
+            return `I just hit a PR on ${prInsight.exercise}! Tell me about my progress.`;
+        }
+        
+        // Priority 2: Session insights (consistency, recovery, etc.)
+        const topSessionInsight = data.session_insights?.[0];
+        if (topSessionInsight && topSessionInsight.priority >= 3) {
+            if (topSessionInsight.type === 'consistency') {
+                return "I've been consistent this week. How am I doing?";
+            }
+            if (topSessionInsight.type === 'recovery') {
+                return "How's my recovery looking?";
+            }
+            if (topSessionInsight.type === 'pr_context') {
+                return "Tell me about my recent progress.";
+            }
+        }
+        
+        // Priority 3: Use conversation hooks if available
+        if (data.conversation_hooks && data.conversation_hooks.length > 0) {
+            const hook = data.conversation_hooks[0];
+            if (hook.includes('PR')) {
+                return "I hit a personal record! What does this mean for my progress?";
+            }
+            if (hook.includes('streak')) {
+                return "I've been on a streak! How can I keep it going?";
+            }
+        }
+        
+        // Fallback
+        return "How did I do today?";
+    };
+
+    const getButtonLabel = (data: InsightsData): string => {
+        if (data.insights.some(i => i.status === 'pr')) {
+            return "🎉 Ask about my PR";
+        }
+        if (data.session_insights?.[0]?.type === 'consistency') {
+            return "🔥 Chat about progress";
+        }
+        return "Chat with FitAI";
     };
 
     const getStatusColor = (status: string) => {
@@ -241,10 +299,17 @@ const InsightsScreen = () => {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.actionButton, styles.primaryButton]}
-                        onPress={() => router.push('/chatscreen' as any)}
+                        onPress={() => {
+                            router.push({
+                                pathname: '/chatscreen' as any,
+                                params: { 
+                                    prefillQuery: chatPrompt || "How did I do today?"
+                                }
+                            });
+                        }}
                     >
                         <Typo size={14} color={colors.white} fontWeight="600">
-                            Chat with FitAI
+                            {insights ? getButtonLabel(insights) : 'Chat with FitAI'}
                         </Typo>
                         <Icons.ChatCircle size={20} color={colors.white} />
                     </TouchableOpacity>
