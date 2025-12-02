@@ -914,6 +914,13 @@ async def upsert_user(user_id: str, body: UserUpsertRequest, user: AuthUser = De
             except Exception:
                 logger.warning("Memory refresh on upsert failed; will rely on scheduler")
         return UserResponse(**user)
+    except ValueError as e:
+        # Handle duplicate email error
+        error_msg = str(e)
+        if "already registered" in error_msg.lower() or "email" in error_msg.lower():
+            logger.warning("/users PUT duplicate email: %s", error_msg)
+            raise HTTPException(status_code=409, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
     except Exception as e:
         logger.error("/users PUT error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))

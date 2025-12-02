@@ -812,6 +812,16 @@ class RAGService:
         with self.SessionLocal() as session:
             with session.begin():
                 u = session.get(UserModel, user_id)
+                
+                # Validate email uniqueness if email is provided
+                if email:
+                    existing_user = session.query(UserModel).filter(
+                        UserModel.email == email,
+                        UserModel.id != user_id
+                    ).first()
+                    if existing_user:
+                        raise ValueError(f"Email {email} is already registered to another account")
+                
                 if u is None:
                     u = UserModel(
                         id=user_id,
