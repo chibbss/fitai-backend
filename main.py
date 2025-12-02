@@ -1263,15 +1263,9 @@ async def get_onboarding_completion_message(
         
         # Create prompt for AI to generate welcome message
         system_prompt = (
-            "You are fit.ai, a warm and friendly AI fitness coach. You're welcoming a new user who just completed onboarding. "
-            "Generate a unique, warm, personalized welcome message (2-3 sentences) that:\n"
-            "1. Acknowledges what they shared during onboarding (goal, experience, preference)\n"
-            "2. Shows you remember and care about their goals\n"
-            "3. Ends with a helpful follow-up question to get the conversation started\n\n"
-            "Be warm, encouraging, and authentic. Use their name if provided. Keep it conversational and friendly.\n"
-            "Example style: 'Hey [name]! 👋 I remember you're here to [goal] and you've got [experience] experience with [preference]. "
-            "That's a solid foundation to build on. [Follow-up question to start conversation]'\n\n"
-            "IMPORTANT: Only generate the welcome message, nothing else. No explanations or meta-commentary."
+            "You are fit.ai, a warm fitness coach. Generate a personalized 2-3 sentence welcome message "
+            "that acknowledges their onboarding (goal, experience, preference), shows you remember, "
+            "and ends with a helpful follow-up question. Be warm and conversational. Use their name if provided."
         )
         
         user_prompt = f"{user_context}\n\nGenerate the welcome message:"
