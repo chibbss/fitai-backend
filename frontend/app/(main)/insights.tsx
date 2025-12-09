@@ -15,6 +15,7 @@ import { workoutApi } from '@/utils/api';
 import Typo from '@/components/Typo';
 import * as Icons from 'phosphor-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import EmptyInsightsState from '@/components/EmptyInsightsState';
 
 interface Insight {
     exercise: string;
@@ -157,6 +158,35 @@ const InsightsScreen = () => {
                             Analyzing your workout...
                         </Typo>
                     </View>
+                </ScreenWrapper>
+            </SafeAreaView>
+        );
+    }
+
+    // Show empty state if no insights (and not loading)
+    if (!isLoading && !insights) {
+        return (
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <ScreenWrapper showPattern={false}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <TouchableOpacity
+                            onPress={() => router.back()}
+                            style={styles.backButton}
+                        >
+                            <Icons.ArrowLeft size={24} color={colors.black} weight="bold" />
+                        </TouchableOpacity>
+                        <Typo size={20} fontWeight="600" color={colors.black}>
+                            Workout Insights
+                        </Typo>
+                        <View style={styles.editButton} />
+                    </View>
+
+                    {/* Empty State */}
+                    <EmptyInsightsState 
+                        onLogWorkout={() => router.push('/workout-log' as any)}
+                        onViewCalendar={() => router.push('/calendar' as any)}
+                    />
                 </ScreenWrapper>
             </SafeAreaView>
         );

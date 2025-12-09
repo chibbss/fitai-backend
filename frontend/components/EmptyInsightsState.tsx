@@ -1,0 +1,183 @@
+import React from 'react';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Typo from './Typo';
+import * as Icons from 'phosphor-react-native';
+import { colors, radius, spacingX, spacingY } from '@/constants/theme';
+import { useTheme } from '@/context/ThemeContext';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+
+interface EmptyInsightsStateProps {
+    onLogWorkout: () => void;
+    onViewCalendar?: () => void;
+}
+
+const EmptyInsightsState: React.FC<EmptyInsightsStateProps> = ({ 
+    onLogWorkout, 
+    onViewCalendar 
+}) => {
+    const { colors: themeColors } = useTheme();
+
+    return (
+        <View style={styles.container}>
+            <Animated.View 
+                entering={FadeInDown.duration(400)}
+                style={styles.content}
+            >
+                {/* Illustration */}
+                <Animated.View 
+                    entering={FadeInDown.delay(100).duration(400)}
+                    style={styles.illustrationContainer}
+                >
+                    <Icons.ChartLineUp 
+                        size={120} 
+                        color={themeColors.accentPrimary} 
+                        weight="duotone"
+                    />
+                </Animated.View>
+
+                {/* Title */}
+                <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+                    <LinearGradient
+                        colors={themeColors.accentGradient}
+                        start={{ x: 0, y: 0.5 }}
+                        end={{ x: 1, y: 0.5 }}
+                        style={styles.titleContainer}
+                    >
+                        <Typo 
+                            size={28} 
+                            fontWeight="800" 
+                            style={styles.title}
+                        >
+                            No Workout Insights Yet
+                        </Typo>
+                    </LinearGradient>
+                </Animated.View>
+
+                {/* Description */}
+                <Animated.View entering={FadeInDown.delay(300).duration(400)}>
+                    <Typo 
+                        size={16} 
+                        color={colors.neutral600} 
+                        style={styles.description}
+                    >
+                        Log a workout to get instant AI-powered insights about your performance, PRs, and progress.
+                    </Typo>
+                </Animated.View>
+
+                {/* Primary CTA */}
+                <Animated.View entering={FadeInUp.delay(400).duration(400)}>
+                    <TouchableOpacity 
+                        onPress={onLogWorkout}
+                        activeOpacity={0.8}
+                        style={styles.primaryButton}
+                    >
+                        <LinearGradient
+                            colors={themeColors.accentGradient}
+                            start={{ x: 0, y: 0.5 }}
+                            end={{ x: 1, y: 0.5 }}
+                            style={styles.buttonGradient}
+                        >
+                            <Icons.Barbell size={20} color={colors.black} weight="bold" />
+                            <Typo 
+                                size={18} 
+                                fontWeight="700" 
+                                color={colors.black}
+                                style={styles.buttonText}
+                            >
+                                Log Your First Workout
+                            </Typo>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </Animated.View>
+
+                {/* Secondary CTA */}
+                {onViewCalendar && (
+                    <Animated.View entering={FadeInUp.delay(500).duration(400)}>
+                        <TouchableOpacity 
+                            onPress={onViewCalendar}
+                            activeOpacity={0.7}
+                            style={styles.secondaryButton}
+                        >
+                            <Icons.Calendar size={16} color={themeColors.accentPrimary} weight="regular" />
+                            <Typo 
+                                size={14} 
+                                color={themeColors.accentPrimary} 
+                                fontWeight="500"
+                                style={styles.secondaryButtonText}
+                            >
+                                View Calendar
+                            </Typo>
+                        </TouchableOpacity>
+                    </Animated.View>
+                )}
+            </Animated.View>
+        </View>
+    );
+};
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: spacingX._20,
+        paddingVertical: spacingY._40,
+    },
+    content: {
+        alignItems: 'center',
+        maxWidth: 320,
+    },
+    illustrationContainer: {
+        marginBottom: spacingY._30,
+        opacity: 0.8,
+    },
+    titleContainer: {
+        marginBottom: spacingY._15,
+    },
+    title: {
+        textAlign: 'center',
+    },
+    description: {
+        textAlign: 'center',
+        lineHeight: 24,
+        marginBottom: spacingY._30,
+        paddingHorizontal: spacingX._10,
+    },
+    primaryButton: {
+        width: '100%',
+        borderRadius: radius.full,
+        overflow: 'hidden',
+        marginBottom: spacingY._15,
+        shadowColor: colors.black,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    buttonGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: spacingY._17,
+        paddingHorizontal: spacingX._30,
+        gap: spacingX._10,
+    },
+    buttonText: {
+        marginLeft: spacingX._5,
+    },
+    secondaryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: spacingY._10,
+        paddingHorizontal: spacingX._15,
+        gap: spacingX._7,
+    },
+    secondaryButtonText: {
+        marginLeft: spacingX._5,
+    },
+});
+
+export default EmptyInsightsState;
+

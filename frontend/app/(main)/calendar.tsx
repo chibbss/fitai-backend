@@ -19,6 +19,7 @@ import * as Icons from 'phosphor-react-native';
 import CalendarView from '@/components/CalendarView';
 import QuickStatsCards from '@/components/QuickStatsCards';
 import StatsSection from '@/components/StatsSection';
+import EmptyCalendarState from '@/components/EmptyCalendarState';
 const { width } = Dimensions.get('window');
 
 interface CalendarItem {
@@ -156,6 +157,44 @@ const CalendarScreen = () => {
                         <Typo size={16} color={colors.neutral600} style={styles.loadingText}>
                             Loading your stats...
                         </Typo>
+                    </View>
+                </ScreenWrapper>
+            </SafeAreaView>
+        );
+    }
+
+    // Show empty state if no workouts
+    if (workouts.length === 0) {
+        return (
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <ScreenWrapper showPattern={false}>
+                    <View style={styles.whiteBackground}>
+                        {/* --- Header --- */}
+                        <View style={styles.header}>
+                            <TouchableOpacity
+                                onPress={() => router.back()}
+                                style={styles.backButton}
+                            >
+                                <Icons.CaretLeft size={26} color={colors.primary} weight="bold" />
+                            </TouchableOpacity>
+
+                            <Typo size={24} fontWeight="700" color={colors.black}>
+                                Calendar And Stats
+                            </Typo>
+
+                            <TouchableOpacity
+                                onPress={() => router.push('/workout-log' as any)}
+                                style={styles.addButton}
+                            >
+                                <Icons.Plus size={26} color={colors.primary} weight="bold" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Empty State */}
+                        <EmptyCalendarState 
+                            onLogWorkout={() => router.push('/workout-log' as any)}
+                            onChatWithAI={() => router.push('/chatscreen' as any)}
+                        />
                     </View>
                 </ScreenWrapper>
             </SafeAreaView>
