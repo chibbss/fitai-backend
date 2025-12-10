@@ -11,6 +11,7 @@ const Button = ({
   onPress,
   children,
   loading = false,
+  loadingColor,
 }: ButtonProps) => {
   const { colors } = useTheme();
 
@@ -32,7 +33,7 @@ const Button = ({
   if (loading) {
     return (
       <View style={[baseStyle.button, style, { backgroundColor: 'transparent' }]}>
-        <Loading />
+        <Loading color={loadingColor || colors.background}/>
       </View>
     )
 

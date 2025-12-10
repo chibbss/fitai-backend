@@ -4,6 +4,7 @@ import { colors, radius, spacingX, spacingY } from '@/constants/theme';
 import Typo from './Typo';
 import * as Icons from 'phosphor-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
 
 interface StatCardProps {
     value: string;
@@ -13,17 +14,19 @@ interface StatCardProps {
 }
 
 const StatCard: React.FC<StatCardProps> = ({ value, label, icon, highlight = false }) => {
+    const { colors: themeColors } = useTheme();
     const IconComponent = Icons[icon] as React.ComponentType<any>;
+    const isTrophy = icon === 'Trophy';
 
     const content = (
         <View style={styles.content}>
             <View style={[styles.iconContainer, highlight && styles.iconContainerHighlight]}>
-                <IconComponent size={24} color={highlight ? colors.white : colors.primary} weight="fill" />
+                <IconComponent size={24} color={highlight ? colors.white : themeColors.accentPrimary} weight="fill" />
             </View>
-            <Typo size={24} fontWeight="700" color={colors.black} style={styles.value}>
+            <Typo size={24} fontWeight="700" color={themeColors.textPrimary} style={styles.value}>
                 {value}
             </Typo>
-            <Typo size={12} color={colors.neutral600}>
+            <Typo size={12} color={themeColors.textSecondary}>
                 {label}
             </Typo>
         </View>
@@ -43,7 +46,14 @@ const StatCard: React.FC<StatCardProps> = ({ value, label, icon, highlight = fal
     }
 
     return (
-        <View style={[styles.card, styles.cardNormal]}>
+        <View style={[
+            styles.card,
+            { backgroundColor: themeColors.cardBackground },
+            isTrophy && {
+                borderWidth: 1,
+                borderColor: themeColors.accentPrimary,
+            }
+        ]}>
             {content}
         </View>
     );
@@ -56,11 +66,7 @@ const styles = StyleSheet.create({
         padding: spacingX._15,
         minHeight: 100,
     },
-    cardNormal: {
-        backgroundColor: colors.neutral50,
-        borderWidth: 1,
-        borderColor: colors.neutral200,
-    },
+
     cardHighlight: {
         // Gradient handles background
     },
@@ -72,7 +78,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: radius._10,
-        backgroundColor: colors.primaryLight,
+        backgroundColor: 'rgba(168, 168, 168, 0.3)',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: spacingY._5,

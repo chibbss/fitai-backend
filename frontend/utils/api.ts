@@ -1,8 +1,7 @@
-import { supabase } from "./supabase";
-import { Alert } from "react-native";
 import { router } from "expo-router";
+import { Alert } from "react-native";
 import { API_URL, MOCK_MODE } from './config';
-import { Platform } from 'react-native';
+import { supabase } from "./supabase";
 
 
 export const getAuthToken = async (): Promise<string | null> => {
@@ -58,6 +57,72 @@ export const workoutApi = {
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
+        //if MOCK_MODE is enabled, return mock data
+        if (MOCK_MODE) {
+            console.log('🤖 MOCK MODE: Using mock insights data');
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve({
+                        session_id: sessionId,
+                        insights: [
+                            {
+                                exercise: 'Bench Press',
+                                status: 'pr',
+                                message: 'Congratulations! You hit a new personal record with 100kg for 5 reps. This is a 5kg increase from your previous best.',
+                                delta_pct: 12.5,
+                                weight_increase: 5.0,
+                            },
+                            {
+                                exercise: 'Squat',
+                                status: 'progress',
+                                message: 'Great progress! You increased your volume by 8% compared to your last session. Keep pushing!',
+                                delta_pct: 8.2,
+                                weight_increase: 2.5,
+                            },
+                            {
+                                exercise: 'Deadlift',
+                                status: 'progress',
+                                message: 'Solid improvement! Your working sets showed consistent form and strength gains.',
+                                delta_pct: 5.7,
+                                weight_increase: null,
+                            },
+                            {
+                                exercise: 'Pull-ups',
+                                status: 'maintained',
+                                message: 'You maintained your performance level. Consistency is key to long-term progress.',
+                                delta_pct: 0.0,
+                                weight_increase: null,
+                            },
+                            {
+                                exercise: 'Overhead Press',
+                                status: 'regression',
+                                message: 'Slight decrease in volume this session. This could be due to fatigue or needing more recovery time.',
+                                delta_pct: -3.2,
+                                weight_increase: null,
+                            },
+                            {
+                                exercise: 'Barbell Rows',
+                                status: 'new',
+                                message: 'You added a new exercise to your routine! This is a great addition for balanced muscle development.',
+                                delta_pct: null,
+                                weight_increase: null,
+                            },
+                            {
+                                exercise: 'Leg Press',
+                                status: 'progress',
+                                message: 'Excellent volume increase! You\'re building strong foundations with progressive overload.',
+                                delta_pct: 15.3,
+                                weight_increase: 10.0,
+                            },
+                        ],
+                        overall_message: 'Outstanding workout! You showed great progress across multiple exercises with 2 personal records.',
+                        avg_volume_change_pct: 6.2,
+                        exercise_count: 7,
+                    })
+                }, 800);
+            });
+        }
+
         const response = await fetch(`${API_URL}/insights/${sessionId}`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -74,6 +139,57 @@ export const workoutApi = {
 
     //get workout calendar
     async getCalendar(startDate?: string, endDate?: string, limit = 100) {
+        // 🚨 Use mock if MOCK_MODE is enabled
+        if (MOCK_MODE) {
+            console.log('🤖 MOCK MODE: Using mock calendar data');
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    // Generate some sample workout data for the current month
+                    const now = new Date();
+                    const start = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
+                    const end = endDate ? new Date(endDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+                    const mockItems = [];
+                    // Generate 3-5 sample workouts spread across the month
+                    const numWorkouts = Math.floor(Math.random() * 3) + 3;
+                    for (let i = 0; i < numWorkouts; i++) {
+                        const daysDiff = Math.floor(Math.random() * (end.getTime() - start.getTime())) / (1000 * 60 * 60 * 24);
+                        const workoutDate = new Date(start.getTime() + daysDiff * 24 * 60 * 60 * 1000);
+                        workoutDate.setHours(10 + Math.floor(Math.random() * 8)); // Random time between 10 AM and 6 PM
+
+                        const workoutTypes = ['Push', 'Pull', 'Legs', 'Full Body', 'Cardio'];
+                        const workoutType = workoutTypes[Math.floor(Math.random() * workoutTypes.length)];
+
+                        mockItems.push({
+                            session_id: `mock-session-${i + 1}`,
+                            session_name: `${workoutType} Workout`,
+                            session_type: workoutType.toLowerCase(),
+                            occurred_at: workoutDate.toISOString(),
+                            duration_minutes: 45 + Math.floor(Math.random() * 45),
+                            notes: `Mock ${workoutType} workout session`,
+                            metadata: {},
+                            volume_kg: 1000 + Math.floor(Math.random() * 5000),
+                            exercise_count: 4 + Math.floor(Math.random() * 6),
+                            has_pr: Math.random() > 0.7,
+                            muscle_groups: workoutType === 'Push' ? ['chest', 'shoulders', 'triceps'] :
+                                workoutType === 'Pull' ? ['back', 'biceps'] :
+                                    workoutType === 'Legs' ? ['quads', 'hamstrings', 'glutes'] :
+                                        ['full body'],
+                            intensity_level: ['light', 'medium', 'heavy', 'very_heavy'][Math.floor(Math.random() * 4)] as any,
+                        });
+                    }
+
+                    // Sort by date (most recent first)
+                    mockItems.sort((a, b) => new Date(b.occurred_at!).getTime() - new Date(a.occurred_at!).getTime());
+
+                    resolve({
+                        items: mockItems,
+                        total: mockItems.length,
+                    });
+                }, 300);
+            })
+        }
+
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -170,6 +286,63 @@ export const workoutApi = {
 
     //get stats
     async getStats(sessionId: string) {
+        // 🚨 Use mock if MOCK_MODE is enabled
+        if (MOCK_MODE) {
+            console.log('🤖 MOCK MODE: Using mock stats data');
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve({
+                        session_id: sessionId,
+                        stats: {
+                            consistency: {
+                                sessions_this_week: 3,
+                                sessions_this_month: 12,
+                                total_sessions: 45,
+                                current_streak: 5,
+                                weekly_frequency: 3.5,
+                                best_streak: 12,
+                            },
+                            volume: {
+                                total_volume_week: 8500,
+                                total_volume_month: 32000,
+                                volume_trend: '+15%',
+                                avg_session_volume: 2800,
+                                volume_by_group: {
+                                    push: 12000,
+                                    pull: 10000,
+                                    legs: 10000,
+                                },
+                            },
+                            exercises: {
+                                top_5: [
+                                    { name: 'Bench Press', frequency: 12 },
+                                    { name: 'Squat', frequency: 10 },
+                                    { name: 'Deadlift', frequency: 8 },
+                                    { name: 'Pull-ups', frequency: 8 },
+                                    { name: 'Overhead Press', frequency: 6 },
+                                ],
+                                variety: 18,
+                                most_trained_group: 'Push',
+                                least_trained_group: 'Legs',
+                            },
+                            recovery: {
+                                avg_recovery_days: 1.5,
+                                recovery_trend: 'Stable',
+                                days_since_last: 1,
+                                rest_days_per_week: 3,
+                            },
+                            progress: {
+                                prs_this_week: 2,
+                                prs_this_month: 5,
+                                strength_progression: '+8%',
+                                plateaus: [],
+                            },
+                        },
+                    });
+                }, 300);
+            });
+        }
+
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -223,6 +396,142 @@ export const workoutApi = {
             return null;
         }
     },
+
+    async getWeeklySummary(startDate?: string) {
+        // 🚨 Use mock if MOCK_MODE is enabled
+        if (MOCK_MODE) {
+            console.log('🤖 MOCK MODE: Using mock weekly summary data');
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    // Generate some sample weekly summary data
+                    let weekStart: Date;
+                    if (startDate) {
+                        weekStart = new Date(startDate);
+                    } else {
+                        const today = new Date();
+                        const day = today.getDay();
+                        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+                        weekStart = new Date(today.setDate(diff));
+                    }
+
+                    // Ensure it's Monday
+                    const dayOfWeek = weekStart.getDay();
+                    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                    weekStart.setDate(weekStart.getDate() + diffToMonday);
+                    weekStart.setHours(0, 0, 0, 0);
+
+                    // Calculate week end (Sunday)
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    weekEnd.setHours(23, 59, 59, 999);
+
+                    // Check if this is the current week
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const isCurrentWeek = weekStart <= today && today <= weekEnd;
+
+                    // Day names
+                    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+                    // Workout types for variety
+                    const workoutTypes = [
+                        { name: 'Push Day', type: 'push' },
+                        { name: 'Pull Day', type: 'pull' },
+                        { name: 'Leg Day', type: 'legs' },
+                        { name: 'Full Body', type: 'full_body' },
+                        { name: 'Upper Body', type: 'upper' },
+                        { name: 'Cardio', type: 'cardio' },
+                    ];
+
+                    // Generate 7 days of data
+                    const days = [];
+                    for (let i = 0; i < 7; i++) {
+                        const currentDay = new Date(weekStart);
+                        currentDay.setDate(weekStart.getDate() + i);
+
+                        const dayName = dayNames[i];
+                        const dayNumber = currentDay.getDate();
+                        const dateStr = currentDay.toISOString().split('T')[0];
+
+                        // Randomly assign workouts to 3-5 days of the week
+                        // Skip Sunday (index 6) and maybe one other day for rest
+                        const hasWorkout = i !== 6 && (i < 5 || Math.random() > 0.3);
+
+                        if (hasWorkout) {
+                            const workoutType = workoutTypes[Math.floor(Math.random() * workoutTypes.length)];
+                            const intensityLevels: Array<'light' | 'medium' | 'heavy' | 'very_heavy'> = ['light', 'medium', 'heavy', 'very_heavy'];
+                            const intensity = intensityLevels[Math.floor(Math.random() * intensityLevels.length)];
+                            const hasPr = Math.random() > 0.7; // 30% chance of PR
+
+                            // Set workout time to morning (8-10 AM)
+                            const workoutTime = new Date(currentDay);
+                            workoutTime.setHours(8 + Math.floor(Math.random() * 3), Math.floor(Math.random() * 60), 0, 0);
+
+                            days.push({
+                                date: dateStr,
+                                day_name: dayName,
+                                day_number: dayNumber,
+                                has_workout: true,
+                                session_id: `mock-session-${dateStr}-${i}`,
+                                session_name: workoutType.name,
+                                volume_kg: 1500 + Math.floor(Math.random() * 3000), // 1.5kg to 4.5kg
+                                intensity_level: intensity,
+                                has_pr: hasPr,
+                                exercise_count: 4 + Math.floor(Math.random() * 6), // 4-9 exercises
+                            });
+                        } else {
+                            days.push({
+                                date: dateStr,
+                                day_name: dayName,
+                                day_number: dayNumber,
+                                has_workout: false,
+                                session_id: null,
+                                session_name: undefined,
+                                volume_kg: 0,
+                                intensity_level: null,
+                                has_pr: false,
+                                exercise_count: 0,
+                            });
+                        }
+                    }
+
+                    resolve({
+                        days: days,
+                        week_start: weekStart.toISOString().split('T')[0],
+                        week_end: weekEnd.toISOString().split('T')[0],
+                        is_current_week: isCurrentWeek,
+                    });
+                }, 300);
+            });
+        }
+
+
+        const token = await getAuthToken();
+        if (!token) throw new Error('Authentication required');
+
+        let url = `${API_URL}/workouts/weekly-summary`;
+        if (startDate) {
+            url += `?start_date=${startDate}`;
+        }
+
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            if (response.status === 401) {
+                Alert.alert('Session Expired', 'Please log in again.');
+                router.replace('/login');
+                throw new Error('Unauthorized');
+            }
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        }
+
+        return await response.json();
+    }
 };
 
 // 🚨 MOCK FUNCTIONS - Used when backend is unavailable
@@ -235,7 +544,7 @@ const mockChatStream = (
 ): Promise<void> => {
     return new Promise((resolve) => {
         console.log('🤖 MOCK MODE: Simulating chat stream for query:', query);
-        
+
         // Simulate realistic AI responses based on query keywords
         const responses: Record<string, string> = {
             'hello': 'Hello! How can I help you with your fitness journey today?',
@@ -249,7 +558,7 @@ const mockChatStream = (
 
         // Find a matching response or use a default
         let responseText = 'I understand you\'re asking about "' + query + '". ';
-        
+
         // Check for keywords
         const lowerQuery = query.toLowerCase();
         let matched = false;
@@ -260,7 +569,7 @@ const mockChatStream = (
                 break;
             }
         }
-        
+
         if (!matched) {
             responseText = `That's a great question about "${query}"! While I'm in mock mode (backend is down), I can't provide real responses. However, I can help you plan workouts, track nutrition, and provide fitness guidance once the backend is back up. What specific aspect of fitness would you like to explore?`;
         }
@@ -320,7 +629,7 @@ const createReactNativeSSE = (
         try {
             // Get the response text so far
             const text = xhr.responseText;
-            
+
             // Only process new data (everything after our buffer)
             if (text.length > buffer.length) {
                 const newData = text.substring(buffer.length);
@@ -328,7 +637,7 @@ const createReactNativeSSE = (
 
                 // Process the new data line by line
                 const lines = newData.split('\n');
-                
+
                 for (const line of lines) {
                     if (line.startsWith('event:')) {
                         currentEvent = line.substring(6).trim();
@@ -375,7 +684,7 @@ const createReactNativeSSE = (
         } catch (error) {
             console.warn('Error processing final SSE data:', error);
         }
-        
+
         if (xhr.status >= 200 && xhr.status < 300) {
             onclose();
         } else {
@@ -492,7 +801,7 @@ export const chatApi = {
             let fullAnswer = '';
             let isDone = false;
             let abortStream: (() => void) | null = null;
-            
+
             const handleDone = (answer: string, totalTime?: number) => {
                 if (!isDone) {
                     isDone = true;
@@ -508,7 +817,7 @@ export const chatApi = {
                     reject(error);
                 }
             };
-            
+
             try {
                 abortStream = createReactNativeSSE(`${API_URL}/chat_stream`, {
                     method: 'POST',
@@ -661,8 +970,8 @@ export const userApi = {
 
     // Discover user data (from chat conversations)
     async discoverData(field: string, value: any, context?: string) {
-         // 🚨 MOCK MODE: Skip backend call
-         if (MOCK_MODE) {
+        // 🚨 MOCK MODE: Skip backend call
+        if (MOCK_MODE) {
             console.log('🤖 MOCK MODE: Skipping discoverData call');
             return null;
         }
@@ -710,8 +1019,8 @@ export const userApi = {
     async getCompletionMessage(userId: string) {
         // 🚨 MOCK MODE: Skip backend call
         if (MOCK_MODE) {
-            console.log('🤖 MOCK MODE: Skipping getCompletionMessage call');
-            return null;
+            console.log('🤖 MOCK MODE: Returning mock completion message');
+            return { message: "Hey! 👋 Welcome to FitAI! I'm excited to help you on your fitness journey. Based on what you shared during onboarding, I've got a personalized plan ready for you. What would you like to start with today?" };
         }
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
@@ -823,6 +1132,36 @@ export const trainingLogApi = {
         }
     },
 };
+
+//Bug Reporting API
+export const bugApi = {
+    async reportBug(bugData: {
+        description: string;
+        title?: string;
+        severity?: string;
+        metadata?: Record<string, any>;
+    }) {
+        // Get token if available (optional for bug reports)
+        const token = await getAuthToken();
+
+        const response = await fetch(`${API_URL}/bugs`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(bugData),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        }
+
+        return await response.json();
+
+    }
+}
 
 // Chat discovery: detects user info from messages
 export const discoverFromChat = async (userMessage: string, botResponse: string) => {

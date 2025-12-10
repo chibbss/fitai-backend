@@ -27,14 +27,14 @@ const QuickStatsCards: React.FC<QuickStatsCardsProps> = ({ stats }) => {
             <StatCard
                 value={stats.consistency.current_streak.toString()}
                 label="Streak"
-                icon="Fire"
+                icon="Pulse"
                 highlight={stats.consistency.current_streak >= 7}
             />
             <StatCard
                 value={stats.progress.prs_this_week.toString()}
                 label="PRs"
                 icon="Trophy"
-                highlight={stats.progress.prs_this_week > 0}
+                highlight={false}
             />
         </View>
     );
@@ -43,7 +43,7 @@ const QuickStatsCards: React.FC<QuickStatsCardsProps> = ({ stats }) => {
 const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
-        gap: spacingX._10,
+        gap: spacingX._20,
     },
 });
 

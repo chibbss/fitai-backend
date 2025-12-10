@@ -192,6 +192,8 @@ const Onboarding = () => {
       return false;
     }
 
+
+
     let data: Record<string, any> = {};
     let apiStep = 'profile';
 
@@ -244,6 +246,17 @@ const Onboarding = () => {
     try {
       //3rd place to comment out for testing
       setIsSubmitting(true);
+
+      // Log the request details for debugging
+      console.log('[Onboarding] Submitting step:', {
+        apiUrl: API_URL,
+        endpoint: `${API_URL}/onboarding_step`,
+        userId,
+        step: apiStep,
+        data,
+        hasAuthToken: !!authToken,
+      });
+
       const response = await fetch(`${API_URL}/onboarding_step`, {
         method: 'POST',
         headers: {
@@ -257,9 +270,31 @@ const Onboarding = () => {
         }),
       });
 
+      console.log('[Onboarding] Response status:', response.status, response.statusText);
+
+
       if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(detail || 'Failed to save onboarding step');
+        const errorText = await response.text();
+        let errorMessage = 'Failed to save onboarding step';
+
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.detail || errorMessage;
+        } catch {
+          // If not JSON, use the text directly
+          errorMessage = errorText || errorMessage;
+        }
+
+        // Log the full error for debugging
+        console.error('[Onboarding] API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: `${API_URL}/onboarding_step`,
+          error: errorText,
+          requestBody: { user_id: userId, step: apiStep, data }
+        });
+
+        throw new Error(errorMessage);
       }
 
       return true;
@@ -407,7 +442,7 @@ const Onboarding = () => {
             </View>*/}
             {/* Pulse Logo Animation */}
             <View style={styles.animationContainer}>
-              <PulseLogo  />
+              <PulseLogo />
             </View>
           </View>
         );
@@ -626,11 +661,14 @@ const Onboarding = () => {
       console.log('[Onboarding] Fetching completion message...');
       setIsLoadingCompletion(true);
 
-      // 🚨 MOCK MODE: Skip backend calls
+      // 🚨 MOCK MODE: Use mock completion message
       if (MOCK_MODE) {
-        console.log('🤖 MOCK MODE: Skipping completion message fetch');
-        setIsLoadingCompletion(false);
-        // Still allow navigation to chat screen
+        console.log('🤖 MOCK MODE: Using mock completion message');
+        // Set a mock completion message after a short delay to simulate API call
+        setTimeout(() => {
+          setCompletionMessage("Hey! 👋 Welcome to FitAI! I'm excited to help you on your fitness journey. Based on what you shared during onboarding, I've got a personalized plan ready for you. What would you like to start with today?");
+          setIsLoadingCompletion(false);
+        }, 500); // Small delay to simulate loading
         return;
       }
 
@@ -769,6 +807,7 @@ const Onboarding = () => {
                       <Button
                         onPress={handleContinue}
                         loading={isSubmitting}
+                        loadingColor={themeColors.textPrimary}
                         style={[styles.navButton, { backgroundColor: 'transparent' }]}
                         disabled={continueDisabled}
                       >

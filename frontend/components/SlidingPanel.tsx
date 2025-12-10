@@ -11,10 +11,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Input from './Input';
 import { verticalScale } from '@/utils/styling';
 import { useRouter } from 'expo-router';
-import {supabase} from "@/utils/supabase";
+import { supabase } from "@/utils/supabase";
 import { getAccentColor, getGradientColors } from '@/utils/settings';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/context/ThemeContext';
+import BugReportModal from './BugReportModal';
 
 
 const { width } = Dimensions.get("window");
@@ -48,7 +49,7 @@ const HISTORY_ITEMS = [
 
 
 const SlidingPanel = () => {
-    const { colors: themeColors } = useTheme(); 
+    const { colors: themeColors } = useTheme();
     const [isOpen, setIsOpen] = useState(false);
     const translateX = useSharedValue(-width * 0.8);
     const overlayOpacity = useSharedValue(0);
@@ -56,6 +57,8 @@ const SlidingPanel = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const router = useRouter();
     const [gradientColors, setGradientColors] = useState<[string, string]>(['#fafaf9', '#e7e5e4']);
+
+    const [showBugReport, setShowBugReport] = useState(false);
 
     const [userName, setUserName] = useState<string>('User Name');
     const [userEmail, setUserEmail] = useState<string>('user@example.com');
@@ -179,7 +182,7 @@ const SlidingPanel = () => {
 
 
             {/* Sliding Panel */}
-            <Animated.View style={[styles.panel, panelStyle]}>
+            <Animated.View style={[styles.panel, panelStyle, { backgroundColor: themeColors.panel }]}>
                 <View style={styles.panelContent}>
                     <SafeAreaView edges={['top']} style={styles.safeArea}>
                         {/*<View style={styles.headerSpacer} />*/}
@@ -350,10 +353,32 @@ const SlidingPanel = () => {
                     <View style={[
                         styles.bottomSection,
                         {
-                            paddingBottom: insets.bottom + spacingY._15
+                            paddingBottom: insets.bottom + spacingY._15,
+                            backgroundColor: themeColors.panel, // Add this
                         }
                     ]}>
                         <View style={styles.divider} />
+                        {/*Bug Report*/}
+                        <TouchableOpacity
+                            style={styles.bugReportButton}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                                setShowBugReport(true);
+                                console.log('Bug report button pressed');
+                            }}
+                        >
+                            <View style={styles.bugReportIconContainer}>
+                                <Icons.BugBeetle size={20} color={colors.neutral400} weight="regular" />
+                            </View>
+                            <Typo
+                                size={14}
+                                color={colors.neutral400}
+                                fontWeight="500"
+                            >
+                                Report a Bug
+                            </Typo>
+                        </TouchableOpacity>
+
                         <TouchableOpacity
                             style={styles.userButton}
                             activeOpacity={0.7}
@@ -389,6 +414,11 @@ const SlidingPanel = () => {
 
 
                 </View>
+
+                <BugReportModal
+                    visible={showBugReport}
+                    onClose={() => setShowBugReport(false)}
+                />
             </Animated.View>
 
         </>
@@ -433,9 +463,9 @@ const styles = StyleSheet.create({
         left: 20,
         zIndex: 901,
         borderRadius: 25,
-        
+
         overflow: 'hidden',
-        
+
         padding: 8,
         justifyContent: 'center',
         alignItems: 'center',
@@ -457,7 +487,6 @@ const styles = StyleSheet.create({
         left: 0,
         width: width * 0.8,
         height: screenHeight, // Use screen height to stay fixed regardless of keyboard
-        backgroundColor: colors.neutral900,
         zIndex: 900,
         elevation: 6,
         shadowColor: '#000',
@@ -549,7 +578,6 @@ const styles = StyleSheet.create({
         right: 0,
         paddingHorizontal: spacingX._20,
         paddingTop: spacingY._10,
-        backgroundColor: colors.neutral900,
         zIndex: 10,
     },
 
@@ -560,6 +588,22 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacingX._15,
         borderRadius: radius._10,
         gap: spacingX._15,
+    },
+
+    bugReportButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: spacingY._12,
+        paddingHorizontal: spacingX._15,
+        borderRadius: radius._10,
+        gap: spacingX._12,
+    },
+
+    bugReportIconContainer: {
+        width: 28,
+        height: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 
     userIconContainer: {

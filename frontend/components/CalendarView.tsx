@@ -6,8 +6,19 @@ import * as Icons from 'phosphor-react-native';
 import DayCell from './DayCell';
 import { calculateIntensity, intensityColors } from '@/utils/workoutUtils';
 
-const { width } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Calculate cell width - must match exactly between labels and cells
+// CalendarView container has padding: spacingX._15 on all sides
+// When used in CollapsibleCalendar, it's inside expandedContainer which also has padding: spacingX._15
+// So total horizontal padding = spacingX._15 * 4 (2 from expandedContainer + 2 from CalendarView container)
+const containerHorizontalPadding = spacingX._15 * 4; // Left and right padding from both containers
+const cellMargin = 2;
+const availableWidth = screenWidth - containerHorizontalPadding;
+// Each column gets exactly 1/7th of available width
+const columnWidth = availableWidth / 7; // Width for each column slot
+const cellWidth = columnWidth - (cellMargin * 2); // Cell width after accounting for left/right margins
 
 interface CalendarViewProps {
     selectedMonth: Date;
@@ -117,7 +128,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             {/* Day Labels */}
             <View style={styles.dayLabels}>
                 {DAYS.map(day => (
-                    <View key={day} style={styles.dayLabel}>
+                    <View key={day} style={[styles.dayLabel, { width: columnWidth }]}>
                         <Typo size={12} color={colors.neutral500} fontWeight="600">
                             {day}
                         </Typo>
@@ -188,14 +199,16 @@ const styles = StyleSheet.create({
     dayLabels: {
         flexDirection: 'row',
         marginBottom: spacingY._10,
+        width: '100%',
     },
     dayLabel: {
-        flex: 1,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     calendarGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        width: '100%',
     },
     legend: {
         flexDirection: 'row',

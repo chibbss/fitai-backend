@@ -10,6 +10,7 @@ import { verticalScale } from '@/utils/styling'
 import { useRouter } from 'expo-router'
 import Button from '@/components/Button'
 import Loading from '@/components/Loading'
+import PulseLogo from '@/components/PulseLogo'
 import { supabase, getAuthRedirectUrl } from '@/utils/supabase'
 import { alert } from '@/utils/alert'
 import Constants from 'expo-constants';
@@ -21,7 +22,8 @@ import Animated, {
     useSharedValue,
     withTiming,
     useAnimatedStyle,
-    runOnJS
+    runOnJS,
+    FadeInDown
 } from 'react-native-reanimated'
 import { useFocusEffect } from '@react-navigation/native'
 import { useTheme } from '@/context/ThemeContext'
@@ -359,12 +361,20 @@ const Register = () => {
     if (isLoading) {
         return (
             <ScreenWrapper showPattern={false} >
-                <View style={styles.loadingContainer}>
-                    <Typo size={18} color={colors.white}
-                        style={{ marginTop: spacingY._20, textAlign: 'center' }}>
-                        {loadingMessage}
-                    </Typo>
+
+                <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
+                    <Animated.View entering={FadeInDown.delay(150).springify()}>
+                        <PulseLogo size={verticalScale(230)} />
+                    </Animated.View>
+
+                    <Animated.View entering={FadeInDown.delay(300).springify()}>
+                        <Typo size={18} color={themeColors.textPrimary}
+                            style={{ textAlign: 'center', marginTop: -25, marginLeft: 25 }}>
+                            {loadingMessage}
+                        </Typo>
+                    </Animated.View>
                 </View>
+
             </ScreenWrapper>
         )
     }
@@ -458,8 +468,8 @@ const Register = () => {
                                             end={{ x: 1, y: 0.5 }}
                                             style={styles.buttonGradient}
                                         >
-                                            <Button 
-                                                loading={isLoading} 
+                                            <Button
+                                                loading={isLoading}
                                                 onPress={handleSubmit}
                                                 style={{ backgroundColor: 'transparent' }}
                                             >
@@ -531,6 +541,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        marginBottom: spacingY._60,
     },
 
     header: {

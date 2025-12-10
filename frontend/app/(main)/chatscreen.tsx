@@ -38,6 +38,7 @@ import { API_URL, MOCK_MODE } from '@/utils/config';
 import { getAccentColor, getGradientColors } from '@/utils/settings';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/context/ThemeContext';
+import TypingIndicator from '@/components/TypingIndicator';
 import { generatePersonalizedGreeting, GreetingData } from '@/utils/greetingUtils';
 
 interface Message {
@@ -222,7 +223,7 @@ const ChatScreen = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isTranscribing, setIsTranscribing] = useState(false);
 
-    const fadeAnim = useRef(new Animated.Value(1)).current;
+    const fadeAnim = useRef(new Animated.Value(0)).current; // 0 = mic visible, 1 = send visible
     const scrollViewRef = useRef<ScrollView | null>(null);
 
     //generate a unique sessionID for this conversation
@@ -787,23 +788,6 @@ const ChatScreen = () => {
         };
     }, []);
 
-    // Animate send button when input changes
-    useEffect(() => {
-        if (input.trim()) {
-            Animated.timing(sendButtonOpacity, {
-                toValue: 1,
-                duration: 200,
-                useNativeDriver: true,
-            }).start();
-        } else {
-            Animated.timing(sendButtonOpacity, {
-                toValue: 0,
-                duration: 200,
-                useNativeDriver: true,
-            }).start();
-        }
-    }, [input]);
-
     // Add this component for bot message interaction icons
     const BotMessageActions = ({ messageId }: { messageId: string }) => {
         return (
@@ -834,6 +818,7 @@ const ChatScreen = () => {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: themeColors.background }}
             edges={[]}>
+                
             <View style={styles.container}>
                 {/* SlidingPanel outside KeyboardAvoidingView - won't affect ChatScreen keyboard behavior */}
                 <SlidingPanel />
@@ -900,22 +885,26 @@ const ChatScreen = () => {
                                 ref={scrollViewRef}
                                 showsVerticalScrollIndicator={false}
                                 style={{ backgroundColor: 'transparent', zIndex: 1 }}
-                                contentContainerStyle={{ paddingTop: messages.length === 0 ? 0 : 0 }}
+                                contentContainerStyle={{ paddingTop: messages.length === 0 ? 0 : spacingY._50 }}
                             >
                                 {messages.map((msg) => (
                                     <View key={msg.id}>
                                         {msg.sender === 'bot' ? (
                                             // Bot message: no bubble, white text on black background
                                             <View style={styles.botMessageContainer}>
+                                                
                                                 {msg.type === 'text' ? (
                                                     msg.content == '' && (isLoading || isTranscribing) ? (
                                                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                            <Text
+                                                            {/*<Text
                                                                 style={[styles.botMessageText, { color: themeColors.textPrimary }]}
                                                             >
                                                                 {isTranscribing ? 'Transcribing' : 'Thinking'}
-                                                            </Text>
-                                                            <AnimatedDots />
+                                                            </Text>*/}
+                                                            <TypingIndicator
+                                                                showWordmark={false}
+                                                                caption="Thinking"
+                                                            />
                                                         </View>
                                                     ) : (
                                                         <>
@@ -1034,7 +1023,7 @@ const ChatScreen = () => {
                                     style={styles.iconButton}
                                     activeOpacity={0.7}
                                 >
-                                    <Icons.PlusCircleIcon
+                                    <Icons.PaperclipHorizontalIcon
                                         size={32}
                                         color={themeColors.textPrimary}
                                         weight="regular"
@@ -1133,7 +1122,7 @@ const styles = StyleSheet.create({
         //borderTopLeftRadius: radius._50,
         //borderTopRightRadius: radius._50,
         //borderCurve: 'continuous',
-        paddingHorizontal: spacingX._20,
+        paddingHorizontal: spacingX._30,
         paddingTop: spacingY._10,
     },
     inputSectionWrapper: {
@@ -1189,7 +1178,14 @@ const styles = StyleSheet.create({
         height: 50,
         borderRadius: 28,
         overflow: 'hidden',
-        
+        position: 'relative', // Add this
+    },
+    buttonOverlay: { // Add this new style
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     sendButtonTouchable: {
         width: '100%',
@@ -1207,8 +1203,8 @@ const styles = StyleSheet.create({
         marginLeft: spacingX._10,
     },
     micButtonWrapper: {
-        width: 56,
-        height: 56,
+        width: 50,
+        height: 50,
         justifyContent: 'center',
         alignItems: 'center',
     },

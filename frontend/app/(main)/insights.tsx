@@ -15,6 +15,10 @@ import { workoutApi } from '@/utils/api';
 import Typo from '@/components/Typo';
 import * as Icons from 'phosphor-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { verticalScale } from '@/utils/styling';
+import PulseLogo from '@/components/PulseLogo';
 import EmptyInsightsState from '@/components/EmptyInsightsState';
 
 interface Insight {
@@ -44,6 +48,7 @@ interface InsightsData {
 const InsightsScreen = () => {
     const router = useRouter();
     const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
+    const { colors: themeColors } = useTheme();
     const [insights, setInsights] = useState<InsightsData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [chatPrompt, setChatPrompt] = useState<string | null>(null);
@@ -150,16 +155,19 @@ const InsightsScreen = () => {
 
     if (isLoading) {
         return (
-            <SafeAreaView style={styles.container} edges={['top']}>
-                <ScreenWrapper showPattern={false}>
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={colors.primary} />
-                        <Typo size={16} color={colors.neutral600} style={styles.loadingText}>
-                            Analyzing your workout...
+            <ScreenWrapper showPattern={false}>
+                <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
+                    <Animated.View entering={FadeInDown.delay(150).springify()}>
+                        <PulseLogo size={verticalScale(230)} />
+                    </Animated.View>
+                    <Animated.View entering={FadeInDown.delay(300).springify()}>
+                        <Typo size={18} color={themeColors.textPrimary}
+                            style={{ textAlign: 'center', marginTop: -25, marginLeft: 25 }}>
+                            Loading your stats...
                         </Typo>
-                    </View>
-                </ScreenWrapper>
-            </SafeAreaView>
+                    </Animated.View>
+                </View>
+            </ScreenWrapper>
         );
     }
 
@@ -197,7 +205,7 @@ const InsightsScreen = () => {
     }
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
             <ScreenWrapper showPattern={false}>
                 {/* Header */}
                 <View style={styles.header}>
@@ -205,9 +213,9 @@ const InsightsScreen = () => {
                         onPress={() => router.back()}
                         style={styles.backButton}
                     >
-                        <Icons.ArrowLeft size={24} color={colors.black} weight="bold" />
+                        <Icons.CaretLeftIcon size={24} color={themeColors.textPrimary} weight="bold" />
                     </TouchableOpacity>
-                    <Typo size={20} fontWeight="600" color={colors.black}>
+                    <Typo size={20} fontWeight="600" color={themeColors.textPrimary}>
                         Workout Insights
                     </Typo>
                     <TouchableOpacity
@@ -230,25 +238,28 @@ const InsightsScreen = () => {
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.scrollContent}
                 >
-                    {/* Overall Message */}
+                    {/* Overall Message
                     <LinearGradient
-                        colors={[colors.primaryLight, colors.primary]}
+                        colors={themeColors.accentGradient}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.overallCard}
-                    >
-                        <Icons.ChartLineUp size={32} color={colors.white} weight="fill" />
-                        <Typo size={18} fontWeight="600" color={colors.white} style={styles.overallMessage}>
+                    > */}
+                        <View style={[styles.overallCard, { backgroundColor: themeColors.cardBackground }]}>
+                        
+                        <Icons.ChartLineUp size={36} color={themeColors.textPrimary} weight="fill" />
+                        <Typo size={18} fontWeight="600" color={themeColors.textPrimary} style={styles.overallMessage}>
                             {insights.overall_message}
                         </Typo>
-                        <Typo size={14} color={colors.white} style={styles.overallSubtext}>
+                        <Typo size={14} color={themeColors.textPrimary} style={styles.overallSubtext}>
                             {insights.exercise_count} exercises logged
                         </Typo>
-                    </LinearGradient>
+                        </View>
+                    {/* </LinearGradient> */}
 
                     {/* Individual Insights */}
                     <View style={styles.insightsSection}>
-                        <Typo size={16} fontWeight="600" color={colors.black} style={styles.sectionTitle}>
+                        <Typo size={18} fontWeight="700" color={themeColors.textPrimary} style={styles.sectionTitle}>
                             Exercise Breakdown
                         </Typo>
                         {insights.insights.map((insight, index) => {
@@ -256,20 +267,20 @@ const InsightsScreen = () => {
                             const statusColor = getStatusColor(insight.status);
                             
                             return (
-                                <View key={index} style={styles.insightCard}>
+                                <View key={index} style={[styles.insightCard, { backgroundColor: themeColors.cardBackground }]}>
                                     <View style={[styles.statusIndicator, { backgroundColor: statusColor }]}>
                                         <IconComponent size={20} color={colors.white} weight="fill" />
                                     </View>
                                     <View style={styles.insightContent}>
-                                        <Typo size={16} fontWeight="600" color={colors.black}>
+                                        <Typo size={16} fontWeight="700" color={themeColors.accentPrimary}>
                                             {insight.exercise}
                                         </Typo>
-                                        <Typo size={14} color={colors.neutral600} style={styles.insightMessage}>
+                                        <Typo size={14} color={themeColors.textPrimary} style={styles.insightMessage}>
                                             {insight.message}
                                         </Typo>
                                         {insight.delta_pct !== null && insight.delta_pct !== undefined && (
                                             <View style={styles.metricRow}>
-                                                <Typo size={12} color={colors.neutral500}>
+                                                <Typo size={12} color={themeColors.textPrimary}>
                                                     Volume change:
                                                 </Typo>
                                                 <Typo
@@ -284,7 +295,7 @@ const InsightsScreen = () => {
                                         )}
                                         {insight.weight_increase !== null && insight.weight_increase !== undefined && (
                                             <View style={styles.metricRow}>
-                                                <Typo size={12} color={colors.neutral500}>
+                                                <Typo size={12} color={themeColors.textPrimary}>
                                                     Weight increase:
                                                 </Typo>
                                                 <Typo size={12} color={colors.green} fontWeight="600">
@@ -300,8 +311,8 @@ const InsightsScreen = () => {
 
                     {/* Average Volume Change */}
                     {insights.avg_volume_change_pct !== 0 && (
-                        <View style={styles.summaryCard}>
-                            <Typo size={14} color={colors.neutral600} style={styles.summaryLabel}>
+                        <View style={[styles.summaryCard, { backgroundColor: themeColors.cardBackground }]}>
+                            <Typo size={14} color={themeColors.textPrimary} style={styles.summaryLabel}>
                                 Average Volume Change
                             </Typo>
                             <Typo
@@ -317,18 +328,18 @@ const InsightsScreen = () => {
                 </ScrollView>
 
                 {/* Action Buttons */}
-                <View style={styles.footer}>
+                <View style={[styles.footer, { backgroundColor: themeColors.background, borderTopColor: themeColors.textPrimary }]}>
                     <TouchableOpacity
-                        style={styles.actionButton}
+                        style={[styles.actionButton, { backgroundColor: themeColors.accentPrimary }]}
                         onPress={() => router.push('/calendar' as any)}
                     >
-                        <Icons.Calendar size={20} color={colors.primary} />
-                        <Typo size={14} color={colors.primary} fontWeight="600">
+                        <Icons.Calendar size={20} color={themeColors.textPrimary} />
+                        <Typo size={14} color={themeColors.textPrimary} fontWeight="700">
                             View Calendar
                         </Typo>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={[styles.actionButton, styles.primaryButton]}
+                        style={[styles.actionButton, { backgroundColor: themeColors.accentPrimary }]}
                         onPress={() => {
                             router.push({
                                 pathname: '/chatscreen' as any,
@@ -338,10 +349,10 @@ const InsightsScreen = () => {
                             });
                         }}
                     >
-                        <Typo size={14} color={colors.white} fontWeight="600">
+                        <Typo size={14} color={themeColors.textPrimary} fontWeight="700">
                             {insights ? getButtonLabel(insights) : 'Chat with FitAI'}
                         </Typo>
-                        <Icons.ChatCircle size={20} color={colors.white} />
+                        <Icons.ChatCircle size={20} color={themeColors.textPrimary} />
                     </TouchableOpacity>
                 </View>
             </ScreenWrapper>
@@ -352,7 +363,8 @@ const InsightsScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.white,
+        // Remove this line:
+        // backgroundColor: colors.white,
     },
     header: {
         flexDirection: 'row',
@@ -410,12 +422,12 @@ const styles = StyleSheet.create({
     },
     insightCard: {
         flexDirection: 'row',
-        backgroundColor: colors.neutral50,
+        
         borderRadius: radius._15,
         padding: spacingX._15,
         marginBottom: spacingY._12,
         borderWidth: 1,
-        borderColor: colors.neutral200,
+        
     },
     statusIndicator: {
         width: 40,
@@ -456,8 +468,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacingX._20,
         paddingVertical: spacingY._15,
         borderTopWidth: 1,
-        borderTopColor: colors.neutral100,
-        backgroundColor: colors.white,
+        // Remove these lines:
+        // borderTopColor: colors.neutral100,
+        // backgroundColor: colors.white,
     },
     actionButton: {
         flex: 1,
@@ -467,14 +480,11 @@ const styles = StyleSheet.create({
         gap: spacingX._10,
         paddingVertical: spacingY._12,
         borderRadius: radius._15,
-        backgroundColor: colors.neutral50,
+        
         borderWidth: 1,
-        borderColor: colors.neutral200,
+        
     },
-    primaryButton: {
-        backgroundColor: colors.primary,
-        borderColor: colors.primary,
-    },
+
 });
 
 export default InsightsScreen;

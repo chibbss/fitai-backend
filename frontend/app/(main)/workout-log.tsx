@@ -20,6 +20,7 @@ import Input from '@/components/Input';
 import * as Icons from 'phosphor-react-native';
 import WorkoutForm from '@/components/WorkoutForm';
 import { verticalScale } from '@/utils/styling';
+import { useTheme } from '@/context/ThemeContext';
 
 interface Exercise {
     exercise_name: string;
@@ -47,7 +48,7 @@ const WorkoutLogScreen = () => {
     const params = useLocalSearchParams<{ sessionId?: string }>();
     const sessionId = params.sessionId;
     const isEditMode = !!sessionId;
-    
+    const { colors: themeColors } = useTheme();
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingWorkout, setIsLoadingWorkout] = useState(isEditMode);
     const [workoutData, setWorkoutData] = useState<WorkoutData>({
@@ -158,22 +159,22 @@ const WorkoutLogScreen = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 <ScreenWrapper showPattern={false}>
-                    <View style={styles.whiteBackground}>
+                    <View style={[styles.whiteBackground, { backgroundColor: themeColors.background }]}>
                         {/* Header */}
                         <View style={styles.header}>
                             <TouchableOpacity
                                 onPress={() => router.back()}
                                 style={styles.backButton}
                             >
-                                <Icons.CaretLeft size={26} color={colors.primary} weight="bold" />
+                                <Icons.CaretLeft size={26} color={themeColors.textPrimary} weight="bold" />
                             </TouchableOpacity>
-                            <Typo size={24} fontWeight="700" color={colors.black}>
+                            <Typo size={24} fontWeight="700" color={themeColors.textPrimary}>
                                 {isEditMode ? 'Edit Workout' : 'Log Workout'}
                             </Typo>
                             <View style={styles.placeholder} />
@@ -191,15 +192,16 @@ const WorkoutLogScreen = () => {
                             style={styles.content}
                             showsVerticalScrollIndicator={false}
                             keyboardShouldPersistTaps="handled"
+                            contentContainerStyle={styles.scrollContent}
                         >
                             {/* Session Info */}
                             <View style={styles.section}>
-                                <Typo size={16} fontWeight="600" color={colors.black} style={styles.sectionTitle}>
+                                <Typo size={16} fontWeight="600" color={themeColors.textPrimary} style={styles.sectionTitle}>
                                     Session Details
                                 </Typo>
 
                                 <View style={styles.inputGroup}>
-                                    <Typo size={14} color={colors.neutral600} style={styles.label}>
+                                    <Typo size={14} color={themeColors.textSecondary} style={styles.label}>
                                         Session Name (optional)
                                     </Typo>
                                     <Input
@@ -213,7 +215,7 @@ const WorkoutLogScreen = () => {
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Typo size={14} color={colors.neutral600} style={styles.label}>
+                                    <Typo size={14} color={themeColors.textSecondary} style={styles.label}>
                                         Session Type (optional)
                                     </Typo>
                                     <View style={styles.typeButtons}>
@@ -222,18 +224,22 @@ const WorkoutLogScreen = () => {
                                                 key={type}
                                                 style={[
                                                     styles.typeButton,
-                                                    workoutData.session_type === type && styles.typeButtonActive,
+                                                    { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border },
+                                                    workoutData.session_type === type && { backgroundColor: themeColors.accentPrimary, borderColor: themeColors.accentPrimary },
                                                 ]}
                                                 onPress={() =>
-                                                    setWorkoutData(prev => ({ ...prev, session_type: type }))
+                                                    setWorkoutData(prev => ({ 
+                                                        ...prev, 
+                                                        session_type: prev.session_type === type ? undefined : type 
+                                                    }))
                                                 }
                                             >
                                                 <Typo
                                                     size={14}
                                                     color={
                                                         workoutData.session_type === type
-                                                            ? colors.white
-                                                            : colors.neutral600
+                                                            ? themeColors.textPrimary
+                                                            : themeColors.textSecondary
                                                     }
                                                 >
                                                     {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -247,15 +253,15 @@ const WorkoutLogScreen = () => {
                             {/* Exercises */}
                             <View style={styles.section}>
                                 <View style={styles.exercisesHeader}>
-                                    <Typo size={16} fontWeight="600" color={colors.black}>
+                                    <Typo size={16} fontWeight="600" color={themeColors.textPrimary}>
                                         Exercises
                                     </Typo>
                                     <TouchableOpacity
                                         onPress={handleAddExercise}
-                                        style={styles.addButton}
+                                        style={[styles.addButton, { backgroundColor: themeColors.accentPrimary }]}
                                     >
-                                        <Icons.Plus size={20} color={colors.primary} weight="bold" />
-                                        <Typo size={14} color={colors.primary} fontWeight="600">
+                                        <Icons.Plus size={20} color={themeColors.textPrimary} weight="bold" />
+                                        <Typo size={14} color={themeColors.textPrimary} fontWeight="600">
                                             Add
                                         </Typo>
                                     </TouchableOpacity>
@@ -273,8 +279,8 @@ const WorkoutLogScreen = () => {
 
                                 {workoutData.exercises.length === 0 && (
                                     <View style={styles.emptyState}>
-                                        <Icons.Barbell size={48} color={colors.neutral300} />
-                                        <Typo size={14} color={colors.neutral400} style={styles.emptyText}>
+                                        <Icons.Barbell size={48} color={themeColors.textSecondary} />
+                                        <Typo size={14} color={themeColors.textSecondary} style={styles.emptyText}>
                                             No exercises added yet. Tap "Add" to get started.
                                         </Typo>
                                     </View>
@@ -283,7 +289,7 @@ const WorkoutLogScreen = () => {
 
                             {/* Notes */}
                             <View style={styles.section}>
-                                <Typo size={16} fontWeight="600" color={colors.black} style={styles.sectionTitle}>
+                                <Typo size={16} fontWeight="600" color={themeColors.textPrimary} style={styles.sectionTitle}>
                                     Notes (optional)
                                 </Typo>
                                 <Input
@@ -302,23 +308,24 @@ const WorkoutLogScreen = () => {
                         )}
 
                         {/* Submit Button */}
-                        <View style={styles.footer}>
+                        <View style={[styles.footer, { backgroundColor: themeColors.background, borderTopColor: themeColors.accentPrimary }]}>
                             <TouchableOpacity
                                 style={[
                                     styles.submitButton,
+                                    { backgroundColor: themeColors.accentPrimary },
                                     (isLoading || workoutData.exercises.length === 0) && styles.submitButtonDisabled,
                                 ]}
                                 onPress={handleSubmit}
                                 disabled={isLoading || workoutData.exercises.length === 0}
                             >
                                 {isLoading ? (
-                                    <ActivityIndicator color={colors.white} />
+                                    <ActivityIndicator color={themeColors.textPrimary} />
                                 ) : (
                                     <>
-                                        <Typo size={16} color={colors.white} fontWeight="600">
+                                        <Typo size={16} color={themeColors.textPrimary} fontWeight="600">
                                             {isEditMode ? 'Update Workout' : 'Log Workout'}
                                         </Typo>
-                                        <Icons.CheckCircle size={20} color={colors.white} weight="fill" />
+                                        <Icons.CheckCircle size={20} color={themeColors.textPrimary} weight="fill" />
                                     </>
                                 )}
                             </TouchableOpacity>
@@ -333,12 +340,11 @@ const WorkoutLogScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.white,
-
+        // Remove: backgroundColor: colors.white,
     },
     whiteBackground: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: colors.white,
+        // Remove: backgroundColor: colors.white,
         paddingTop: Platform.OS === 'ios' ? Dimensions.get('window').height * 0.06 : 40,
     },
     header: {
@@ -347,8 +353,9 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: spacingX._20,
         paddingVertical: spacingY._15,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.neutral100,
+        // Remove border bottom to match calendar:
+        // borderBottomWidth: 1,
+        // borderBottomColor: colors.neutral100,
     },
     backButton: {
         padding: spacingX._5,
@@ -359,6 +366,9 @@ const styles = StyleSheet.create({
     content: {
         flex: 1,
         paddingHorizontal: spacingX._20,
+    },
+    scrollContent: {
+        paddingBottom: spacingY._30,
     },
     section: {
         marginTop: spacingY._20,
@@ -373,8 +383,9 @@ const styles = StyleSheet.create({
         marginBottom: spacingY._5,
     },
     inputContainer: {
-        backgroundColor: colors.neutral50,
-        borderColor: colors.neutral200,
+        // These will be handled by Input component, but you can override if needed
+        // backgroundColor: themeColors.cardBackground,
+        // borderColor: themeColors.border,
     },
     typeButtons: {
         flexDirection: 'row',
@@ -385,14 +396,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacingX._15,
         paddingVertical: spacingY._10,
         borderRadius: radius._10,
-        backgroundColor: colors.neutral100,
+        // Remove hardcoded colors - will be set inline with theme colors
+        // backgroundColor: colors.neutral100,
         borderWidth: 1,
-        borderColor: colors.neutral200,
+        // borderColor: colors.neutral200,
     },
-    typeButtonActive: {
-        backgroundColor: colors.primary,
-        borderColor: colors.primary,
-    },
+    // Remove typeButtonActive - handled inline
     exercisesHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -406,7 +415,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacingX._12,
         paddingVertical: spacingY._10,
         borderRadius: radius._10,
-        backgroundColor: colors.primaryLight,
+        // Remove: backgroundColor: colors.primaryLight,
     },
     emptyState: {
         alignItems: 'center',
@@ -421,15 +430,16 @@ const styles = StyleSheet.create({
         minHeight: 100,
     },
     notesText: {
-        textAlignVertical: 'top',
+        textAlignVertical: 'center',
         minHeight: 80,
     },
     footer: {
         paddingHorizontal: spacingX._20,
         paddingVertical: spacingY._15,
         borderTopWidth: 1,
-        borderTopColor: colors.neutral100,
-        backgroundColor: colors.white,
+        // Remove hardcoded colors - will be set inline
+        // borderTopColor: colors.neutral100,
+        // backgroundColor: colors.white,
     },
     submitButton: {
         flexDirection: 'row',
@@ -438,7 +448,7 @@ const styles = StyleSheet.create({
         gap: spacingX._10,
         paddingVertical: spacingY._15,
         borderRadius: radius._15,
-        backgroundColor: colors.primary,
+        // Remove: backgroundColor: colors.primary,
     },
     submitButtonDisabled: {
         opacity: 0.5,

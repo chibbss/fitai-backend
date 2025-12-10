@@ -9,6 +9,7 @@ import { colors, radius, spacingX, spacingY } from '@/constants/theme';
 import Typo from './Typo';
 import * as Icons from 'phosphor-react-native';
 import { verticalScale } from '@/utils/styling';
+import { useTheme } from '@/context/ThemeContext';
 
 interface Exercise {
     exercise_name: string;
@@ -34,6 +35,7 @@ const WorkoutForm: React.FC<WorkoutFormProps> = ({
     onUpdate,
     onRemove
 }) => {
+    const { colors: themeColors } = useTheme();
     const [isExpanded, setIsExpanded] = useState(true);
 
     const handleSetRepsChange = (setIndex: number, value: string) => {
@@ -127,7 +129,10 @@ const WorkoutForm: React.FC<WorkoutFormProps> = ({
                                     key={cat}
                                     style={[
                                         styles.categoryButton,
-                                        exercise.exercise_category === cat && styles.categoryButtonActive,
+                                        exercise.exercise_category === cat && {
+                                            backgroundColor: themeColors.accentPrimary,
+                                            borderColor: themeColors.accentPrimary,
+                                        },
                                     ]}
                                     onPress={() => onUpdate({ exercise_category: cat })}
                                 >
@@ -135,7 +140,7 @@ const WorkoutForm: React.FC<WorkoutFormProps> = ({
                                         size={12}
                                         color={
                                             exercise.exercise_category === cat
-                                                ? colors.white
+                                                ? themeColors.textPrimary
                                                 : colors.neutral600
                                         }
                                     >
@@ -281,10 +286,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.neutral200,
     },
-    categoryButtonActive: {
-        backgroundColor: colors.primary,
-        borderColor: colors.primary,
-    },
     setsControl: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -312,10 +313,12 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.neutral200,
         marginBottom: spacingY._10,
+        gap: spacingX._10,
     },
     setsTableRow: {
         flexDirection: 'row',
         paddingVertical: spacingY._10,
+        gap: spacingX._10,
     },
     tableHeader: {
         flex: 1,

@@ -3,11 +3,13 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-nat
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/utils/supabase';
-import BackButton from '@/components/BackButton';
 import Typo from '@/components/Typo';
 import { colors, radius, spacingX, spacingY } from '@/constants/theme';
 import { verticalScale } from '@/utils/styling';
 import * as Icons from 'phosphor-react-native';
+import ScreenWrapper from '@/components/ScreenWrapper';
+import { useTheme } from '@/context/ThemeContext';
+import { Platform, Dimensions } from 'react-native';
 
 interface SettingsItem {
     id: string;
@@ -19,6 +21,7 @@ interface SettingsItem {
 
 const Settings = () => {
     const router = useRouter();
+    const { colors: themeColors } = useTheme();
     const [userName, setUserName] = useState<string>('');
     const [userEmail, setUserEmail] = useState<string>('');
     const [phoneNumber, setPhoneNumber] = useState<string>('');
@@ -135,18 +138,18 @@ const Settings = () => {
         return (
             <TouchableOpacity
                 key={item.id}
-                style={styles.settingsItem}
+                style={[styles.settingsItem, { borderBottomColor: themeColors.border }]}
                 onPress={item.onPress}
                 activeOpacity={0.7}
             >
                 <View style={styles.iconContainer}>
-                    <IconComponent size={22} color={colors.white} weight="regular" />
+                    <IconComponent size={22} color={themeColors.accentPrimary} weight="regular" />
                 </View>
 
                 <View style={styles.itemContent}>
                     <Typo
                         size={16}
-                        color={colors.white}
+                        color={themeColors.textPrimary}
                         fontWeight="400"
                     >
                         {item.label}
@@ -155,7 +158,7 @@ const Settings = () => {
                     {item.subtitle && (
                         <Typo
                             size={14}
-                            color={colors.neutral400}
+                            color={themeColors.textSecondary}
                             fontWeight="400"
                             style={styles.subtitle}
                         >
@@ -171,7 +174,7 @@ const Settings = () => {
         <View style={styles.section}>
             <Typo
                 size={13}
-                color={colors.white}
+                color={themeColors.textSecondary}
                 fontWeight="600"
                 style={styles.sectionHeader}
             >
@@ -179,56 +182,67 @@ const Settings = () => {
             </Typo>
 
             <View style={styles.sectionContainer}>
-                {items.map(renderSettingsItem)}
+                {items.map((item, index) => (
+                    <View key={item.id} style={styles.itemWrapper}>
+                        {renderSettingsItem(item)}
+                    </View>
+                ))}
             </View>
         </View>
     );
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            {/*Header*/}
-            <View style={styles.header}>
-                <BackButton iconSize={24} color={colors.white} />
-                <Typo size={28} color={colors.white} fontWeight="700" style={styles.headerTitle}>
-                    Settings
-                </Typo>
-                <View style={{ width: 40 }} /> {/* Spacer for centering */}
-            </View>
-
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-
-                {/* My FitAI Section */}
-                {renderSection('My FitAI', myFitAISection)}
-
-                {/* Account Section */}
-                {renderSection('Account', accountSection)}
-
-                {/* General Section */}
-                {renderSection('General', generalSection)}
-
-                {/*LogOut Button*/}
-                <TouchableOpacity
-                    style={styles.logoutButton}
-                    onPress={handleLogout}
-                    activeOpacity={0.7}
-                >
-                    <View style={styles.iconContainer}>
-                        <Icons.SignOut size={22} color='red' weight="regular" />
+        <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
+            <ScreenWrapper showPattern={false}>
+                <View style={[styles.whiteBackground, { backgroundColor: themeColors.background }]}>
+                    {/*Header*/}
+                    <View style={styles.header}>
+                        <TouchableOpacity
+                            onPress={() => router.back()}
+                            style={styles.backButton}
+                        >
+                            <Icons.CaretLeft size={26} color={themeColors.textPrimary} weight="bold" />
+                        </TouchableOpacity>
+                        <Typo size={24} fontWeight="700" color={themeColors.textPrimary}>
+                            Settings
+                        </Typo>
+                        <View style={styles.placeholder} />
                     </View>
-                    <Typo
-                        size={16}
-                        color='red'
-                        fontWeight="400"
-                    >
-                        Log out
-                    </Typo>
-                </TouchableOpacity>
 
-            </ScrollView>
+                    <ScrollView
+                        style={styles.scrollView}
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        {/* My FitAI Section */}
+                        {renderSection('My FitAI', myFitAISection)}
+
+                        {/* Account Section */}
+                        {renderSection('Account', accountSection)}
+
+                        {/* General Section */}
+                        {renderSection('General', generalSection)}
+
+                        {/*LogOut Button*/}
+                        <TouchableOpacity
+                            style={[styles.logoutButton, { backgroundColor: themeColors.cardBackground }]}
+                            onPress={handleLogout}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.iconContainer}>
+                                <Icons.SignOut size={22} color={colors.rose} weight="regular" />
+                            </View>
+                            <Typo
+                                size={16}
+                                color={colors.rose}
+                                fontWeight="400"
+                            >
+                                Log out
+                            </Typo>
+                        </TouchableOpacity>
+                    </ScrollView>
+                </View>
+            </ScreenWrapper>
         </SafeAreaView>
     )
 }
@@ -238,7 +252,10 @@ export default Settings;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.neutral900
+    },
+    whiteBackground: {
+        ...StyleSheet.absoluteFillObject,
+        paddingTop: Platform.OS === 'ios' ? Dimensions.get('window').height * 0.06 : 40,
     },
     header: {
         flexDirection: 'row',
@@ -246,7 +263,13 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: spacingX._20,
         paddingVertical: spacingY._15,
-        backgroundColor: colors.neutral900,
+        // Remove border bottom to match calendar
+    },
+    backButton: {
+        padding: spacingX._5,
+    },
+    placeholder: {
+        width: 34,
     },
     headerTitle: {
         flex: 1,
@@ -268,17 +291,20 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
     sectionContainer: {
-        backgroundColor: colors.neutral900,
-        borderRadius: radius._12,
-        overflow: 'hidden',
+        // Remove the border and background - items will have their own
+    },
+    itemWrapper: {
+        marginBottom: spacingY._12,
     },
     settingsItem: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: spacingY._15,
         paddingHorizontal: spacingX._15,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: radius._12,
+        borderWidth: 1,
+        // Remove borderBottomWidth - we're using marginBottom on wrapper instead
+        // borderBottomColor will be set inline with themeColors.border
     },
     iconContainer: {
         width: 32,
@@ -301,7 +327,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacingX._15,
         marginTop: spacingY._20,
         marginHorizontal: spacingX._20,
-        backgroundColor: colors.neutral900,
         borderRadius: radius._12,
+        borderWidth: 1,
+        // borderColor will be set inline with themeColors.border
     },
 });

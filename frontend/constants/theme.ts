@@ -49,6 +49,9 @@ export const brandPalette = {
     accentWarm: "#ff3366",
     accentGradient: ['#00ffc8', '#00e4ff'],
     shadowAccent: "rgba(0,255,200,0.25)",
+    panel: 'rgba(10.9, 10.9, 10.9)',
+    cardBackground: "rgb(33,33,33)",
+    cardBackground2: "rgba(14,165,233,0.25)"
   },
   
   light: {
@@ -62,6 +65,9 @@ export const brandPalette = {
     accentGradient: ['#00ffc8', '#00e4ff'],
     accentWarm: "#f97316",
     shadowAccent: "rgba(14,165,233,0.25)",
+    panel: "rgb(248, 248, 248)",
+    cardBackground: "#f1f5f9",
+    cardBackground2: "f1f5f9"
   },
 };
 

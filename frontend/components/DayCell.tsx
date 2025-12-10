@@ -1,18 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { colors, radius, spacingX, spacingY } from '@/constants/theme';
+import { colors, radius, spacingX } from '@/constants/theme';
+import { intensityColors, isPartOfStreak } from '@/utils/workoutUtils';
+import React, { useEffect, useState } from 'react';
+import { Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Typo from './Typo';
-import * as Icons from 'phosphor-react-native';
-import { calculateIntensity, intensityColors, isPartOfStreak } from '@/utils/workoutUtils';
 
-const { width } = Dimensions.get('window');
+// Calculate cell width - must match CalendarView calculation
+// CalendarView container has padding: spacingX._15 on all sides
+// When used in CollapsibleCalendar, it's inside expandedContainer which also has padding: spacingX._15
+// So total horizontal padding = spacingX._15 * 4 (2 from expandedContainer + 2 from CalendarView container)
+const { width: screenWidth } = Dimensions.get('window');
+const containerHorizontalPadding = spacingX._15 * 4; // Left and right padding from both containers
+const cellMargin = 2;
+const availableWidth = screenWidth - containerHorizontalPadding;
+const columnWidth = availableWidth / 7; // Width for each column slot
+const cellWidth = columnWidth - (cellMargin * 2); // Cell width after accounting for left/right margins
+
+interface CalendarItem {
+    session_id: string;
+    session_name?: string;
+    occurred_at?: string;
+    volume_kg?: number;
+    exercise_count?: number;
+    has_pr?: boolean;
+    intensity_level?: 'light' | 'medium' | 'heavy' | 'very_heavy';
+}
 
 interface DayCellProps {
     date: Date;
     isCurrentMonth: boolean;
     isToday: boolean;
     hasWorkout: boolean;
-    workout?: any;
+    workout?: CalendarItem;
     stats?: any;
     onPress: () => void;
 }
@@ -31,22 +49,19 @@ const DayCell: React.FC<DayCellProps> = ({
     const [isStreakDay, setIsStreakDay] = useState(false);
 
     useEffect(() => {
-        let cancelled = false;
-        
-        if (hasWorkout && workout && stats) {
-            // Calculate intensity
-            if (stats.stats?.volume?.avg_session_volume) {
-                calculateIntensity(workout.session_id, stats.stats.volume.avg_session_volume)
-                    .then(setIntensity);
+        if (hasWorkout && workout) {
+            // Use intensity_level directly from API (NEW - Phase 1)
+            if (workout.intensity_level) {
+                setIntensity(workout.intensity_level);
             } else {
-                setIntensity('medium');
+                setIntensity('medium'); // Fallback
             }
 
-            // Check for PR (simplified - would need stats data)
-            setHasPR(false); // TODO: Implement when stats endpoint available
+            // Use has_pr directly from API (NEW - Phase 1)
+            setHasPR(workout.has_pr || false);
 
-            // Check for streak
-            if (stats.stats?.consistency?.current_streak) {
+            // Check for streak (if stats available)
+            if (stats?.stats?.consistency?.current_streak) {
                 const lastWorkoutDate = workout.occurred_at ? new Date(workout.occurred_at) : undefined;
                 setIsStreakDay(isPartOfStreak(date, stats.stats.consistency.current_streak, lastWorkoutDate));
             }
@@ -58,8 +73,12 @@ const DayCell: React.FC<DayCellProps> = ({
     }, [hasWorkout, workout, stats, date]);
 
     const dayNumber = date.getDate();
-    const backgroundColor = hasWorkout ? intensityColors[intensity as keyof typeof intensityColors] || intensityColors.none : colors.white;
-    const textColor = hasWorkout && (intensity === 'heavy' || intensity === 'very_heavy') ? colors.white : colors.black;
+    const backgroundColor = hasWorkout 
+        ? intensityColors[intensity as keyof typeof intensityColors] || intensityColors.none 
+        : colors.white;
+    const textColor = hasWorkout && (intensity === 'heavy' || intensity === 'very_heavy') 
+        ? colors.white 
+        : colors.black;
 
     return (
         <TouchableOpacity
@@ -71,13 +90,14 @@ const DayCell: React.FC<DayCellProps> = ({
                 },
                 isToday && styles.todayCell,
                 isStreakDay && styles.streakCell,
+                hasPR && styles.prCell,
             ]}
             onPress={onPress}
             activeOpacity={0.7}
         >
             {hasPR && (
                 <View style={styles.prBadge}>
-                    <Icons.Trophy size={10} color={intensityColors.pr_day} weight="fill" />
+                    <Typo size={12}>🏆</Typo>
                 </View>
             )}
             <Typo
@@ -91,18 +111,17 @@ const DayCell: React.FC<DayCellProps> = ({
     );
 };
 
-const cellSize = (width - 40 - 30) / 7; // Screen width - padding - calendar padding / 7 days
-
 const styles = StyleSheet.create({
     cell: {
-        width: cellSize,
-        height: cellSize,
+        width: cellWidth,
+        height: cellWidth, // Make it square
         borderRadius: radius._10,
         alignItems: 'center',
         justifyContent: 'center',
-        margin: 2,
+        margin: cellMargin,
         borderWidth: 1,
         borderColor: colors.neutral200,
+        position: 'relative',
     },
     todayCell: {
         borderWidth: 2,
@@ -111,6 +130,10 @@ const styles = StyleSheet.create({
     streakCell: {
         borderWidth: 2,
         borderColor: intensityColors.streak_day,
+    },
+    prCell: {
+        borderWidth: 2,
+        borderColor: intensityColors.pr_day || colors.green,
     },
     prBadge: {
         position: 'absolute',

@@ -22,7 +22,7 @@ interface TypingIndicatorProps {
 }
 
 const TypingIndicator: React.FC<TypingIndicatorProps> = ({
-    caption = 'Coach is thinking...',
+    caption = 'Thinking...',
     showWordmark = true,
 }) => {
     const { colors: themeColors } = useTheme();
@@ -45,11 +45,20 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
     useEffect(() => {
         // Dot animation - typing bounce
         const animateDots = () => {
+            const bounceUp = 300;
+            const bounceDown = 300;
+            const rest = 400;
+            const totalCycle = bounceUp + bounceDown + rest; // 1000ms - all dots use this
+
+            // Stagger delay between each dot (200ms)
+            const stagger = Math.floor(totalCycle / 3);
+
+            // Dot 1: starts immediately, full cycle
             dot1Y.value = withRepeat(
                 withSequence(
-                    withTiming(-4, { duration: 420, easing: Easing.out(Easing.quad) }),
-                    withTiming(0, { duration: 420, easing: Easing.in(Easing.quad) }),
-                    withTiming(0, { duration: 560 })
+                    withTiming(-4, { duration: bounceUp, easing: Easing.out(Easing.quad) }),
+                    withTiming(0, { duration: bounceDown, easing: Easing.in(Easing.quad) }),
+                    withTiming(0, { duration: rest })
                 ),
                 -1,
                 false
@@ -57,21 +66,24 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
 
             dot1Opacity.value = withRepeat(
                 withSequence(
-                    withTiming(1, { duration: 420 }),
-                    withTiming(0.85, { duration: 420 }),
-                    withTiming(0.7, { duration: 560 })
+                    withTiming(1, { duration: bounceUp }),
+                    withTiming(0.7, { duration: bounceDown }),
+                    withTiming(0.7, { duration: rest })
                 ),
                 -1,
                 false
             );
 
-            // Dot 2 with delay
+            // Dot 2: starts 200ms later, but cycle must still be 1000ms total
+            // So: wait 200ms, then bounce (600ms), then rest (200ms) = 1000ms
+            const dot2Rest = totalCycle - stagger - bounceUp - bounceDown; // 1000 - 333 - 300 - 300 = 67ms
+
             dot2Y.value = withRepeat(
                 withSequence(
-                    withTiming(0, { duration: 252 }),
-                    withTiming(-4, { duration: 420, easing: Easing.out(Easing.quad) }),
-                    withTiming(0, { duration: 420, easing: Easing.in(Easing.quad) }),
-                    withTiming(0, { duration: 348 })
+                    withTiming(0, { duration: stagger }), // Wait 333ms
+                    withTiming(-4, { duration: bounceUp, easing: Easing.out(Easing.quad) }),
+                    withTiming(0, { duration: bounceDown, easing: Easing.in(Easing.quad) }),
+                    withTiming(0, { duration: dot2Rest }) // Rest 67ms to complete 1000ms cycle
                 ),
                 -1,
                 false
@@ -79,22 +91,26 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
 
             dot2Opacity.value = withRepeat(
                 withSequence(
-                    withTiming(0.7, { duration: 252 }),
-                    withTiming(1, { duration: 420 }),
-                    withTiming(0.85, { duration: 420 }),
-                    withTiming(0.7, { duration: 348 })
+                    withTiming(0.7, { duration: stagger }),
+                    withTiming(1, { duration: bounceUp }),
+                    withTiming(0.7, { duration: bounceDown }),
+                    withTiming(0.7, { duration: dot2Rest })
                 ),
                 -1,
                 false
             );
 
-            // Dot 3 with delay
+            // Dot 3: starts 400ms later, cycle must still be 1000ms total
+            // So: wait 400ms, then bounce (600ms), then rest (0ms) = 1000ms
+            const dot3Delay = stagger * 2; // 666ms
+            const dot3Rest = Math.max(0, rest - (dot3Delay - (bounceUp + bounceDown)));
+
             dot3Y.value = withRepeat(
                 withSequence(
-                    withTiming(0, { duration: 504 }),
-                    withTiming(-4, { duration: 420, easing: Easing.out(Easing.quad) }),
-                    withTiming(0, { duration: 420, easing: Easing.in(Easing.quad) }),
-                    withTiming(0, { duration: 96 })
+                    withTiming(0, { duration: dot3Delay }), // Wait 666ms
+                    withTiming(-4, { duration: bounceUp, easing: Easing.out(Easing.quad) }),
+                    withTiming(0, { duration: bounceDown, easing: Easing.in(Easing.quad) }),
+                    withTiming(0, { duration: dot3Rest })
                 ),
                 -1,
                 false
@@ -102,15 +118,15 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
 
             dot3Opacity.value = withRepeat(
                 withSequence(
-                    withTiming(0.7, { duration: 504 }),
-                    withTiming(1, { duration: 420 }),
-                    withTiming(0.85, { duration: 420 }),
-                    withTiming(0.7, { duration: 96 })
+                    withTiming(0.7, { duration: dot3Delay }),
+                    withTiming(1, { duration: bounceUp }),
+                    withTiming(0.7, { duration: bounceDown }),
+                    withTiming(0.7, { duration: dot3Rest })
                 ),
                 -1,
                 false
             );
-        };
+        }
 
         // Gradient sweep animation
         const animateGradient = () => {
@@ -158,8 +174,8 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
         };
 
         animateDots();
-        animateGradient();
-        animateDot();
+
+
     }, []);
 
     // Animated styles for dots
@@ -197,7 +213,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
 
     return (
         <View style={styles.container}>
-            <LinearGradient
+            {/*<LinearGradient
                 colors={[
                     'rgba(0,255,200,0.12)',
                     'rgba(0,228,255,0.08)',
@@ -205,15 +221,25 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.gradientBackground}
-            >
-                <View style={styles.borderOverlay} />
-                
+            >*/}
+                {/*<View style={styles.borderOverlay} />*/}
+
                 <View style={styles.content}>
+                    {caption && (
+                        <Typo
+                            size={16}
+                            color="#67f9e3"
+                            style={styles.caption}
+                        >
+                            {caption.toUpperCase()}
+                        </Typo>
+                    )}
+
                     {showWordmark && (
                         <View style={styles.wordmarkContainer}>
                             <View style={styles.wordmark}>
                                 {/* "fit" with gradient sweep */}
-                                <MaskedView
+                                {/*<MaskedView
                                     style={styles.maskedText}
                                     maskElement={
                                         <Typo
@@ -245,10 +271,10 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
                                             </Typo>
                                         </LinearGradient>
                                     </Animated.View>
-                                </MaskedView>
+                                </MaskedView>*/}
 
                                 {/* Pulsing dot */}
-                                <Animated.View style={dotPulseStyle}>
+                                {/*<Animated.View style={dotPulseStyle}>
                                     <Animated.View style={dotGlowStyle}>
                                         <Typo
                                             size={32}
@@ -262,10 +288,10 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
                                             .
                                         </Typo>
                                     </Animated.View>
-                                </Animated.View>
+                                </Animated.View>*/}
 
                                 {/* "ai" with gradient sweep */}
-                                <MaskedView
+                                {/*<MaskedView
                                     style={styles.maskedText}
                                     maskElement={
                                         <Typo
@@ -297,7 +323,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
                                             </Typo>
                                         </LinearGradient>
                                     </Animated.View>
-                                </MaskedView>
+                                </MaskedView>*/}
                             </View>
 
                             {/* Typing dots */}
@@ -359,17 +385,9 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({
                         </View>
                     )}
 
-                    {caption && (
-                        <Typo
-                            size={12}
-                            color="#67f9e3"
-                            style={styles.caption}
-                        >
-                            {caption.toUpperCase()}
-                        </Typo>
-                    )}
+
                 </View>
-            </LinearGradient>
+            {/*</LinearGradient>*/}
         </View>
     );
 };
@@ -378,7 +396,7 @@ const styles = StyleSheet.create({
     container: {
         width: '100%',
     },
-    gradientBackground: {
+    /*gradientBackground: {
         borderRadius: radius._15 || 14,
         padding: spacingY._20 || 18,
         paddingHorizontal: spacingX._20 || 20,
@@ -395,9 +413,11 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(0,255,200,0.15)',
         pointerEvents: 'none',
-    },
+    },*/
     content: {
-        gap: spacingX._12 || 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacingX._10 || 14,
     },
     wordmarkContainer: {
         flexDirection: 'row',
@@ -433,7 +453,7 @@ const styles = StyleSheet.create({
     },
     dotsContainer: {
         flexDirection: 'row',
-        gap: scale(10),
+        gap: scale(6), // Reduced from scale(10)
         alignItems: 'center',
     },
     dot: {
@@ -441,18 +461,20 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     dotInner: {
-        width: scale(12),
-        height: scale(12),
-        borderRadius: scale(6),
+        width: scale(6), // Reduced from scale(8)
+        height: scale(6), // Reduced from scale(8)
+        borderRadius: scale(3), // Reduced from scale(6) to match smaller size
         shadowColor: '#00ffc8',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.6,
         shadowRadius: 12,
         elevation: 4,
+        marginTop: 10 // Reduced from 15
     },
     caption: {
         letterSpacing: 3,
         marginTop: spacingY._5 || 5,
+        fontSize: 12, // Add this to make caption smaller (if not already controlled by Typo component)
     },
 });
 

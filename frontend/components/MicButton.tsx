@@ -139,9 +139,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   micButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 50,
+    height: 50,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },

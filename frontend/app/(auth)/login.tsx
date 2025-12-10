@@ -24,9 +24,11 @@ import Animated, {
     useSharedValue,
     withTiming,
     useAnimatedStyle,
-    runOnJS
+    runOnJS,
+    FadeInDown
 } from 'react-native-reanimated'
 import { useFocusEffect } from '@react-navigation/native'
+import PulseLogo from '@/components/PulseLogo'
 
 const Login = () => {
     const emailRef = useRef('');
@@ -361,15 +363,19 @@ const Login = () => {
     if (isLoading) {
         return (
             <ScreenWrapper showPattern={false}>
-                <View style={styles.loadingContainer}>
-                    <Loading size="large" color={colors.primary} />
-                    <Typo
-                        size={18}
-                        color={colors.white}
-                        style={{ marginTop: spacingY._20, textAlign: 'center' }}
-                    >
-                        {loadingMessage}
-                    </Typo>
+                
+
+                <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
+                    <Animated.View entering={FadeInDown.delay(150).springify()}>
+                        <PulseLogo size={verticalScale(230)} />
+                    </Animated.View>
+
+                    <Animated.View entering={FadeInDown.delay(300).springify()}>
+                        <Typo size={18} color={themeColors.textPrimary}
+                            style={{ textAlign: 'center', marginTop: -25, marginLeft: 25 }}>
+                            {loadingMessage}
+                        </Typo>
+                    </Animated.View>
                 </View>
             </ScreenWrapper>
         );
@@ -534,6 +540,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        marginBottom: spacingY._60,
     },
     header: {
         paddingHorizontal: spacingX._20,

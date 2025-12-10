@@ -80,6 +80,7 @@ export interface ButtonProps extends TouchableOpacityProps {
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   loading?: boolean;
+  loadingColor?: string;
   children: React.ReactNode;
 }
 

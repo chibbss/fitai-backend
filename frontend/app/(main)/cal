@@ -4,6 +4,7 @@ import ScreenWrapper from '@/components/ScreenWrapper';
 import StatsSection from '@/components/StatsSection';
 import Typo from '@/components/Typo';
 import WeeklySummaryStrip from '@/components/WeeklySummaryStrip';
+import CollapsibleCalendar from '@/components/CollapsibleCalendar';
 import RNCalendarsTest from '@/components/RNCalendarsTest';
 import { colors, spacingX, spacingY } from '@/constants/theme';
 import { workoutApi } from '@/utils/api';
@@ -25,7 +26,6 @@ import { useTheme } from '@/context/ThemeContext';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { verticalScale } from '@/utils/styling';
 import PulseLogo from '@/components/PulseLogo';
-import EmptyCalendarState from '@/components/EmptyCalendarState';
 
 const { width } = Dimensions.get('window');
 
@@ -249,44 +249,6 @@ const CalendarScreen = () => {
         );
     }
 
-    // Show empty state if no workouts
-    if (workouts.length === 0) {
-        return (
-            <SafeAreaView style={styles.container} edges={['top']}>
-                <ScreenWrapper showPattern={false}>
-                    <View style={styles.whiteBackground}>
-                        {/* --- Header --- */}
-                        <View style={styles.header}>
-                            <TouchableOpacity
-                                onPress={() => router.back()}
-                                style={styles.backButton}
-                            >
-                                <Icons.CaretLeft size={26} color={colors.primary} weight="bold" />
-                            </TouchableOpacity>
-
-                            <Typo size={24} fontWeight="700" color={colors.black}>
-                                Calendar And Stats
-                            </Typo>
-
-                            <TouchableOpacity
-                                onPress={() => router.push('/workout-log' as any)}
-                                style={styles.addButton}
-                            >
-                                <Icons.Plus size={26} color={colors.primary} weight="bold" />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Empty State */}
-                        <EmptyCalendarState 
-                            onLogWorkout={() => router.push('/workout-log' as any)}
-                            onChatWithAI={() => router.push('/chatscreen' as any)}
-                        />
-                    </View>
-                </ScreenWrapper>
-            </SafeAreaView>
-        );
-    }
-
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
             <ScreenWrapper showPattern={false}>
@@ -297,7 +259,7 @@ const CalendarScreen = () => {
                             onPress={() => router.back()}
                             style={styles.backButton}
                         >
-                            <Icons.CaretLeft size={26} color={themeColors.textPrimary} weight="bold" />
+                            <Icons.CaretLeft size={26} color={themeColors.accentPrimary} weight="bold" />
                         </TouchableOpacity>
 
                         <Typo size={24} fontWeight="700" color={themeColors.textPrimary}>
@@ -308,7 +270,7 @@ const CalendarScreen = () => {
                             onPress={() => router.push('/workout-log' as any)}
                             style={styles.addButton}
                         >
-                            <Icons.Plus size={26} color={themeColors.textPrimary} weight="bold" />
+                            <Icons.Plus size={26} color={themeColors.accentPrimary} weight="bold" />
                         </TouchableOpacity>
                     </View>
 
@@ -343,7 +305,6 @@ const CalendarScreen = () => {
                                 <QuickStatsCards stats={stats.stats} />
                             </View>
                         )}
-                        
 
                         {/* --- Stats Dashboard Section --- */}
                         {stats ? (
@@ -438,11 +399,11 @@ const CalendarScreen = () => {
                             </>
                         ) : (
                             <View style={styles.noStatsContainer}>
-                                <Icons.ChartLineUp size={48} color={themeColors.accentPrimary} />
-                                <Typo size={16} color={themeColors.textPrimary} style={styles.noStatsText}>
+                                <Icons.ChartLineUp size={48} color={colors.neutral300} />
+                                <Typo size={16} color={colors.neutral600} style={styles.noStatsText}>
                                     Stats will appear here once you log more workouts
                                 </Typo>
-                                <Typo size={14} color={themeColors.textPrimary} style={styles.noStatsSubtext}>
+                                <Typo size={14} color={colors.neutral500} style={styles.noStatsSubtext}>
                                     The stats endpoint is being implemented
                                 </Typo>
                             </View>
