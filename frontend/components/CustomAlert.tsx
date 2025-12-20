@@ -14,7 +14,7 @@ import Button from '@/components/Button';
 import * as Icons from 'phosphor-react-native';
 import { verticalScale } from '@/utils/styling';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export type AlertType = 'success' | 'error' | 'warning' | 'info';
 
@@ -233,7 +233,13 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
 
 const styles = StyleSheet.create({
     overlay: {
-        flex: 1,
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100%',
+        height: '100%',
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',

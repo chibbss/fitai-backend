@@ -7,6 +7,8 @@ import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 import { API_URL } from './config';
+import { alert } from './alert';
+import { logger } from './logger';
 
 // Complete the auth session properly
 WebBrowser.maybeCompleteAuthSession();
@@ -35,8 +37,8 @@ export const signInWithGoogle = async () => {
         // which will handle the rest
         return { data, error: null };
     } catch (error: any) {
-        console.error('Google sign-in error:', error);
-        Alert.alert('Error', error.message || 'Failed to sign in with Google');
+        logger.error('Google sign-in error:', error);
+        alert.error(error.message || 'Failed to sign in with Google', 'Error');
         return { data: null, error };
     }
 };
@@ -80,7 +82,7 @@ export const signInWithApple = async () => {
 
         return { data, error: null };
     } catch (error: any) {
-        console.error('Apple sign-in error:', error);
+        logger.error('Apple sign-in error:', error);
         
         // Handle user cancellation
         if (error.code === 'ERR_REQUEST_CANCELED') {
@@ -135,7 +137,7 @@ export const handlePostOAuthFlow = async (user: any, session: any) => {
                 }),
             });
 
-            // ⚡ Pre-load FitAI context for faster chat responses
+            // G�� Pre-load FitAI context for faster chat responses
             fetch(`${apiUrl}/users/${user.id}/preload-context`, {
                 method: 'POST',
                 headers: {
@@ -144,10 +146,10 @@ export const handlePostOAuthFlow = async (user: any, session: any) => {
                 },
             })
             .then(() => {
-                console.log('Context pre-loaded for OAuth user');
+                logger.log('Context pre-loaded for OAuth user');
             })
             .catch(err => {
-                console.warn('Context pre-load failed (non-critical):', err);
+                logger.warn('Context pre-load failed (non-critical):', err);
             });
 
             // Navigate to onboarding for new users
@@ -162,17 +164,17 @@ export const handlePostOAuthFlow = async (user: any, session: any) => {
                 },
             })
             .then(() => {
-                console.log('Context pre-loaded for existing user');
+                logger.log('Context pre-loaded for existing user');
             })
             .catch(err => {
-                console.warn('Context pre-load failed (non-critical):', err);
+                logger.warn('Context pre-load failed (non-critical):', err);
             });
 
             // Existing user - go to chatscreen
             router.replace('/chatscreen');
         }
     } catch (apiError) {
-        console.error('Backend API error:', apiError);
+        logger.error('Backend API error:', apiError);
         // If backend check fails, assume new user and go to onboarding
         router.replace('/onboarding');
     }

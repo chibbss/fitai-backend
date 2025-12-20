@@ -9,6 +9,7 @@ import Loading from '@/components/Loading'
 import { supabase, getAuthRedirectUrl } from '@/utils/supabase'
 import * as Icons from 'phosphor-react-native'
 import { verticalScale } from '@/utils/styling'
+import { alert } from '@/utils/alert';
 
 const VerifyEmail = () => {
     const router = useRouter();

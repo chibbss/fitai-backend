@@ -3,9 +3,13 @@ import React, { useEffect, useState } from 'react'
 import { colors, spacingX } from '@/constants/theme'
 import { useFonts } from 'expo-font';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { supabase } from '@/utils/supabase';
 
 import Animated, { FadeInDown } from 'react-native-reanimated'
 import { useRootNavigationState, useRootNavigation, useRouter } from 'expo-router'
+import { useAuth } from '@/context/AuthContext';
+import { checkOnboardingStatus } from '@/utils/onboarding';
+import { logger } from '@/utils/logger';
 
 import logo from '@/assets/images/FitIcon.png';
 
@@ -19,6 +23,8 @@ const SplashScreen = () => {
     const rootState = useRootNavigationState();
     const [shouldNavigate, setShouldNavigate] = useState(false);
     const [isReady, setIsReady] = useState(false);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+    const { isAuthenticated, isLoading: authLoading, user } = useAuth();
 
     // Wait for fonts to load before showing content
     useEffect(() => {
@@ -32,33 +38,64 @@ const SplashScreen = () => {
             setIsReady(true);
             const timeout = setTimeout(() => {
                 setShouldNavigate(true);
-            }, 1500);
+            }, 1000);
             return () => clearTimeout(timeout);
         }
     }, [fontsLoaded, fontError]);
 
+
+
+    // Check authentication and navigate based on session validity and onboarding status
     useEffect(() => {
         if (!shouldNavigate) return;
+        if (!rootState?.key || !rootNavigation?.isReady()) return;
+        if (authLoading) return; // Wait for auth check to complete
 
-        const navigate = () => {
+        const checkAuthAndOnboarding = async () => {
+            if (!isAuthenticated || !user) {
+                logger.log('❌ User not authenticated, navigating to welcome');
+                router.replace('/welcome');
+                return;
+            }
+
+            // Check onboarding status
             try {
-                if (rootState?.key && rootNavigation?.isReady()) {
-                    router.replace('/welcome');
+                const { isComplete, userData } = await checkOnboardingStatus(user.id);
+                
+                logger.log('[Splash] Onboarding check result:', {
+                    userId: user.id,
+                    isComplete,
+                    hasUserData: !!userData,
+                });
+                
+                if (isComplete) {
+                    logger.log('✅ User authenticated and onboarding complete, navigating to chatscreen');
+                    router.replace('/chatscreen');
+                } else {
+                    logger.log('⚠️ User authenticated but onboarding incomplete, navigating to onboarding');
+                    logger.log('[Splash] User data received:', {
+                        hasGoals: !!userData?.goals,
+                        hasProfile: !!userData?.profile,
+                        primaryGoal: userData?.goals?.primary_goal,
+                        experienceLevel: userData?.profile?.experience_level,
+                        workoutPreference: userData?.profile?.workout_preference,
+                    });
+                    router.replace('/onboarding');
                 }
-            } catch (error) {
-                console.error('Navigation error:', error);
-                setTimeout(() => {
-                    try {
-                        router.replace('/welcome');
-                    } catch (e) {
-                        console.error('Retry navigation error:', e);
-                    }
-                }, 1000);
+            } catch (error: any) {
+                logger.error('Error checking onboarding status:', error);
+                logger.error('Error details:', {
+                    message: error?.message,
+                    stack: error?.stack,
+                    userId: user.id,
+                });
+                // On error, assume onboarding incomplete and redirect to onboarding
+                router.replace('/onboarding');
             }
         };
 
-        navigate();
-    }, [router, shouldNavigate, rootState?.key, rootNavigation]);
+        checkAuthAndOnboarding();
+    }, [shouldNavigate, rootState, rootNavigation, isAuthenticated, authLoading, user, router]);
 
     return (
         <View style={styles.wrapper}>

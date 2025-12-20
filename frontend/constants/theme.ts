@@ -67,7 +67,7 @@ export const brandPalette = {
     shadowAccent: "rgba(14,165,233,0.25)",
     panel: "rgb(248, 248, 248)",
     cardBackground: "#f1f5f9",
-    cardBackground2: "f1f5f9"
+    cardBackground2: "#f1f5f9"
   },
 };
 

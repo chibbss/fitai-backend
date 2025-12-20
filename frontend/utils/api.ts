@@ -1,25 +1,173 @@
+import { cacheUserData, getCachedUserData, invalidateCache } from './dataCache';
 import { router } from "expo-router";
 import { Alert } from "react-native";
 import { API_URL, MOCK_MODE } from './config';
 import { supabase } from "./supabase";
+import { alert } from './alert';
+import { logger } from './logger';
+import { isNetworkError, getNetworkErrorMessage } from './network';
+import type {
+  WorkoutData,
+  LogWorkoutResponse,
+  CalendarResponse,
+  InsightsData,
+  WorkoutStats,
+  ApiError,
+  WeeklySummary,
+  UserProfile,
+  OnboardingStep,
+  OnboardingStepResponse,
+} from '@/types/api';
 
+/**
+ * Helper function to refresh session token
+ */
+const refreshSessionToken = async (): Promise<boolean> => {
+    try {
+        const { data: { session }, error } = await supabase.auth.refreshSession();
+        if (error || !session) {
+            logger.error('[API] Error refreshing session:', error);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        logger.error('[API] Refresh session error:', error);
+        return false;
+    }
+};
+
+/**
+ * Helper function to create a user-friendly error from API response
+ */
+const createApiError = (error: any, defaultMessage: string = 'An error occurred. Please try again.'): Error => {
+    // Check if it's a network error
+    if (isNetworkError(error)) {
+        return new Error(getNetworkErrorMessage(error, defaultMessage));
+    }
+
+    // Try to extract error message from response
+    if (error?.detail && typeof error.detail === 'string') {
+        return new Error(error.detail);
+    }
+
+    if (error?.message && typeof error.message === 'string') {
+        // Check if error message itself is network-related
+        if (isNetworkError(error.message)) {
+            return new Error(getNetworkErrorMessage(error.message, defaultMessage));
+        }
+        return new Error(error.message);
+    }
+
+    // Fallback to default message
+    return new Error(defaultMessage);
+};
+
+/**
+ * Helper function to handle API errors with network detection
+ */
+const handleApiError = (error: any, response?: Response): never => {
+    let errorMessage = 'An error occurred. Please try again.';
+
+    // Check if it's a network error
+    if (isNetworkError(error)) {
+        errorMessage = getNetworkErrorMessage(error);
+    } else if (response) {
+        // Try to extract error from response
+        // Note: This is async, but we'll handle it in the calling code
+        errorMessage = `HTTP ${response.status}`;
+    } else if (error?.message) {
+        // Check if error message is network-related
+        if (isNetworkError(error.message)) {
+            errorMessage = getNetworkErrorMessage(error.message);
+        } else {
+            errorMessage = error.message;
+        }
+    }
+
+    throw new Error(errorMessage);
+};
+
+/**
+ * Helper function to handle 401 errors with token refresh and retry
+ */
+const handle401Error = async <T>(
+    fetchFn: () => Promise<Response>
+): Promise<T> => {
+    try {
+        const response = await fetchFn();
+        
+        if (response.status === 401) {
+            // Try to refresh token
+            const refreshed = await refreshSessionToken();
+            if (refreshed) {
+                // Retry the request with new token
+                const retryResponse = await fetchFn();
+                if (!retryResponse.ok) {
+                    const errorData = await retryResponse.json().catch(() => ({ detail: 'Unknown error' }));
+                    if (retryResponse.status === 401) {
+                        // Still 401 after refresh, need to login again
+                        if (__DEV__) {
+                            alert.alert('Session Expired', 'Please log in again.');
+                        }
+                        router.replace('/login');
+                        throw new Error('Unauthorized');
+                    }
+                    const error = createApiError(errorData, `HTTP ${retryResponse.status}`);
+                    throw error;
+                }
+                return await retryResponse.json();
+            } else {
+                // Refresh failed, redirect to login
+                if (__DEV__) {
+                    alert.alert('Session Expired', 'Please log in again.');
+                }
+                router.replace('/login');
+                throw new Error('Unauthorized');
+            }
+        }
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            const error = createApiError(errorData, `HTTP ${response.status}`);
+            throw error;
+        }
+        
+        return await response.json();
+    } catch (error: any) {
+        // Re-throw if it's already an Error with proper message
+        if (error instanceof Error) {
+            throw error;
+        }
+        // Otherwise, create a proper error
+        throw createApiError(error);
+    }
+};
 
 export const getAuthToken = async (): Promise<string | null> => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) {
-            Alert.alert(
-                'Authentication Required',
-                'Please log in to continue.',
-                [{ text: 'OK', onPress: () => router.replace('/login') }]
-            );
+            // Less intrusive in production - only show alert in development
+            if (__DEV__) {
+                alert.alert(
+                    'Authentication Required',
+                    'Please log in to continue.',
+                    [{ text: 'OK', onPress: () => router.replace('/login') }]
+                );
+            } else {
+                // In production, silently redirect to login
+                router.replace('/login');
+            }
             return null;
         }
         return session.access_token;
     }
     catch (error) {
-        console.error('Error getting auth token:', error);
-        Alert.alert('Error', 'Failed to authenticate. Please try again.');
+        logger.error('Error getting auth token:', error);
+        // Less intrusive in production
+        if (__DEV__) {
+            alert.alert('Error', 'Failed to authenticate. Please try again.');
+        }
         return null;
     }
 };
@@ -27,7 +175,7 @@ export const getAuthToken = async (): Promise<string | null> => {
 //Workout API calls
 export const workoutApi = {
     //Log a workout
-    async logWorkout(workoutData: any) {
+    async logWorkout(workoutData: WorkoutData): Promise<LogWorkoutResponse> {
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -43,23 +191,26 @@ export const workoutApi = {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
             if (response.status === 401) {
-                Alert.alert('Session Expired', 'Please log in again.');
+                if (__DEV__) {
+                    alert.alert('Session Expired', 'Please log in again.');
+                }
                 router.replace('/login');
                 throw new Error('Unauthorized');
             }
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
+            const error = createApiError(errorData, `HTTP ${response.status}`);
+            throw error;
         }
         return await response.json();
     },
 
     //Get workout insights
-    async getInsights(sessionId: string) {
+    async getInsights(sessionId: string): Promise<InsightsData> {
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
         //if MOCK_MODE is enabled, return mock data
         if (MOCK_MODE) {
-            console.log('🤖 MOCK MODE: Using mock insights data');
+            logger.log('🤖 MOCK MODE: Using mock insights data');
             return new Promise((resolve) => {
                 setTimeout(() => {
                     resolve({
@@ -131,7 +282,8 @@ export const workoutApi = {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
+            const error = createApiError(errorData, `HTTP ${response.status}`);
+            throw error;
         }
 
         return await response.json();
@@ -139,9 +291,9 @@ export const workoutApi = {
 
     //get workout calendar
     async getCalendar(startDate?: string, endDate?: string, limit = 100) {
-        // 🚨 Use mock if MOCK_MODE is enabled
+        // 🤖 Use mock if MOCK_MODE is enabled
         if (MOCK_MODE) {
-            console.log('🤖 MOCK MODE: Using mock calendar data');
+            logger.log('🤖 MOCK MODE: Using mock calendar data');
             return new Promise((resolve) => {
                 setTimeout(() => {
                     // Generate some sample workout data for the current month
@@ -197,40 +349,75 @@ export const workoutApi = {
         if (startDate) url += `&start_date=${startDate}`;
         if (endDate) url += `&end_date=${endDate}`;
 
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            },
-        });
+        const data = await handle401Error(() => 
+            fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            })
+        );
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        // Cache the result (get userId for caching)
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const userId = session?.user?.id;
+            const cacheKey = `calendar_${startDate || 'default'}_${endDate || 'default'}_${limit}`;
+            if (userId && cacheKey) {
+                await cacheUserData(userId, cacheKey, data, 60 * 60 * 1000).catch(() => {}); // 1 hour cache
+            }
+        } catch (e) {
+            // Cache failures shouldn't break the function
         }
 
-        return await response.json();
+        return data;
     },
 
     //Get weekly summary
-    async getWeeklySummary(startDate?: string) {
+    async getWeeklySummary(startDate?: string): Promise<WeeklySummary> {
+        // Get user ID for cache key
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        const cacheKey = `weeklySummary_${startDate || 'current'}`;
+
+        // Try cache first
+        if (userId && !MOCK_MODE) {
+            const cached = await getCachedUserData(userId, cacheKey);
+            if (cached) {
+                logger.log('[API] Using cached weekly summary');
+                // Still fetch fresh data in background
+                this.getWeeklySummaryFresh(startDate, userId, cacheKey).catch(err => {
+                    logger.warn('[API] Background weekly summary fetch failed:', err);
+                });
+                return cached;
+            }
+        }
+
+        // Fetch fresh
+        return this.getWeeklySummaryFresh(startDate, userId, cacheKey);
+    },
+
+    // Helper method for fresh weekly summary fetch
+    async getWeeklySummaryFresh(startDate?: string, userId?: string, cacheKey?: string): Promise<WeeklySummary> {
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
         let url = `${API_URL}/workouts/weekly-summary`;
         if (startDate) url += `?start_date=${startDate}`;
 
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            },
-        });
+        const data = await handle401Error(() =>
+            fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            })
+        );
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        // Cache the result
+        if (userId && cacheKey) {
+            await cacheUserData(userId, cacheKey, data, 15 * 60 * 1000); // 15 minute cache
         }
 
-        return await response.json();
+        return data;
     },
 
     //Get workout details (for editing)
@@ -247,18 +434,19 @@ export const workoutApi = {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
             if (response.status === 401) {
-                Alert.alert('Session Expired', 'Please log in again.');
+                alert.alert('Session Expired', 'Please log in again.');
                 router.replace('/login');
                 throw new Error('Unauthorized');
             }
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
+            const error = createApiError(errorData, `HTTP ${response.status}`);
+            throw error;
         }
 
         return await response.json();
     },
 
     //Update workout
-    async updateWorkout(sessionId: string, workoutData: any) {
+    async updateWorkout(sessionId: string, workoutData: WorkoutData): Promise<LogWorkoutResponse> {
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -274,21 +462,22 @@ export const workoutApi = {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
             if (response.status === 401) {
-                Alert.alert('Session Expired', 'Please log in again.');
+                alert.alert('Session Expired', 'Please log in again.');
                 router.replace('/login');
                 throw new Error('Unauthorized');
             }
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
+            const error = createApiError(errorData, `HTTP ${response.status}`);
+            throw error;
         }
 
         return await response.json();
     },
 
     //get stats
-    async getStats(sessionId: string) {
-        // 🚨 Use mock if MOCK_MODE is enabled
+    async getStats(sessionId: string): Promise<WorkoutStats> {
+        // 🤖 Use mock if MOCK_MODE is enabled
         if (MOCK_MODE) {
-            console.log('🤖 MOCK MODE: Using mock stats data');
+            logger.log('🤖 MOCK MODE: Using mock stats data');
             return new Promise((resolve) => {
                 setTimeout(() => {
                     resolve({
@@ -347,25 +536,34 @@ export const workoutApi = {
         if (!token) throw new Error('Authentication required');
 
         try {
-            const response = await fetch(`${API_URL}/stats/${sessionId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-            });
+            const data = await handle401Error(() =>
+                fetch(`${API_URL}/stats/${sessionId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                })
+            );
 
-            if (!response.ok) {
-                //if endpoint is not found, return empty object
-                if (response.status === 404) {
-                    return null;
+            // Cache the result (get userId for caching)
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const userId = session?.user?.id;
+                const cacheKey = `stats_${sessionId}`;
+                if (userId && cacheKey) {
+                    await cacheUserData(userId, cacheKey, data, 5 * 60 * 1000).catch(() => {}); // 5 minute cache
                 }
-                const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-                throw new Error(errorData.detail || `HTTP ${response.status}`);
+            } catch (e) {
+                // Cache failures shouldn't break the function
             }
 
-            return await response.json();
+            return data;
         } catch (error: any) {
+            if (error?.message === 'Unauthorized') {
+                throw error;
+            }
             // If endpoint doesn't exist, return null instead of throwing
-            if (error.message?.includes('404') || error.message?.includes('Not Found')) {
+            const errorMsg = error?.message;
+            if (errorMsg && typeof errorMsg === 'string' && (errorMsg.includes('404') || errorMsg.includes('Not Found'))) {
                 return null;
             }
             throw error;
@@ -396,145 +594,9 @@ export const workoutApi = {
             return null;
         }
     },
-
-    async getWeeklySummary(startDate?: string) {
-        // 🚨 Use mock if MOCK_MODE is enabled
-        if (MOCK_MODE) {
-            console.log('🤖 MOCK MODE: Using mock weekly summary data');
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    // Generate some sample weekly summary data
-                    let weekStart: Date;
-                    if (startDate) {
-                        weekStart = new Date(startDate);
-                    } else {
-                        const today = new Date();
-                        const day = today.getDay();
-                        const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-                        weekStart = new Date(today.setDate(diff));
-                    }
-
-                    // Ensure it's Monday
-                    const dayOfWeek = weekStart.getDay();
-                    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-                    weekStart.setDate(weekStart.getDate() + diffToMonday);
-                    weekStart.setHours(0, 0, 0, 0);
-
-                    // Calculate week end (Sunday)
-                    const weekEnd = new Date(weekStart);
-                    weekEnd.setDate(weekStart.getDate() + 6);
-                    weekEnd.setHours(23, 59, 59, 999);
-
-                    // Check if this is the current week
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const isCurrentWeek = weekStart <= today && today <= weekEnd;
-
-                    // Day names
-                    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-                    // Workout types for variety
-                    const workoutTypes = [
-                        { name: 'Push Day', type: 'push' },
-                        { name: 'Pull Day', type: 'pull' },
-                        { name: 'Leg Day', type: 'legs' },
-                        { name: 'Full Body', type: 'full_body' },
-                        { name: 'Upper Body', type: 'upper' },
-                        { name: 'Cardio', type: 'cardio' },
-                    ];
-
-                    // Generate 7 days of data
-                    const days = [];
-                    for (let i = 0; i < 7; i++) {
-                        const currentDay = new Date(weekStart);
-                        currentDay.setDate(weekStart.getDate() + i);
-
-                        const dayName = dayNames[i];
-                        const dayNumber = currentDay.getDate();
-                        const dateStr = currentDay.toISOString().split('T')[0];
-
-                        // Randomly assign workouts to 3-5 days of the week
-                        // Skip Sunday (index 6) and maybe one other day for rest
-                        const hasWorkout = i !== 6 && (i < 5 || Math.random() > 0.3);
-
-                        if (hasWorkout) {
-                            const workoutType = workoutTypes[Math.floor(Math.random() * workoutTypes.length)];
-                            const intensityLevels: Array<'light' | 'medium' | 'heavy' | 'very_heavy'> = ['light', 'medium', 'heavy', 'very_heavy'];
-                            const intensity = intensityLevels[Math.floor(Math.random() * intensityLevels.length)];
-                            const hasPr = Math.random() > 0.7; // 30% chance of PR
-
-                            // Set workout time to morning (8-10 AM)
-                            const workoutTime = new Date(currentDay);
-                            workoutTime.setHours(8 + Math.floor(Math.random() * 3), Math.floor(Math.random() * 60), 0, 0);
-
-                            days.push({
-                                date: dateStr,
-                                day_name: dayName,
-                                day_number: dayNumber,
-                                has_workout: true,
-                                session_id: `mock-session-${dateStr}-${i}`,
-                                session_name: workoutType.name,
-                                volume_kg: 1500 + Math.floor(Math.random() * 3000), // 1.5kg to 4.5kg
-                                intensity_level: intensity,
-                                has_pr: hasPr,
-                                exercise_count: 4 + Math.floor(Math.random() * 6), // 4-9 exercises
-                            });
-                        } else {
-                            days.push({
-                                date: dateStr,
-                                day_name: dayName,
-                                day_number: dayNumber,
-                                has_workout: false,
-                                session_id: null,
-                                session_name: undefined,
-                                volume_kg: 0,
-                                intensity_level: null,
-                                has_pr: false,
-                                exercise_count: 0,
-                            });
-                        }
-                    }
-
-                    resolve({
-                        days: days,
-                        week_start: weekStart.toISOString().split('T')[0],
-                        week_end: weekEnd.toISOString().split('T')[0],
-                        is_current_week: isCurrentWeek,
-                    });
-                }, 300);
-            });
-        }
-
-
-        const token = await getAuthToken();
-        if (!token) throw new Error('Authentication required');
-
-        let url = `${API_URL}/workouts/weekly-summary`;
-        if (startDate) {
-            url += `?start_date=${startDate}`;
-        }
-
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            if (response.status === 401) {
-                Alert.alert('Session Expired', 'Please log in again.');
-                router.replace('/login');
-                throw new Error('Unauthorized');
-            }
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
-        }
-
-        return await response.json();
-    }
 };
 
-// 🚨 MOCK FUNCTIONS - Used when backend is unavailable
+// =�ܿ MOCK FUNCTIONS - Used when backend is unavailable
 const mockChatStream = (
     query: string,
     sessionId: string | null,
@@ -543,7 +605,7 @@ const mockChatStream = (
     onError: (error: Error) => void
 ): Promise<void> => {
     return new Promise((resolve) => {
-        console.log('🤖 MOCK MODE: Simulating chat stream for query:', query);
+        logger.log('🤖 MOCK MODE: Simulating chat stream for query:', query);
 
         // Simulate realistic AI responses based on query keywords
         const responses: Record<string, string> = {
@@ -655,7 +717,7 @@ const createReactNativeSSE = (
                                         data: data,
                                     });
                                 } catch (e) {
-                                    console.warn('Error processing SSE message:', e);
+                                    logger.warn('Error processing SSE message:', e);
                                 }
                             }
                             currentData = [];
@@ -665,7 +727,7 @@ const createReactNativeSSE = (
                 }
             }
         } catch (error) {
-            console.warn('Error processing SSE progress:', error);
+            logger.warn('Error processing SSE progress:', error);
         }
     };
 
@@ -682,7 +744,7 @@ const createReactNativeSSE = (
                 }
             }
         } catch (error) {
-            console.warn('Error processing final SSE data:', error);
+            logger.warn('Error processing final SSE data:', error);
         }
 
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -736,23 +798,25 @@ const retryWithBackoff = async <T>(
             return await fn();
         } catch (error: any) {
             lastError = error instanceof Error ? error : new Error(String(error));
+            const errorMsg = error?.message;
+            const errorMsgStr = errorMsg && typeof errorMsg === 'string' ? errorMsg : '';
             
             // Don't retry on auth errors or bad requests
-            if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+            if (errorMsgStr.includes('401') || errorMsgStr.includes('Unauthorized')) {
                 throw lastError;
             }
-            if (error.message?.includes('400') || error.message?.includes('Bad Request')) {
+            if (errorMsgStr.includes('400') || errorMsgStr.includes('Bad Request')) {
                 throw lastError;
             }
             
             // Only retry on server errors (502/503/504) or network issues
             const isRetryable = 
-                error.message?.includes('502') ||
-                error.message?.includes('503') ||
-                error.message?.includes('504') ||
-                error.message?.includes('Network error') ||
-                error.message?.includes('timeout') ||
-                error.message?.includes('Streaming error');
+                errorMsgStr.includes('502') ||
+                errorMsgStr.includes('503') ||
+                errorMsgStr.includes('504') ||
+                errorMsgStr.includes('Network error') ||
+                errorMsgStr.includes('timeout') ||
+                errorMsgStr.includes('Streaming error');
             
             if (!isRetryable || attempt === maxRetries - 1) {
                 throw lastError;
@@ -760,7 +824,7 @@ const retryWithBackoff = async <T>(
             
             // Exponential backoff: 1s, 2s, 4s
             const delay = baseDelay * Math.pow(2, attempt);
-            console.log(`[Retry] Attempt ${attempt + 1}/${maxRetries} after ${delay}ms (${error.message})`);
+            logger.log(`[Retry] Attempt ${attempt + 1}/${maxRetries} after ${delay}ms (${errorMsgStr || 'Unknown error'})`);
             await sleep(delay);
         }
     }
@@ -778,9 +842,9 @@ export const chatApi = {
         onDone: (answer: string, totalTime?: number) => void,
         onError: (error: Error) => void
     ): Promise<void> {
-        // 🚨 Use mock if MOCK_MODE is enabled
+        // 🤖 Use mock if MOCK_MODE is enabled
         if (MOCK_MODE) {
-            console.log('🤖 MOCK MODE: Using mock chat stream');
+            logger.log('🤖 MOCK MODE: Using mock chat stream');
             try {
                 await mockChatStream(query, sessionId, onToken, onDone, onError);
             } catch (error: any) {
@@ -842,7 +906,7 @@ export const chatApi = {
                             } else if (event.event === 'metadata') {
                                 // Metadata: references and citations
                                 const metadata = JSON.parse(event.data);
-                                console.log('Chat metadata:', metadata);
+                                logger.log('Chat metadata:', metadata);
                             } else if (event.event === 'done') {
                                 // Done event: final answer
                                 const doneData = JSON.parse(event.data);
@@ -867,11 +931,11 @@ export const chatApi = {
                                 }
                             }
                         } catch (e) {
-                            console.warn('Failed to parse SSE message:', event, e);
+                            logger.warn('Failed to parse SSE message:', event, e);
                         }
                     },
                     onerror(err) {
-                        console.error('SSE error:', err);
+                        logger.error('SSE error:', err);
                         handleError(new Error(err?.message || 'Streaming error occurred'));
                     },
                     onclose() {
@@ -886,7 +950,7 @@ export const chatApi = {
                     },
                 });
             } catch (error: any) {
-                console.error('Stream error:', error);
+                logger.error('Stream error:', error);
                 handleError(error instanceof Error ? error : new Error(String(error)));
             }
             });
@@ -899,9 +963,9 @@ export const chatApi = {
 
     // Fallback: Regular non-streaming chat
     async chat(query: string, sessionId: string | null) {
-        // 🚨 Use mock if MOCK_MODE is enabled
+        // =�ܿ Use mock if MOCK_MODE is enabled
         if (MOCK_MODE) {
-            console.log('🤖 MOCK MODE: Using mock chat');
+            logger.log('🤖 MOCK MODE: Using mock chat');
             return new Promise((resolve) => {
                 setTimeout(() => {
                     resolve({
@@ -931,11 +995,16 @@ export const chatApi = {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
             if (response.status === 401) {
-                Alert.alert('Session Expired', 'Please log in again.');
+                alert.alert(
+                    'Authentication Required',
+                    'Please log in to continue.',
+                    [{ text: 'OK', onPress: () => router.replace('/login') }]
+                );
                 router.replace('/login');
                 throw new Error('Unauthorized');
             }
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
+            const error = createApiError(errorData, `HTTP ${response.status}`);
+            throw error;
         }
 
         return await response.json();
@@ -945,34 +1014,46 @@ export const chatApi = {
 // User API calls
 export const userApi = {
     // Get user profile
-    async getUser(userId: string) {
+    async getUser(userId: string): Promise<UserProfile> {
+        // Try cache first
+        const cached = await getCachedUserData(userId, 'userProfile');
+        if (cached) {
+            logger.log('[API] Using cached user profile');
+            // Still fetch fresh data in background
+            this.getUserFresh(userId).catch(err => {
+                logger.warn('[API] Background user fetch failed:', err);
+            });
+            return cached;
+        }
+
+        // Fetch fresh
+        return this.getUserFresh(userId);
+    },
+
+    // Helper method for fresh user fetch
+    async getUserFresh(userId: string): Promise<UserProfile> {
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
-        const response = await fetch(`${API_URL}/users/${userId}`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            },
-        });
+        const data = await handle401Error(() =>
+            fetch(`${API_URL}/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            })
+        );
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            if (response.status === 401) {
-                Alert.alert('Session Expired', 'Please log in again.');
-                router.replace('/login');
-                throw new Error('Unauthorized');
-            }
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
-        }
+        // Cache the result
+        await cacheUserData(userId, 'userProfile', data, 24 * 60 * 60 * 1000); // 24 hour cache
 
-        return await response.json();
+        return data;
     },
 
     // Discover user data (from chat conversations)
     async discoverData(field: string, value: any, context?: string) {
-        // 🚨 MOCK MODE: Skip backend call
+        // 🤖 MOCK MODE: Skip backend call
         if (MOCK_MODE) {
-            console.log('🤖 MOCK MODE: Skipping discoverData call');
+            logger.log('🤖 MOCK MODE: Skipping discoverData call');
             return null;
         }
         const token = await getAuthToken();
@@ -1000,16 +1081,18 @@ export const userApi = {
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
                 if (response.status === 401) {
-                    Alert.alert('Session Expired', 'Please log in again.');
+                    alert.alert('Session Expired', 'Please log in again.');
                     router.replace('/login');
                     throw new Error('Unauthorized');
                 }
-                throw new Error(errorData.detail || `HTTP ${response.status}`);
+                const errorDetail = errorData?.detail;
+                const errorMessage = (errorDetail && typeof errorDetail === 'string') ? errorDetail : `HTTP ${response.status}`;
+                throw new Error(errorMessage);
             }
 
             return await response.json();
         } catch (error: any) {
-            console.error('Error discovering user data:', error);
+            logger.error('Error discovering user data:', error);
             // Non-critical - don't throw, just log
             return null;
         }
@@ -1017,10 +1100,10 @@ export const userApi = {
 
     // Get onboarding completion message
     async getCompletionMessage(userId: string) {
-        // 🚨 MOCK MODE: Skip backend call
+        // 🤖 MOCK MODE: Skip backend call
         if (MOCK_MODE) {
-            console.log('🤖 MOCK MODE: Returning mock completion message');
-            return { message: "Hey! 👋 Welcome to FitAI! I'm excited to help you on your fitness journey. Based on what you shared during onboarding, I've got a personalized plan ready for you. What would you like to start with today?" };
+            logger.log('🤖 MOCK MODE: Returning mock completion message');
+            return { message: "Hey! =��� Welcome to FitAI! I'm excited to help you on your fitness journey. Based on what you shared during onboarding, I've got a personalized plan ready for you. What would you like to start with today?" };
         }
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
@@ -1038,13 +1121,13 @@ export const userApi = {
                     return null;
                 }
                 const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-                console.warn('Failed to get completion message:', errorData.detail);
+                logger.warn('Failed to get completion message:', errorData.detail);
                 return null;
             }
 
             return await response.json();
         } catch (error: any) {
-            console.warn('Error getting completion message:', error);
+            logger.warn('Error getting completion message:', error);
             // Non-critical - return null if it fails
             return null;
         }
@@ -1065,19 +1148,21 @@ export const userApi = {
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
                 if (response.status === 401) {
-                    Alert.alert('Session Expired', 'Please log in again.');
+                    alert.alert('Session Expired', 'Please log in again.');
                     router.replace('/login');
                     throw new Error('Unauthorized');
                 }
                 if (response.status === 404) {
                     return { items: [] }; // Return empty array if no memories
                 }
-                throw new Error(errorData.detail || `HTTP ${response.status}`);
+                const errorDetail = errorData?.detail;
+                const errorMessage = (errorDetail && typeof errorDetail === 'string') ? errorDetail : `HTTP ${response.status}`;
+                throw new Error(errorMessage);
             }
 
             return await response.json();
         } catch (error: any) {
-            console.error('Error getting memories:', error);
+            logger.error('Error getting memories:', error);
             return { items: [] }; // Return empty array on error
         }
     },
@@ -1118,16 +1203,18 @@ export const trainingLogApi = {
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
                 if (response.status === 401) {
-                    Alert.alert('Session Expired', 'Please log in again.');
+                    alert.alert('Session Expired', 'Please log in again.');
                     router.replace('/login');
                     throw new Error('Unauthorized');
                 }
-                throw new Error(errorData.detail || `HTTP ${response.status}`);
+                const errorDetail = errorData?.detail;
+                const errorMessage = (errorDetail && typeof errorDetail === 'string') ? errorDetail : `HTTP ${response.status}`;
+                throw new Error(errorMessage);
             }
 
             return await response.json();
         } catch (error: any) {
-            console.error('Error adding training log:', error);
+            logger.error('Error adding training log:', error);
             throw error;
         }
     },
@@ -1155,7 +1242,8 @@ export const bugApi = {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-            throw new Error(errorData.detail || `HTTP ${response.status}`);
+            const error = createApiError(errorData, `HTTP ${response.status}`);
+            throw error;
         }
 
         return await response.json();
@@ -1208,9 +1296,9 @@ export const discoverFromChat = async (userMessage: string, botResponse: string)
                     match[1] || match[0], // Use captured group or full match
                     pattern.context
                 );
-                console.log(`Discovered ${pattern.field}:`, match[1] || match[0]);
+                logger.log(`Discovered ${pattern.field}:`, match[1] || match[0]);
             } catch (error) {
-                console.warn(`Failed to discover ${pattern.field}:`, error);
+                logger.warn(`Failed to discover ${pattern.field}:`, error);
             }
         }
     }

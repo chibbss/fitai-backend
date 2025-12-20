@@ -21,6 +21,10 @@ import * as Icons from 'phosphor-react-native';
 import WorkoutForm from '@/components/WorkoutForm';
 import { verticalScale } from '@/utils/styling';
 import { useTheme } from '@/context/ThemeContext';
+import { alert } from '@/utils/alert';
+import { AuthGuard } from '@/components/AuthGuard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/context/AuthContext';
 
 interface Exercise {
     exercise_name: string;
@@ -49,11 +53,14 @@ const WorkoutLogScreen = () => {
     const sessionId = params.sessionId;
     const isEditMode = !!sessionId;
     const { colors: themeColors } = useTheme();
+    const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingWorkout, setIsLoadingWorkout] = useState(isEditMode);
     const [workoutData, setWorkoutData] = useState<WorkoutData>({
         exercises: [],
     });
+
+    const draftStorageKey = user?.id ? `workout_log_draft_${user.id}` : null;
 
     // Load workout data if in edit mode
     useEffect(() => {
@@ -72,7 +79,7 @@ const WorkoutLogScreen = () => {
                         metadata: workout.metadata || {},
                     });
                 } catch (error: any) {
-                    Alert.alert('Error', error.message || 'Failed to load workout');
+                    alert.error(error.message || 'Failed to load workout', 'Error');
                     router.back();
                 } finally {
                     setIsLoadingWorkout(false);
@@ -81,6 +88,46 @@ const WorkoutLogScreen = () => {
             loadWorkout();
         }
     }, [isEditMode, sessionId]);
+
+    // Load draft workout for new sessions (non-edit mode)
+    useEffect(() => {
+        if (isEditMode || !draftStorageKey) return;
+
+        const loadDraft = async () => {
+            try {
+                const storedDraft = await AsyncStorage.getItem(draftStorageKey);
+                if (storedDraft) {
+                    const parsed: WorkoutData = JSON.parse(storedDraft);
+                    setWorkoutData({
+                        exercises: [],
+                        ...parsed,
+                        exercises: parsed.exercises || [],
+                    });
+                }
+            } catch (error) {
+                console.warn('[WorkoutLog] Failed to load draft workout', error);
+            }
+        };
+
+        loadDraft();
+        // Only run when switching between edit/new or user changes
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isEditMode, draftStorageKey]);
+
+    // Persist draft workout when editing a new session (non-edit mode)
+    useEffect(() => {
+        if (isEditMode || !draftStorageKey) return;
+
+        const timeoutId = setTimeout(async () => {
+            try {
+                await AsyncStorage.setItem(draftStorageKey, JSON.stringify(workoutData));
+            } catch (error) {
+                console.warn('[WorkoutLog] Failed to save draft workout', error);
+            }
+        }, 500);
+
+        return () => clearTimeout(timeoutId);
+    }, [workoutData, isEditMode, draftStorageKey]);
 
     const handleAddExercise = () => {
         setWorkoutData(prev => ({
@@ -116,7 +163,7 @@ const WorkoutLogScreen = () => {
     const handleSubmit = async () => {
         // Validate
         if (workoutData.exercises.length === 0) {
-            Alert.alert('Error', 'Please add at least one exercise');
+            alert.warning('Please add at least one exercise', 'Error');
             return;
         }
 
@@ -124,7 +171,7 @@ const WorkoutLogScreen = () => {
             ex => !ex.exercise_name.trim()
         );
         if (invalidExercises.length > 0) {
-            Alert.alert('Error', 'Please enter exercise names for all exercises');
+            alert.warning('Please enter exercise names for all exercises', 'Error');
             return;
         }
 
@@ -136,24 +183,34 @@ const WorkoutLogScreen = () => {
                     ...workoutData,
                     occurred_at: workoutData.occurred_at || new Date().toISOString(),
                 });
-                Alert.alert('Success', 'Workout updated successfully', [
+                alert.success('Workout updated successfully', 'Success', [
                     { text: 'OK', onPress: () => router.back() },
                 ]);
             } else {
                 // Create new workout
-            const result = await workoutApi.logWorkout({
-                ...workoutData,
-                occurred_at: workoutData.occurred_at || new Date().toISOString(),
-            });
+                await workoutApi.logWorkout({
+                    ...workoutData,
+                    occurred_at: workoutData.occurred_at || new Date().toISOString(),
+                });
 
-            // Navigate to insights screen with session_id
-            router.push({
-                pathname: '/insights' as any,
-                params: { sessionId: result.session_id },
-            });
+                // Show success alert instead of navigating
+                alert.success('Workout logged', 'Success');
+                // Clear any saved draft after successful log
+                try {
+                    if (draftStorageKey) {
+                        await AsyncStorage.removeItem(draftStorageKey);
+                    }
+                } catch (error) {
+                    console.warn('[WorkoutLog] Failed to clear draft after log', error);
+                }
+                // Clear the form after successful log
+                setWorkoutData({
+                    exercises: [],
+                });
+                setIsLoading(false);
             }
         } catch (error: any) {
-            Alert.alert('Error', error.message || (isEditMode ? 'Failed to update workout' : 'Failed to log workout'));
+            alert.error(error.message || (isEditMode ? 'Failed to update workout' : 'Failed to log workout'), 'Error');
             setIsLoading(false);
         }
     };
@@ -299,7 +356,6 @@ const WorkoutLogScreen = () => {
                                         setWorkoutData(prev => ({ ...prev, notes: text }))
                                     }
                                     multiline
-                                    numberOfLines={4}
                                     containerStyle={[styles.inputContainer, styles.notesInput]}
                                     inputStyle={styles.notesText}
                                 />
@@ -322,10 +378,10 @@ const WorkoutLogScreen = () => {
                                     <ActivityIndicator color={themeColors.textPrimary} />
                                 ) : (
                                     <>
-                                        <Typo size={16} color={themeColors.textPrimary} fontWeight="600">
+                                        <Typo size={16} color={themeColors.background} fontWeight="600">
                                             {isEditMode ? 'Update Workout' : 'Log Workout'}
                                         </Typo>
-                                        <Icons.CheckCircle size={20} color={themeColors.textPrimary} weight="fill" />
+                                        <Icons.CheckCircle size={20} color={themeColors.background} weight="fill" />
                                     </>
                                 )}
                             </TouchableOpacity>
@@ -430,8 +486,7 @@ const styles = StyleSheet.create({
         minHeight: 100,
     },
     notesText: {
-        textAlignVertical: 'center',
-        minHeight: 80,
+        textAlignVertical: 'top',
     },
     footer: {
         paddingHorizontal: spacingX._20,
@@ -464,4 +519,12 @@ const styles = StyleSheet.create({
     },
 });
 
-export default WorkoutLogScreen;
+const WorkoutLogScreenComponent = WorkoutLogScreen;
+
+export default function ProtectedWorkoutLogScreen() {
+    return (
+        <AuthGuard>
+            <WorkoutLogScreenComponent />
+        </AuthGuard>
+    );
+}

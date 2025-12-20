@@ -1,4 +1,5 @@
 import { workoutApi } from './api';
+import { logger } from './logger';
 
 export interface GreetingData {
     message: string;
@@ -79,7 +80,7 @@ export async function generatePersonalizedGreeting(): Promise<GreetingData> {
         
         return { message: greeting, prompts };
     } catch (error) {
-        console.error('Error generating personalized greeting:', error);
+        logger.error('Error generating personalized greeting:', error);
         // Fallback to default
         return {
             message: "Ready to crush your fitness goals?",

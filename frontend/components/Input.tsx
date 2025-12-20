@@ -1,4 +1,4 @@
-import { StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, TextInput, View, Platform } from 'react-native'
 import React, { useState } from 'react'
 import { InputProps } from '@/types'
 import { colors, radius, spacingX } from '@/constants/theme'
@@ -9,6 +9,8 @@ import { LinearGradient } from 'expo-linear-gradient'
 const Input = (props: InputProps) => {
     const { mode, colors: themeColors, setPreference } = useTheme();
     const [isFocused, setIsFocused] = useState(false)
+    const [inputHeight, setInputHeight] = useState(verticalScale(56))
+    const isMultiline = props.multiline || false
     
     return (
         <View style={styles.wrapper}>
@@ -21,14 +23,47 @@ const Input = (props: InputProps) => {
                     pointerEvents="none"
                 />
             )}
-            <View style={[styles.container, isFocused && styles.containerInner]}>
+            <View style={[
+                styles.container, 
+                isFocused && styles.containerInner,
+                isMultiline && {
+                    height: Math.max(verticalScale(56), Math.min(inputHeight, 200)),
+                    alignItems: 'flex-start',
+                    paddingTop: spacingX._10,
+                    paddingBottom: spacingX._10,
+                }
+            ]}>
                 {props.icon && props.icon}
                 <TextInput
-                    style={[styles.input, props.inputStyle]}
+                    style={[
+                        styles.input, 
+                        props.inputStyle,
+                        isMultiline && {
+                            textAlignVertical: 'top',
+                            minHeight: verticalScale(56) - (spacingX._10 * 2),
+                        }
+                    ]}
                     placeholderTextColor={colors.neutral400}
                     ref={props.inputRef && props.inputRef}
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}
+                    onContentSizeChange={(e) => {
+                        if (isMultiline) {
+                            const contentHeight = e.nativeEvent.contentSize.height;
+                            const padding = spacingX._10 * 2;
+                            const calculatedHeight = Math.max(verticalScale(56), Math.min(contentHeight + padding, 200));
+                            // Only update if height changed significantly (avoid micro-adjustments)
+                            if (Math.abs(calculatedHeight - inputHeight) > 2) {
+                                setInputHeight(calculatedHeight);
+                            }
+                        }
+                        // Call original onContentSizeChange if provided
+                        if (props.onContentSizeChange) {
+                            props.onContentSizeChange(e);
+                        }
+                    }}
+                    accessibilityLabel={props.accessibilityLabel}
+                    accessibilityHint={props.accessibilityHint}
                     {...props}
                 />
             </View>

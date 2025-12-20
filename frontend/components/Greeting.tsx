@@ -55,6 +55,9 @@ const Greeting = ({ gradientColors = ['#facc15', '#eab308'], onPromptPress }: Gr
                 style={styles.promptButton}
                 onPress={() => handlePromptPress(item.prompt)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={item.label}
+                accessibilityHint={`Double tap to ${item.label.toLowerCase()}`}
               >
                 <View style={styles.promptIconContainer}>
                   <IconComponent

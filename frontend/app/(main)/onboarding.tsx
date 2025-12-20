@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, KeyboardAvoidingView, TextInput } from 'react-native';
+import { View, StyleSheet, ScrollView, Platform, KeyboardAvoidingView, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import Typo from '@/components/Typo';
 import ScreenWrapper from '@/components/ScreenWrapper';
@@ -17,6 +17,12 @@ import { API_URL, MOCK_MODE } from '@/utils/config';
 import { useTheme } from '@/context/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import PulseLogo from '@/components/PulseLogo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { alert } from '@/utils/alert';
+import { AuthGuard } from '@/components/AuthGuard';
+import * as Icons from 'phosphor-react-native';
+import MaskedView from '@react-native-masked-view/masked-view';
+import { checkOnboardingStatus } from '@/utils/onboarding';
 
 type OnboardingStep = 'intro' | 'goal' | 'experience' | 'preference' | 'details' | 'success';
 
@@ -73,19 +79,19 @@ const STEP_CONFIG: StepConfig[] = [
   },
   {
     id: 'success',
-    title: 'All set! 🎉',
+    title: 'All set!',
     subtitle: '',
   },
 ];
 
 
 const GOAL_OPTIONS: GoalOption[] = [
-  { label: 'Build muscle 💪', value: 'build muscle' },
-  { label: 'Lose fat 🔥', value: 'lose fat' },
-  { label: 'Get consistent 🧘', value: 'get consistent' },
-  { label: 'Feel healthier ❤️', value: 'feel healthier' },
-  { label: 'Train for performance ⚡', value: 'train for performance' },
-  { label: 'Just exploring 👀', value: 'just exploring' },
+  { label: 'Build muscle', value: 'build muscle' },
+  { label: 'Lose fat', value: 'lose fat' },
+  { label: 'Get consistent', value: 'get consistent' },
+  { label: 'Feel healthier', value: 'feel healthier' },
+  { label: 'Train for performance', value: 'train for performance' },
+  { label: 'Just exploring', value: 'just exploring' },
 ];
 
 const EXPERIENCE_OPTIONS: ExperienceOption[] = [
@@ -95,11 +101,11 @@ const EXPERIENCE_OPTIONS: ExperienceOption[] = [
 ];
 
 const PREFERENCE_OPTIONS: PreferenceOption[] = [
-  { label: 'Strength training 🏋️', value: 'strength training' },
-  { label: 'Cardio 🏃‍♂️', value: 'cardio' },
-  { label: 'Home workouts 🏠', value: 'home workouts' },
-  { label: 'Sports & performance ⚽', value: 'sports & performance' },
-  { label: 'Mix of everything 🔁', value: 'mix of everything' },
+  { label: 'Strength training', value: 'strength training' },
+  { label: 'Cardio', value: 'cardio' },
+  { label: 'Home workouts', value: 'home workouts' },
+  { label: 'Sports & performance', value: 'sports & performance' },
+  { label: 'Mix of everything', value: 'mix of everything' },
 ];
 
 const Onboarding = () => {
@@ -151,7 +157,7 @@ const Onboarding = () => {
       } catch (error) {
         console.warn('[onboarding] Failed to load auth session', error);
         if (isMounted) {
-          Alert.alert('Session Error', 'Please sign in again to continue onboarding.', [
+          alert.alert('Session Error', 'Please sign in again to continue onboarding.', [
             { text: 'OK', onPress: () => router.replace('/login') },
           ]);
         }
@@ -170,6 +176,80 @@ const Onboarding = () => {
     setAuthToken('preview');
   }, []);*/
 
+  // Load existing user data to resume onboarding if partially completed
+  useEffect(() => {
+    const loadExistingData = async () => {
+      if (!userId || !authToken) return;
+
+      try {
+        const { userData } = await checkOnboardingStatus(userId);
+        
+        if (!userData) return;
+
+        // Pre-fill goal if exists
+        if (userData.goals?.primary_goal) {
+          const goalValue = userData.goals.primary_goal;
+          const existingGoal = GOAL_OPTIONS.find(opt => opt.value === goalValue);
+          if (existingGoal) {
+            setGoal(existingGoal);
+          }
+        }
+
+        // Pre-fill experience if exists
+        if (userData.profile?.experience_level) {
+          const expValue = userData.profile.experience_level;
+          const existingExp = EXPERIENCE_OPTIONS.find(opt => opt.value === expValue);
+          if (existingExp) {
+            setExperience(existingExp);
+          }
+        }
+
+        // Pre-fill preference if exists
+        if (userData.profile?.workout_preference) {
+          const prefValue = userData.profile.workout_preference;
+          const existingPref = PREFERENCE_OPTIONS.find(opt => opt.value === prefValue);
+          if (existingPref) {
+            setPreference(existingPref);
+          }
+        }
+
+        // Pre-fill details if exists
+        if (userData.profile?.constraints) {
+          setDetailsNote(userData.profile.constraints);
+        }
+
+        // Determine which step to start from based on missing data
+        const hasGoal = !!userData.goals?.primary_goal;
+        const hasExperience = !!userData.profile?.experience_level;
+        const hasPreference = !!userData.profile?.workout_preference;
+
+        // If user has completed some steps, start from the first incomplete step
+        // Otherwise, start from the beginning (intro step)
+        if (hasGoal && hasExperience && hasPreference) {
+          // All required steps completed, stay at current step (or go to details if they haven't)
+          // This handles the case where user completed required steps but not optional details
+          if (currentIndex === 0) {
+            // If still at intro and they have all required data, move to details step
+            setCurrentIndex(STEP_CONFIG.findIndex(s => s.id === 'details'));
+          }
+        } else if (hasGoal && hasExperience) {
+          // Missing preference, start at preference step
+          setCurrentIndex(STEP_CONFIG.findIndex(s => s.id === 'preference'));
+        } else if (hasGoal) {
+          // Missing experience, start at experience step
+          setCurrentIndex(STEP_CONFIG.findIndex(s => s.id === 'experience'));
+        }
+        // If no goal, start from goal step (or intro if they want to read it again)
+
+      } catch (error) {
+        console.warn('[Onboarding] Error loading existing data:', error);
+        // Non-critical - continue with fresh onboarding
+      }
+    };
+
+    loadExistingData();
+  }, [userId, authToken]);
+
   const step = STEP_CONFIG[currentIndex];
   const progress = useMemo(() => {
     return {
@@ -186,7 +266,7 @@ const Onboarding = () => {
     }
 
     if (!authToken || !userId) {//2nd place to comment out for testing
-      Alert.alert('Session Expired', 'Please log back in to continue onboarding.', [
+      alert.alert('Session Expired', 'Please log back in to continue onboarding.', [
         { text: 'OK', onPress: () => router.replace('/login') },
       ]);
       return false;
@@ -200,7 +280,7 @@ const Onboarding = () => {
     switch (stepId) {
       case 'goal':
         if (!goal) {
-          Alert.alert('Select a goal', "Please choose the primary reason you’re here.");
+          alert.warning("Please choose the primary reason you're here.", 'Select a goal');
           return false;
         }
         data = { primary_goal: goal.value };
@@ -209,7 +289,7 @@ const Onboarding = () => {
 
       case 'experience':
         if (!experience) {
-          Alert.alert('Select experience', 'Let us know where you’re at so we can tailor everything.');
+          alert.warning("Let us know where you're at so we can tailor everything.", 'Select experience');
           return false;
         }
         data = { experience_level: experience.value };
@@ -218,7 +298,7 @@ const Onboarding = () => {
 
       case 'preference':
         if (!preference) {
-          Alert.alert('Select preference', 'Pick whichever feels closest — you can always change later.');
+          alert.warning('Pick whichever feels closest — you can always change later.', 'Select preference');
           return false;
         }
         data = { workout_preference: preference.value };
@@ -300,7 +380,7 @@ const Onboarding = () => {
       return true;
     } catch (error: any) {
       // console.error('Onboarding step error:', error);
-      Alert.alert('Save Failed', error?.message || 'Please try again.');
+      alert.error(error?.message || 'Please try again.', 'Save Failed');
       return false;
     } finally {
       setIsSubmitting(false);
@@ -337,7 +417,7 @@ const Onboarding = () => {
     else {
       // For intro or details (skipped), navigate directly
       if (currentIndex === STEP_CONFIG.length - 1) {
-        /* Mark onboarding as completed via discover endpoint
+        // Mark onboarding as completed via discover endpoint
         if (userId && authToken) {
           try {
             await userApi.discoverData(
@@ -352,27 +432,48 @@ const Onboarding = () => {
 
           //fetch completion message before navigating
           try {
+            console.log('[Onboarding] Fetching completion message for user:', userId);
             const completionData = await userApi.getCompletionMessage(userId);
+            console.log('[Onboarding] Completion data received:', completionData);
+
             if (completionData?.message) {
-              // Store completion message to show in chat screen
-              // You can pass it via navigation params or store in AsyncStorage
+              console.log('[Onboarding] Navigating with completion message:', completionData.message);
+              console.log('[Onboarding] Message length:', completionData.message.length);
+
+              // Store in AsyncStorage as backup (in case params don't work)
+              try {
+                await AsyncStorage.setItem('onboarding_completion_message', completionData.message);
+                console.log('[Onboarding] Stored completion message in AsyncStorage as backup');
+              } catch (storageError) {
+                console.warn('[Onboarding] Failed to store message in AsyncStorage:', storageError);
+              }
+
+              // Navigate with completion message
               router.replace({
                 pathname: '/chatscreen',
                 params: { initialMessage: completionData.message }
-              } as any)
+              } as any);
+
+              // Add a small delay to ensure navigation completes
+              await new Promise(resolve => setTimeout(resolve, 100));
+              return;
             } else {
+              console.log('[Onboarding] No completion message in response');
               router.replace('/chatscreen');
+              return;
             }
           } catch (error) {
-            console.warn('Failed to get completion message:', error);
+            console.error('[Onboarding] Error fetching completion message:', error);
             // Continue to chat screen anyway
             router.replace('/chatscreen');
+            return;
           }
         } else {
+          console.log('[Onboarding] No userId or authToken, navigating without completion message');
           router.replace('/chatscreen');
-        }*/
-        router.replace('/chatscreen');
-        return;
+          return;
+        }
+
       }
       setCurrentIndex((prev) => Math.min(prev + 1, STEP_CONFIG.length - 1));
     }
@@ -408,75 +509,149 @@ const Onboarding = () => {
   };
 
   const renderOptions = () => {
+    const { colors: themeColors } = useTheme();
+
     switch (step.id) {
       case 'intro':
         return (
           <View style={styles.introContent}>
-
-            <Animated.Text
-              entering={FadeInUp.duration(700).springify().damping(20).stiffness(80)}
+            {/* Hero Icon Section */}
+            <Animated.View
+              entering={FadeInUp.duration(600).springify().damping(15).stiffness(100)}
+              style={styles.heroIconContainer}
             >
-              <Typo size={32} fontWeight="800" color={colors.black} style={styles.introHeadline}>
-                Meet your personal AI fitness coach.
-              </Typo>
-            </Animated.Text>
+              <View style={[styles.heroIconCircle, { backgroundColor: themeColors.cardBackground }]}>
+                <Icons.ChatCircleDots size={64} color={themeColors.accentPrimary} weight="fill" />
+              </View>
+            </Animated.View>
 
-            <Animated.Text
-              entering={FadeInDown.duration(700).springify().damping(20).stiffness(80)}
-
+            {/* Gradient Headline */}
+            <Animated.View
+              entering={FadeInUp.delay(150).duration(600).springify().damping(15).stiffness(100)}
+              style={styles.gradientHeadlineContainer}
             >
-              <Typo size={18} color={colors.neutral500} style={styles.introSubtext}>
-                Let’s personalize your fitness journey together—it only takes a minute!
+              <MaskedView
+                style={styles.maskedView}
+                maskElement={
+                  <Typo size={40} fontWeight="800" style={styles.gradientHeadline}>
+                    Meet your personal AI fitness coach.
+                  </Typo>
+                }
+              >
+                <LinearGradient
+                  colors={[themeColors.accentGradient[0], themeColors.accentGradient[1]] as readonly [string, string]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.gradientTextGradient}
+                >
+                  <Typo
+                    size={40}
+                    fontWeight="800"
+                    style={StyleSheet.flatten([styles.gradientHeadline, { opacity: 0 }])}
+                    color={themeColors.background}
+                  >
+                    Meet your personal AI fitness coach.
+                  </Typo>
+                </LinearGradient>
+              </MaskedView>
+            </Animated.View>
+
+            {/* Improved Subtext */}
+            <Animated.View
+              entering={FadeInUp.delay(250).duration(600).springify().damping(15).stiffness(100)}
+            >
+              <Typo size={18} color={colors.neutral600} style={styles.introSubtext}>
+                Get personalized workouts, real-time coaching, and insights tailored just for you.
               </Typo>
-            </Animated.Text>
+            </Animated.View>
 
-            {/* Bot Chat Animation 
-            <View style={styles.animationContainer}>
-              <LottieView
-                source={botChatAnimation}
-                autoPlay
-                loop
-                style={styles.animation}
+            {/* Feature Highlights */}
+            <Animated.View
+              entering={FadeInDown.delay(400).duration(600).springify().damping(15).stiffness(100)}
+              style={styles.featuresContainer}
+            >
+              <View style={styles.featureItem}>
+                <View style={[styles.featureIconContainer, { backgroundColor: themeColors.cardBackground }]}>
+                  <Icons.Barbell size={26} color={themeColors.accentPrimary} weight="fill" />
+                </View>
+                <Typo size={14} fontWeight="600" color={themeColors.background} style={styles.featureText}>
+                  Personalized Plans
+                </Typo>
+              </View>
 
-              />
-            </View>*/}
-            {/* Pulse Logo Animation */}
-            <View style={styles.animationContainer}>
-              <PulseLogo />
-            </View>
+              <View style={styles.featureItem}>
+                <View style={[styles.featureIconContainer, { backgroundColor: themeColors.cardBackground }]}>
+                  <Icons.ChatCircle size={26} color={themeColors.accentPrimary} weight="fill" />
+                </View>
+                <Typo size={14} fontWeight="600" color={themeColors.background} style={styles.featureText}>
+                  24/7 Coaching
+                </Typo>
+              </View>
+
+              <View style={styles.featureItem}>
+                <View style={[styles.featureIconContainer, { backgroundColor: themeColors.cardBackground }]}>
+                  <Icons.ChartLineUp size={26} color={themeColors.accentPrimary} weight="fill" />
+                </View>
+                <Typo size={14} fontWeight="600" color={themeColors.background} style={styles.featureText}>
+                  Track Progress
+                </Typo>
+              </View>
+            </Animated.View>
           </View>
         );
 
       case 'goal':
-        return GOAL_OPTIONS.map((option, index) => (
+        return GOAL_OPTIONS.map((option, index) => {
+          const getIcon = () => {
+            switch (option.value) {
+              case 'build muscle':
+                return <Icons.Barbell size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+              case 'lose fat':
+                return <Icons.Flame size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentWarm} weight="fill" />;
+              case 'get consistent':
+                return <Icons.Heart size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+              case 'feel healthier':
+                return <Icons.Heart size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+              case 'train for performance':
+                return <Icons.Lightning size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+              case 'just exploring':
+                return <Icons.Eye size={20} color={goal?.value === option.value ? themeColors.background : themeColors.textSecondary} weight="fill" />;
+              default:
+                return null;
+            }
+          };
 
-          <Animated.View
-            key={option.value}
-            entering={FadeInLeft.delay(index * 200).duration(700).springify().damping(50).stiffness(0)}
-
-          >
-            <Button
+          return (
+            <Animated.View
               key={option.value}
-              onPress={() => setGoal(option)}
-              style={[
-                styles.optionButton,
-                goal?.value === option.value && {
-                  backgroundColor: themeColors.accentPrimary,
-                  borderColor: themeColors.accentPrimary,
-                },
-              ]}
+              entering={FadeInLeft.delay(index * 200).duration(700).springify().damping(50).stiffness(0)}
             >
-              <Typo
-                size={18}
-                fontWeight={goal?.value === option.value ? '700' : '500'}
-                color={goal?.value === option.value ? themeColors.background : colors.neutral700}
-                style={{ textAlign: 'center' }}
+              <Button
+                key={option.value}
+                onPress={() => setGoal(option)}
+                style={[
+                  styles.optionButton,
+                  goal?.value === option.value && {
+                    backgroundColor: themeColors.accentPrimary,
+                    borderColor: themeColors.accentPrimary,
+                  },
+                ]}
               >
-                {option.label}
-              </Typo>
-            </Button>
-          </Animated.View>
-        ));
+                <View style={styles.optionContent}>
+                  {getIcon()}
+                  <Typo
+                    size={18}
+                    fontWeight={goal?.value === option.value ? '700' : '500'}
+                    color={goal?.value === option.value ? themeColors.background : colors.neutral700}
+                    style={{ textAlign: 'center', marginLeft: spacingX._7 }}
+                  >
+                    {option.label}
+                  </Typo>
+                </View>
+              </Button>
+            </Animated.View>
+          );
+        });
 
       case 'experience':
         return EXPERIENCE_OPTIONS.map((option, index) => (
@@ -510,35 +685,55 @@ const Onboarding = () => {
         ));
 
       case 'preference':
-        return PREFERENCE_OPTIONS.map((option, index) => (
-          <Animated.View
-            key={option.value}
-            entering={FadeInLeft.delay(index * 200).duration(700).springify().damping(50).stiffness(0)}
+        return PREFERENCE_OPTIONS.map((option, index) => {
+          const getIcon = () => {
+            switch (option.value) {
+              case 'strength training':
+                return <Icons.Barbell size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+              case 'cardio':
+                return <Icons.Heartbeat size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+              case 'home workouts':
+                return <Icons.House size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+              case 'sports & performance':
+                return <Icons.Trophy size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+              case 'mix of everything':
+                return <Icons.ArrowsClockwise size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+              default:
+                return null;
+            }
+          };
 
-          >
-            <Button
+          return (
+            <Animated.View
               key={option.value}
-              onPress={() => setPreference(option)}
-              style={[
-                styles.optionButton,
-                preference?.value === option.value && {
-                  backgroundColor: themeColors.accentPrimary,
-                  borderColor: themeColors.accentPrimary,
-                },
-              ]}
+              entering={FadeInLeft.delay(index * 200).duration(700).springify().damping(50).stiffness(0)}
             >
-              <Typo
-                size={18}
-                fontWeight={preference?.value === option.value ? '700' : '500'}
-                color={preference?.value === option.value ? themeColors.background : colors.neutral700}
-                style={{ textAlign: 'center' }}
+              <Button
+                key={option.value}
+                onPress={() => setPreference(option)}
+                style={[
+                  styles.optionButton,
+                  preference?.value === option.value && {
+                    backgroundColor: themeColors.accentPrimary,
+                    borderColor: themeColors.accentPrimary,
+                  },
+                ]}
               >
-                {option.label}
-              </Typo>
-            </Button>
-          </Animated.View>
-
-        ));
+                <View style={styles.optionContent}>
+                  {getIcon()}
+                  <Typo
+                    size={18}
+                    fontWeight={preference?.value === option.value ? '700' : '500'}
+                    color={preference?.value === option.value ? themeColors.background : colors.neutral700}
+                    style={{ textAlign: 'center', marginLeft: spacingX._7 }}
+                  >
+                    {option.label}
+                  </Typo>
+                </View>
+              </Button>
+            </Animated.View>
+          );
+        });
 
       case 'details':
         return (
@@ -799,7 +994,7 @@ const Onboarding = () => {
                       </Typo>
                     </Button>
                     <LinearGradient
-                      colors={themeColors.accentGradient}
+                      colors={[themeColors.accentGradient[0], themeColors.accentGradient[1]] as readonly [string, string]}
                       start={{ x: 0, y: 0.5 }}
                       end={{ x: 1, y: 0.5 }}
                       style={styles.buttonGradient}
@@ -829,7 +1024,15 @@ const Onboarding = () => {
   )
 }
 
-export default Onboarding;
+const OnboardingComponent = Onboarding;
+
+export default function ProtectedOnboarding() {
+  return (
+    <AuthGuard>
+      <OnboardingComponent />
+    </AuthGuard>
+  );
+}
 
 
 
@@ -925,29 +1128,73 @@ const styles = StyleSheet.create({
   },
 
   introContent: {
-    marginTop: spacingY._20,
+    marginTop: -35,
     gap: spacingY._20,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'flex-start',
+    paddingHorizontal: spacingX._10,
   },
-  introHeadline: {
+  heroIconContainer: {
+    marginBottom: spacingY._10,
+  },
+  heroIconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  gradientHeadlineContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacingX._10,
+  },
+  maskedView: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  gradientTextGradient: {
+    flex: 1,
+  },
+  gradientHeadline: {
     textAlign: 'center',
-    marginBottom: spacingY._10
+    lineHeight: 48,
   },
   introSubtext: {
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26,
+    paddingHorizontal: spacingX._15,
+    marginTop: spacingY._5,
   },
-
-  animationContainer: {
-    alignItems: 'center',
+  featuresContainer: {
+    flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: -spacingY._40,
-
+    alignItems: 'center',
+    gap: spacingX._20,
+    marginTop: spacingY._10,
+    paddingHorizontal: spacingX._10,
+    flexWrap: 'wrap',
   },
-  animation: {
-    width: verticalScale(350),
-    height: verticalScale(350),
+  featureItem: {
+    alignItems: 'center',
+    gap: spacingY._7,
+    minWidth: 100,
+  },
+  featureIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  featureText: {
+    textAlign: 'center',
   },
 
 
@@ -1005,5 +1252,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: spacingX._20,
     lineHeight: 32,
+  },
+  optionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 })

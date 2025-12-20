@@ -6,6 +6,7 @@ import LottieView from 'lottie-react-native';
 import { colors } from '@/constants/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
+import { alert } from '@/utils/alert';
 
 type MicButtonProps = {
   onRecordingDone: (uri: string) => void;
@@ -46,25 +47,59 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
   const startRecording = async () => {
     try {
       setLoading(true);
+      
+      // Clean up any existing recording first
+      if (recording) {
+        try {
+          const status = await recording.getStatusAsync();
+          if (status.isRecording) {
+            await recording.stopAndUnloadAsync();
+          }
+        } catch (cleanupError) {
+          console.warn('Error cleaning up existing recording:', cleanupError);
+        }
+        setRecording(null);
+        setIsRecording(false);
+      }
+
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) {
-        Alert.alert('Permission required', 'Please allow microphone access');
+        alert.warning('Please allow microphone access', 'Permission required');
+        setLoading(false);
         return;
       }
 
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
       });
 
       const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync(recordingOptions);
+      
+      // Prepare recording with error handling
+      try {
+        await newRecording.prepareToRecordAsync(recordingOptions);
+      } catch (prepareError) {
+        console.error('Error preparing recording:', prepareError);
+        // Recording preparation failed, just throw the error
+        // The recording object will be garbage collected
+        throw prepareError;
+      }
+
       await newRecording.startAsync();
       setRecording(newRecording);
       setIsRecording(true);
-      console.log('🎙️ Recording started');
-    } catch (err) {
+      console.log('✅ Recording started');
+    } catch (err: any) {
       console.error('Error starting recording:', err);
+      alert.error(
+        err.message || 'Failed to start recording. Please try again.',
+        'Recording Error'
+      );
+      // Reset state on error
+      setRecording(null);
+      setIsRecording(false);
     } finally {
       setLoading(false);
     }
@@ -75,14 +110,31 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
 
     try {
       setLoading(true);
-      await recording.stopAndUnloadAsync();
+      
+      // Get URI before stopping
       const uri = recording.getURI();
+      
+      // Stop and unload recording
+      await recording.stopAndUnloadAsync();
+      
       console.log('✅ Recording stopped. File:', uri);
       setRecording(null);
       setIsRecording(false);
-      if (uri) onRecordingDone(uri);
-    } catch (err) {
+      
+      if (uri) {
+        onRecordingDone(uri);
+      } else {
+        throw new Error('Recording URI is null');
+      }
+    } catch (err: any) {
       console.error('Error stopping recording:', err);
+      alert.error(
+        err.message || 'Failed to stop recording. Please try again.',
+        'Recording Error'
+      );
+      // Reset state on error
+      setRecording(null);
+      setIsRecording(false);
     } finally {
       setLoading(false);
     }
@@ -104,7 +156,7 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
       activeOpacity={0.8}
     >
       <LinearGradient
-        colors={themeColors.accentGradient}
+        colors={themeColors.accentGradient as unknown as readonly [string, string]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.micButton}
@@ -146,7 +198,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   animationWrapper: {
-    width: 32, // ✅ same visual size as icon
+    width: 32, // G�� same visual size as icon
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',

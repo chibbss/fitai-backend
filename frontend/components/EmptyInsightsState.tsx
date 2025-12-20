@@ -38,27 +38,23 @@ const EmptyInsightsState: React.FC<EmptyInsightsStateProps> = ({
 
                 {/* Title */}
                 <Animated.View entering={FadeInDown.delay(200).duration(400)}>
-                    <LinearGradient
-                        colors={themeColors.accentGradient}
-                        start={{ x: 0, y: 0.5 }}
-                        end={{ x: 1, y: 0.5 }}
-                        style={styles.titleContainer}
-                    >
+                    <View style={styles.titleContainer}>
                         <Typo 
-                            size={28} 
+                            size={30} 
                             fontWeight="800" 
                             style={styles.title}
+                            color={themeColors.accentPrimary}
                         >
                             No Workout Insights Yet
                         </Typo>
-                    </LinearGradient>
+                    </View>
                 </Animated.View>
 
                 {/* Description */}
                 <Animated.View entering={FadeInDown.delay(300).duration(400)}>
                     <Typo 
                         size={16} 
-                        color={colors.neutral600} 
+                        color={themeColors.textSecondary} 
                         style={styles.description}
                     >
                         Log a workout to get instant AI-powered insights about your performance, PRs, and progress.
@@ -78,11 +74,11 @@ const EmptyInsightsState: React.FC<EmptyInsightsStateProps> = ({
                             end={{ x: 1, y: 0.5 }}
                             style={styles.buttonGradient}
                         >
-                            <Icons.Barbell size={20} color={colors.black} weight="bold" />
+                            <Icons.Barbell size={20} color={themeColors.textPrimary} weight="bold" />
                             <Typo 
                                 size={18} 
                                 fontWeight="700" 
-                                color={colors.black}
+                                color={themeColors.textPrimary}
                                 style={styles.buttonText}
                             >
                                 Log Your First Workout

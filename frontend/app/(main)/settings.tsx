@@ -10,6 +10,10 @@ import * as Icons from 'phosphor-react-native';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import { useTheme } from '@/context/ThemeContext';
 import { Platform, Dimensions } from 'react-native';
+import { alert } from '@/utils/alert';
+import { AuthGuard } from '@/components/AuthGuard';
+import { useAuth } from '@/context/AuthContext';
+import { clearUserData } from '@/utils/dataCache';
 
 interface SettingsItem {
     id: string;
@@ -22,6 +26,7 @@ interface SettingsItem {
 const Settings = () => {
     const router = useRouter();
     const { colors: themeColors } = useTheme();
+    const { signOut, user } = useAuth();
     const [userName, setUserName] = useState<string>('');
     const [userEmail, setUserEmail] = useState<string>('');
     const [phoneNumber, setPhoneNumber] = useState<string>('');
@@ -47,7 +52,7 @@ const Settings = () => {
     }, []);
 
     const handleLogout = async () => {
-        Alert.alert(
+        alert.alert(
             'Log out',
             'Are you sure you want to log out?',
             [
@@ -56,8 +61,20 @@ const Settings = () => {
                     text: 'Log out',
                     style: 'destructive',
                     onPress: async () => {
-                        await supabase.auth.signOut();
-                        router.replace('/welcome');
+                        try {
+                            const userId = user?.id;
+                            // Clear cache before signing out
+                            if (userId) {
+                                await clearUserData(userId);
+                            }
+                            // Sign out (this will also update auth state)
+                            await signOut();
+                            router.replace('/welcome');
+                        } catch (error) {
+                            console.error('Logout error:', error);
+                            // Still navigate even if cache clear fails
+                            router.replace('/welcome');
+                        }
                     },
                 },
             ]
@@ -247,7 +264,15 @@ const Settings = () => {
     )
 }
 
-export default Settings;
+const SettingsComponent = Settings;
+
+export default function ProtectedSettings() {
+    return (
+        <AuthGuard>
+            <SettingsComponent />
+        </AuthGuard>
+    );
+}
 
 const styles = StyleSheet.create({
     container: {

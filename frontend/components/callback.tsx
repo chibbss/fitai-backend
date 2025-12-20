@@ -8,6 +8,7 @@ import { colors, spacingY } from '@/constants/theme';
 import { supabase } from '@/utils/supabase';
 import * as Linking from 'expo-linking';
 import { API_URL } from '@/utils/config';
+import { alert } from '@/utils/alert';
 
 const AuthCallback = () => {
   const router = useRouter();
@@ -66,11 +67,12 @@ const AuthCallback = () => {
       // Handle errors from Supabase
       if (error) {
         console.error('Auth error:', error, errorDescription);
-        Alert.alert(
-          'Verification Error',
-          errorDescription || 'Failed to verify email. Please try again.',
-          [{ text: 'OK', onPress: () => router.replace('/login') }]
-        );
+        alert.show({
+          message: errorDescription || 'Failed to verify email. Please try again.',
+          title: 'Verification Error',
+          type: 'error',
+          buttons: [{ text: 'OK', onPress: () => router.replace('/login') }]
+        });
         return;
       }
 
@@ -85,11 +87,12 @@ const AuthCallback = () => {
 
         if (sessionError) {
           console.error('Session error:', sessionError);
-          Alert.alert(
-            'Session Error',
-            'Failed to create session. Please try logging in.',
-            [{ text: 'OK', onPress: () => router.replace('/login') }]
-          );
+          alert.show({
+            message: 'Failed to create session. Please try logging in.',
+            title: 'Session Error',
+            type: 'error',
+            buttons: [{ text: 'OK', onPress: () => router.replace('/login') }]
+          });
           return;
         }
 
@@ -154,11 +157,12 @@ const AuthCallback = () => {
       
     } catch (error) {
       console.error('Callback error:', error);
-      Alert.alert(
-        'Error',
-        'Something went wrong during verification. Please try again.',
-        [{ text: 'OK', onPress: () => router.replace('/login') }]
-      );
+      alert.show({
+        message: 'Something went wrong during verification. Please try again.',
+        title: 'Error',
+        type: 'error',
+        buttons: [{ text: 'OK', onPress: () => router.replace('/login') }]
+      });
     }
   };
 

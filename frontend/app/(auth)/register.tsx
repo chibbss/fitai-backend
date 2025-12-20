@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Pressable, Alert, Image } from 'react-native'
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Pressable, Image } from 'react-native'
 import React, { useRef, useState } from 'react'
 import ScreenWrapper from '@/components/ScreenWrapper'
 import Typo from '@/components/Typo'
@@ -56,16 +56,11 @@ const Register = () => {
     );
 
     const navigateToLogin = () => {
-        router.push("/login");
+        router.replace("/login");
     };
 
     const handleNavigateToLogin = () => {
-        setIsNavigating(true);
-        opacity.value = withTiming(0, { duration: 300 });
-
-        setTimeout(() => {
-            navigateToLogin();
-        }, 150)
+        navigateToLogin();
     };
 
     const navigateToOnboarding = () => {
@@ -96,102 +91,58 @@ const Register = () => {
     const handleSubmit = async () => {
         //Validation
         if (!nameRef.current?.trim() || !emailRef.current?.trim() || !passwordRef.current) {
-            Alert.alert('Sign Up', 'Please fill in all fields');
+            alert.warning('Please fill in all fields', 'Sign Up');
             return;
         }
 
         if (!validateEmail(emailRef.current)) {
-            Alert.alert('Invalid Email', 'Please enter a valid email address');
+            alert.warning('Please enter a valid email address', 'Invalid Email');
             return;
         }
 
         if (passwordRef.current.length < 6) {
-            Alert.alert('Weak Password', 'Password must be at least 6 characters long');
+            alert.warning('Password must be at least 6 characters long', 'Weak Password');
             return;
         }
         setIsLoading(true);
         setLoadingMessage('Creating your account...');
 
         try {
-            // 1. Sign up with Supabase (with email confirmation)
-            const { data, error } = await supabase.auth.signUp({
+            // 1. Sign up with Supabase using OTP (no password needed for OTP flow)
+            const { data, error } = await supabase.auth.signInWithOtp({
                 email: emailRef.current.trim(),
-                password: passwordRef.current,
                 options: {
                     data: {
                         name: nameRef.current
                     },
-                    // COMMENTED OUT FOR TESTING - Disable deep linking
-                    // emailRedirectTo: getAuthRedirectUrl()
+                    // Use OTP instead of email link
+                    shouldCreateUser: true,
                 }
             });
 
             if (error) {
                 // Handle specific Supabase errors
-                if (error.message.includes('already registered')) {
-                    Alert.alert('Sign Up Error', 'This email is already registered. Please log in instead.');
+                if (error.message.includes('already registered') || error.message.includes('already exists')) {
+                    alert.error('This email is already registered. Please log in instead.', 'Sign Up Error');
                 }
                 else {
-                    Alert.alert('Sign Up Error', error.message);
+                    alert.error(error.message, 'Sign Up Error');
                 }
                 setIsLoading(false);
                 return;
             }
 
-            if (!data.user) {
-                Alert.alert('Sign Up Error', 'Account creation failed. Please try again.');
-                setIsLoading(false);
-                return;
-            }
-
-            // 🚨 MOCK MODE: Skip backend verification and allow navigation
-            if (MOCK_MODE) {
-                console.log('🤖 MOCK MODE: Skipping backend verification for sign up');
-                setLoadingMessage('Mock mode: Backend offline');
-
-                // Small delay for UX
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-                setIsLoading(false);
-
-                // Navigate directly to onboarding without blocking
-                handleNavigateToOnboarding();
-                return;
-            }
-
-            setLoadingMessage('Sending verification email...');
-
-            // 2. Create backend profile immediately (for testing without email verification)
-            const token = data.session?.access_token;
-
-            // DEBUG: Log all relevant info
-            console.log('🔍 REGISTRATION DEBUG:');
-            console.log('  - User ID:', data.user?.id);
-            console.log('  - Session exists:', !!data.session);
-            console.log('  - Token exists:', !!token);
-            console.log('  - EXPO_PUBLIC_API_URL from env:', process.env.EXPO_PUBLIC_API_URL);
-
-            const apiUrl = API_URL.replace(/\/+$/, '');
-            console.log('🔍 CONFIG DEBUG:');
-            console.log('  - Constants.expoConfig exists:', !!Constants.expoConfig);
-            console.log('  - Constants.expoConfig?.extra exists:', !!Constants.expoConfig?.extra);
-            console.log('  - Constants.expoConfig?.extra?.apiUrl:', Constants.expoConfig?.extra?.apiUrl);
-            console.log('  - process.env.EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL);
-            console.log('  - API_URL from config.ts:', API_URL);
-            console.log('  - Final apiUrl being used:', apiUrl);
-
-            console.log('  - Final apiUrl being used (normalized):', apiUrl);
-
-            if (!token) {
-                console.error('❌ No token available - session is null');
-                Alert.alert(
-                    'Session Error',
-                    'No session available. Please check:\n\n1. Email confirmation is disabled in Supabase\n2. You can log in to get a session',
-                    [{ text: 'OK' }]
-                );
-                setIsLoading(false);
-                return;
-            }
+            // With OTP flow, there's no session until OTP is verified
+            // So we always navigate to OTP verification screen
+            console.log('📧 OTP sent - navigating to OTP verification screen');
+            setIsLoading(false);
+            
+            // Navigate to verify-email-otp screen with the user's email
+            router.push({
+                pathname: '/verify-email-otp' as any,
+                params: { email: emailRef.current.trim() }
+            });
+            return;
 
             try {
                 setLoadingMessage('Connecting to backend...');
@@ -261,6 +212,32 @@ const Register = () => {
                 if (!createResponse.ok) {
                     const errorText = await createResponse.text();
                     console.error('❌ Failed to create user profile:', errorText);
+
+                    // ✅ Handle 409 - Email already exists in backend
+                    if (createResponse.status === 409) {
+                        // Clean up the Supabase account since backend profile creation failed
+                        try {
+                            await supabase.auth.signOut();
+                        } catch (signOutError) {
+                            console.warn('Failed to sign out after 409 error:', signOutError);
+                        }
+
+                        setIsLoading(false);
+                        alert.alert(
+                            'Email Already Registered',
+                            'This email is already registered. Please log in instead.',
+                            [
+                                {
+                                    text: 'Go to Login',
+                                    onPress: () => router.replace('/login'),
+                                    style: 'default'
+                                },
+                                { text: 'OK', style: 'cancel' }
+                            ]
+                        );
+                        return;
+                    }
+                    
                     throw new Error(`Failed to create profile: ${createResponse.status} - ${errorText}`);
                 }
 
@@ -305,7 +282,7 @@ const Register = () => {
                     errorMessage += apiError?.message || 'Unknown error';
                 }
 
-                Alert.alert('Backend Connection Error', errorMessage, [
+                alert.alert('Backend Connection Error', errorMessage, [
                     {
                         text: 'Continue Anyway', onPress: () => {
                             setIsLoading(false);
@@ -335,14 +312,14 @@ const Register = () => {
             setIsLoading(false)
             //network errors
             if (error.message?.includes('fetch')) {
-                Alert.alert(
-                    'Network Error',
-                    'Unable to connect to the server. Please check your internet connection and try again.'
+                alert.error(
+                    'Unable to connect to the server. Please check your internet connection and try again.',
+                    'Network Error'
                 );
             }
 
             else {
-                Alert.alert('Error', error.message || 'Something went wrong. Please try again.');
+                alert.error(error.message || 'Something went wrong. Please try again.', 'Error');
             }
 
             console.error('Registration Error:', error);

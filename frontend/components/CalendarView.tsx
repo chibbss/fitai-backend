@@ -228,4 +228,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default CalendarView;
+export default React.memo(CalendarView);

@@ -12,6 +12,9 @@ const Button = ({
   children,
   loading = false,
   loadingColor,
+  accessibilityLabel,
+  accessibilityHint,
+  ...rest
 }: ButtonProps) => {
   const { colors } = useTheme();
 
@@ -30,9 +33,24 @@ const Button = ({
     [colors]
   );
 
+  // Accessibility props
+  const accessibilityProps = {
+    accessibilityRole: 'button' as const,
+    accessibilityLabel: loading 
+      ? `${accessibilityLabel || 'Button'} loading` 
+      : accessibilityLabel,
+    accessibilityHint: accessibilityHint,
+    accessibilityState: {
+      disabled: loading,
+    },
+  };
+
   if (loading) {
     return (
-      <View style={[baseStyle.button, style, { backgroundColor: 'transparent' }]}>
+      <View 
+        style={[baseStyle.button, style, { backgroundColor: 'transparent' }]}
+        {...accessibilityProps}
+      >
         <Loading color={loadingColor || colors.background}/>
       </View>
     )
@@ -40,7 +58,12 @@ const Button = ({
   }
 
   return (
-    <TouchableOpacity onPress={onPress} style={[baseStyle.button, style]}>
+    <TouchableOpacity 
+      onPress={onPress} 
+      style={[baseStyle.button, style]}
+      {...accessibilityProps}
+      {...rest}
+    >
       {children}
     </TouchableOpacity>
   )

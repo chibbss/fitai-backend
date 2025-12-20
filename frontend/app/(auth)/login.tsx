@@ -49,15 +49,11 @@ const Login = () => {
     );
 
     const navigateToRegister = () => {
-        router.push("/register");
+        router.replace("/register");
     };
 
     const handleNavigateToRegister = () => {
-        opacity.value = withTiming(0, { duration: 250 }, (finished) => {
-            if (finished) {
-                runOnJS(navigateToRegister)();
-            }
-        });
+        navigateToRegister();
     };
 
     const navigateToChatscreen = () => {
@@ -87,12 +83,12 @@ const Login = () => {
 
     const handleSubmit = async () => {
         if (!emailRef.current?.trim() || !passwordRef.current?.trim()) {
-            Alert.alert('Login', 'Please fill all fields');
+            alert.warning('Please fill all fields', 'Login');
             return
         }
 
         if (!validateEmail(emailRef.current)) {
-            Alert.alert('Invalid email', 'Please enter a valid email address.');
+            alert.warning('Please enter a valid email address.', 'Invalid email');
             return;
         }
 
@@ -109,28 +105,21 @@ const Login = () => {
             if (error) {
                 //handle specific errors
                 if (error.message.includes('Invalid login credentials')) {
-                    Alert.alert('Login Failed', 'Incorrect email or password. Please try again.');
+                    alert.error('Incorrect email or password. Please try again.', 'Login Failed');
                 }
 
                 else if (error.message.includes('Email not confirmed')) {
-                    Alert.alert(
-                        'Email Not Verified',
-                        'Please verify your email address before logging in. Check your inbox for the verification link.',
-                        [
-                            { text: 'Resend Email', onPress: () => handleResendVerification() },
-                            { text: 'OK', style: 'cancel' }
-                        ]
-                    );
+                    alert.warning('Please verify your email address before logging in. Check your inbox for the verification link.', 'Email Not Verified');
                 }
                 else {
-                    Alert.alert('Login Error', error.message)
+                    alert.error(error.message, 'Login Error');
                 }
                 setIsLoading(false);
                 return;
             }
 
             if (!data.user || !data.session) {
-                Alert.alert('Login Error', 'Failed to sign in. Please try again.');
+                alert.error('Failed to sign in. Please try again.', 'Login Error');
                 setIsLoading(false);
                 return;
             }
@@ -191,16 +180,7 @@ const Login = () => {
                 // If user doesn't exist in backend (404), redirect to sign up
                 if (userResponse.status === 404) {
                     setIsLoading(false);
-                    Alert.alert(
-                        'Account Not Found',
-                        'This account has not been set up yet. Please sign up first.',
-                        [
-                            {
-                                text: 'Go to Sign Up',
-                                onPress: () => router.replace('/register')
-                            }
-                        ]
-                    );
+                    alert.warning('This account has not been set up yet. Please sign up first.', 'Account Not Found');
                     return;
                 }
 
@@ -244,20 +224,12 @@ const Login = () => {
                 if (isNetworkError) {
                     // Backend is likely offline
                     setIsLoading(false);
-                    Alert.alert(
-                        'Connection Error',
-                        'Unable to connect to the server. Please check your internet connection and try again.',
-                        [{ text: 'OK' }]
-                    );
+                    alert.error('Unable to connect to the server. Please check your internet connection and try again.', 'Connection Error');
                     return;
                 } else {
                     // Other error - show message and stop login
                     setIsLoading(false);
-                    Alert.alert(
-                        'Login Error',
-                        'Unable to verify your account. Please try again later.',
-                        [{ text: 'OK' }]
-                    );
+                    alert.error('Unable to verify your account. Please try again later.', 'Login Error');
                     return;
                 }
             }
@@ -279,12 +251,9 @@ const Login = () => {
 
             // Handle network errors
             if (error.message?.includes('fetch') || error.message?.includes('network') || error.message?.includes('timeout')) {
-                Alert.alert(
-                    'Network Error',
-                    'Unable to connect. Please check your internet connection and try again.'
-                );
+                alert.error('Unable to connect. Please check your internet connection and try again.', 'Network Error');
             } else {
-                Alert.alert('Error', error.message || 'Something went wrong. Please try again.');
+                alert.error(error.message || 'Something went wrong. Please try again.', 'Error');
             }
             console.error('Login error:', error);
         }
@@ -292,7 +261,7 @@ const Login = () => {
 
     const handleResendVerification = async () => {
         if (!emailRef.current?.trim()) {
-            Alert.alert('Error', 'Please enter your email address');
+            alert.warning('Please enter your email address', 'Error');
             return;
         }
 
@@ -308,24 +277,24 @@ const Login = () => {
             setIsLoading(false);
 
             if (error) {
-                Alert.alert('Error', error.message);
+                alert.error(error.message, 'Error');
             } else {
-                Alert.alert('Success', 'Verification email sent! Please check your inbox.');
+                alert.success('Verification email sent! Please check your inbox.', 'Success');
             }
         } catch (error: any) {
             setIsLoading(false);
-            Alert.alert('Error', error.message || 'Failed to send verification email');
+            alert.error(error.message || 'Failed to send verification email', 'Error');
         }
     };
 
     const handleForgotPassword = async () => {
         if (!emailRef.current?.trim()) {
-            Alert.alert('Reset Password', 'Please enter your email address first');
+            alert.warning('Please enter your email address first', 'Reset Password');
             return;
         }
 
         if (!validateEmail(emailRef.current)) {
-            Alert.alert('Invalid Email', 'Please enter a valid email address');
+            alert.warning('Please enter a valid email address', 'Invalid Email');
             return;
         }
 
@@ -338,25 +307,22 @@ const Login = () => {
             setIsLoading(false);
 
             if (error) {
-                Alert.alert('Error', error.message);
+                alert.error(error.message, 'Error');
             } else {
-                Alert.alert(
-                    'Check Your Email',
-                    'Password reset instructions have been sent to your email address.'
-                );
+                alert.success('Password reset instructions have been sent to your email address.', 'Check Your Email');
             }
         } catch (error: any) {
             setIsLoading(false);
-            Alert.alert('Error', error.message || 'Failed to send reset email');
+            alert.error(error.message || 'Failed to send reset email', 'Error');
         }
     };
 
     const handleGoogleSignIn = () => {
-        Alert.alert('Coming Soon', 'Google sign-in will be available in the next update!');
+        alert.info('Google sign-in will be available in the next update!', 'Coming Soon');
     };
 
     const handleAppleSignIn = () => {
-        Alert.alert('Coming Soon', 'Apple sign-in will be available in the next update!');
+        alert.info('Apple sign-in will be available in the next update!', 'Coming Soon');
     };
 
     // Show full-screen loading while processing

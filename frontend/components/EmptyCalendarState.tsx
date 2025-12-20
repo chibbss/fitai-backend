@@ -12,53 +12,49 @@ interface EmptyCalendarStateProps {
     onChatWithAI?: () => void;
 }
 
-const EmptyCalendarState: React.FC<EmptyCalendarStateProps> = ({ 
-    onLogWorkout, 
-    onChatWithAI 
+const EmptyCalendarState: React.FC<EmptyCalendarStateProps> = ({
+    onLogWorkout,
+    onChatWithAI
 }) => {
     const { colors: themeColors } = useTheme();
 
     return (
         <View style={styles.container}>
-            <Animated.View 
+            <Animated.View
                 entering={FadeInDown.duration(400)}
                 style={styles.content}
             >
                 {/* Illustration */}
-                <Animated.View 
+                <Animated.View
                     entering={FadeInDown.delay(100).duration(400)}
                     style={styles.illustrationContainer}
                 >
-                    <Icons.CalendarBlank 
-                        size={120} 
-                        color={themeColors.accentPrimary} 
+                    <Icons.CalendarBlank
+                        size={120}
+                        color={themeColors.accentPrimary}
                         weight="duotone"
                     />
                 </Animated.View>
 
                 {/* Title */}
                 <Animated.View entering={FadeInDown.delay(200).duration(400)}>
-                    <LinearGradient
-                        colors={themeColors.accentGradient}
-                        start={{ x: 0, y: 0.5 }}
-                        end={{ x: 1, y: 0.5 }}
-                        style={styles.titleContainer}
-                    >
-                        <Typo 
-                            size={28} 
-                            fontWeight="800" 
+                    <View style={styles.titleContainer}>
+                        <Typo
+                            size={30}
+                            fontWeight="800"
                             style={styles.title}
+                            color={themeColors.accentPrimary}
                         >
                             Start Your Fitness Journey
                         </Typo>
-                    </LinearGradient>
+                    </View>
                 </Animated.View>
 
                 {/* Description */}
                 <Animated.View entering={FadeInDown.delay(300).duration(400)}>
-                    <Typo 
-                        size={16} 
-                        color={colors.neutral600} 
+                    <Typo
+                        size={16}
+                        color={themeColors.textSecondary}
                         style={styles.description}
                     >
                         Log your first workout to see your progress, track your consistency, and get AI-powered insights.
@@ -67,7 +63,7 @@ const EmptyCalendarState: React.FC<EmptyCalendarStateProps> = ({
 
                 {/* Primary CTA */}
                 <Animated.View entering={FadeInUp.delay(400).duration(400)}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={onLogWorkout}
                         activeOpacity={0.8}
                         style={styles.primaryButton}
@@ -78,11 +74,11 @@ const EmptyCalendarState: React.FC<EmptyCalendarStateProps> = ({
                             end={{ x: 1, y: 0.5 }}
                             style={styles.buttonGradient}
                         >
-                            <Icons.Barbell size={20} color={colors.black} weight="bold" />
-                            <Typo 
-                                size={18} 
-                                fontWeight="700" 
-                                color={colors.black}
+                            <Icons.Barbell size={20} color={themeColors.textPrimary} weight="bold" />
+                            <Typo
+                                size={18}
+                                fontWeight="700"
+                                color={themeColors.textPrimary}
                                 style={styles.buttonText}
                             >
                                 Log Your First Workout
@@ -91,20 +87,31 @@ const EmptyCalendarState: React.FC<EmptyCalendarStateProps> = ({
                     </TouchableOpacity>
                 </Animated.View>
 
+                <Typo
+                    size={14}
+                    color={themeColors.accentPrimary}
+                    fontWeight="500"
+                    style={styles.secondaryButtonText}
+                >
+                    Or
+                </Typo>
+
                 {/* Secondary CTA */}
                 {onChatWithAI && (
                     <Animated.View entering={FadeInUp.delay(500).duration(400)}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={onChatWithAI}
                             activeOpacity={0.7}
                             style={styles.secondaryButton}
                         >
-                            <Typo 
-                                size={14} 
-                                color={themeColors.accentPrimary} 
+                            <Icons.ChatCircle size={16} color={themeColors.accentPrimary} weight="regular" />
+                            <Typo
+                                size={14}
+                                color={themeColors.accentPrimary}
                                 fontWeight="500"
+                                style={styles.secondaryButtonText}
                             >
-                                Or chat with FitAI to get personalized advice
+                                Chat with FitAI to get personalized advice
                             </Typo>
                         </TouchableOpacity>
                     </Animated.View>
@@ -165,8 +172,15 @@ const styles = StyleSheet.create({
         marginLeft: spacingX._5,
     },
     secondaryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         paddingVertical: spacingY._10,
         paddingHorizontal: spacingX._15,
+        gap: spacingX._7,
+    },
+    secondaryButtonText: {
+        marginLeft: spacingX._5,
     },
 });
 

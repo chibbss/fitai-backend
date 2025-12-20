@@ -1,7 +1,6 @@
-import React, { useRef, useState, useEffect, use } from 'react';
+import React, { useRef, useState, useEffect, use, useMemo, useCallback } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Animated,
     KeyboardAvoidingView,
     Platform,
@@ -40,12 +39,19 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/context/ThemeContext';
 import TypingIndicator from '@/components/TypingIndicator';
 import { generatePersonalizedGreeting, GreetingData } from '@/utils/greetingUtils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { alert } from '@/utils/alert';
+import { logger } from '@/utils/logger';
+import { AuthGuard } from '@/components/AuthGuard';
+import { useAuth } from '@/context/AuthContext';
+import { cacheUserData, getCachedUserData } from '@/utils/dataCache';
 
 interface Message {
     id: string;
     type: 'text' | 'voice';
     content: string; // text or URI
     sender: 'user' | 'bot';
+    timestamp?: number; // Optional timestamp in milliseconds
 }
 
 const AnimatedDots = () => {
@@ -137,10 +143,67 @@ const BlinkingCursor = () => {
     );
 };
 
+// Helper function to format date for chat separators (WhatsApp style)
+const formatChatDate = (timestamp: number): string => {
+    const messageDate = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Reset time to midnight for date comparison
+    const messageDateOnly = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+    
+    // Check if same day as today
+    if (messageDateOnly.getTime() === todayOnly.getTime()) {
+        return 'Today';
+    }
+    
+    // Check if same day as yesterday
+    if (messageDateOnly.getTime() === yesterdayOnly.getTime()) {
+        return 'Yesterday';
+    }
+    
+    // Check if within last 7 days - show day name
+    const daysDiff = Math.floor((todayOnly.getTime() - messageDateOnly.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff < 7) {
+        return messageDate.toLocaleDateString('en-US', { weekday: 'long' }); // Monday, Tuesday, etc.
+    }
+    
+    // Older than 7 days - show full date
+    return messageDate.toLocaleDateString('en-US', { 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric' 
+    }); // 24 November 2025
+};
+
+// Helper function to get date string for comparison (YYYY-MM-DD)
+const getDateKey = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+// Helper function to extract timestamp from message ID or use message timestamp
+const getMessageTimestamp = (msg: Message): number => {
+    if (msg.timestamp) {
+        return msg.timestamp;
+    }
+    // Try to parse ID as timestamp (since IDs are Date.now().toString())
+    const parsed = parseInt(msg.id, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+    }
+    // Fallback to current time if ID can't be parsed
+    return Date.now();
+};
+
 const ChatScreen = () => {
     const router = useRouter();
     const params = useLocalSearchParams();
     const { colors: themeColors, isDarkMode } = useTheme();
+    const { user } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [userBubbleColor, setUserBubbleColor] = useState<string>(colors.primary);
     const [gradientColors, setGradientColors] = useState<[string, string]>(() => {
@@ -166,34 +229,104 @@ const ChatScreen = () => {
         }, [])
     );
 
+    // ✅ Session check - redirect to login if no valid session
+    useEffect(() => {
+        const checkSession = async () => {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+
+                if (error || !session?.user || !session?.access_token) {
+                    logger.log('No valid session in chatscreen, redirecting to login');
+                    router.replace('/login');
+                }
+            } catch (error) {
+                logger.error('Session check error in chatscreen:', error);
+                router.replace('/login');
+            }
+        };
+
+        checkSession();
+    }, [router]);
+
     // State for personalized greeting
     const [personalizedGreeting, setPersonalizedGreeting] = useState<GreetingData | null>(null);
     const [isLoadingGreeting, setIsLoadingGreeting] = useState(true);
 
-    // Add effect to show completion message on mount if provided
+    // Add effect to show completion message on mount if provided (only if no cached history)
     useEffect(() => {
-        const initialMessage = params.initialMessage as string | undefined;
-        const prefillQuery = params.prefillQuery as string | undefined;
+        const loadCompletionMessage = async () => {
+            if (__DEV__) {
+                logger.log('[ChatScreen] Params received:', params);
+                logger.log('[ChatScreen] initialMessage:', params.initialMessage);
+                logger.log('[ChatScreen] Current messages length:', messages.length);
+            }
+            
+            // Don't load completion message if we already have cached chat history
+            if (messages.length > 0) {
+                if (__DEV__) {
+                    logger.log('[ChatScreen] Skipping completion message - chat history already loaded');
+                }
+                return;
+            }
+            
+            // First check params
+            const initialMessage = params.initialMessage as string | undefined;
+            const prefillQuery = params.prefillQuery as string | undefined;
+
+            if (initialMessage && messages.length === 0) {
+                console.log('[ChatScreen] Setting completion message from params:', initialMessage);
+                // Add bot message with completion message
+                const botMsgTimestamp = Date.now();
+                const botMsgId = botMsgTimestamp.toString();
+                const botMsg: Message = {
+                    id: botMsgId,
+                    type: 'text',
+                    content: initialMessage,
+                    sender: 'bot',
+                    timestamp: botMsgTimestamp,
+                };
+                setMessages([botMsg]);
+                // Initialize displayed text as empty so typewriter effect works
+                setDisplayedTexts({ [botMsgId]: '' });
+                console.log('[ChatScreen] Completion message added to messages');
+                // Clear from AsyncStorage after using (if it was stored there)
+                await AsyncStorage.removeItem('onboarding_completion_message');
+                return;
+            }
+            
+            // Fallback: Check AsyncStorage if params didn't work
+            if (messages.length === 0 && !initialMessage) {
+                try {
+                    const storedMessage = await AsyncStorage.getItem('onboarding_completion_message');
+                    if (storedMessage) {
+                        console.log('[ChatScreen] Found completion message in AsyncStorage');
+                        const botMsgTimestamp = Date.now();
+                        const botMsgId = botMsgTimestamp.toString();
+                        const botMsg: Message = {
+                            id: botMsgId,
+                            type: 'text',
+                            content: storedMessage,
+                            sender: 'bot',
+                            timestamp: botMsgTimestamp,
+                        };
+                        setMessages([botMsg]);
+                        setDisplayedTexts({ [botMsgId]: '' });
+                        await AsyncStorage.removeItem('onboarding_completion_message');
+                        return;
+                    }
+                } catch (error) {
+                    console.warn('[ChatScreen] Error reading AsyncStorage:', error);
+                }
+            }
+
+            // Handle pre-filled query from insights screen
+            if (prefillQuery && input === '') {
+                setInput(prefillQuery);
+            }
+        };
         
-        if (initialMessage && messages.length === 0) {
-            // Add bot message with completion message
-            const botMsgId = Date.now().toString();
-            const botMsg: Message = {
-                id: botMsgId,
-                type: 'text',
-                content: initialMessage,
-                sender: 'bot',
-            };
-            setMessages([botMsg]);
-            // Initialize displayed text as empty so typewriter effect works
-            setDisplayedTexts({ [botMsgId]: '' });
-        }
-        
-        // Handle pre-filled query from insights screen
-        if (prefillQuery && input === '') {
-            setInput(prefillQuery);
-        }
-    }, [params.initialMessage, params.prefillQuery]);
+        loadCompletionMessage();
+    }, [params.initialMessage, params.prefillQuery, messages.length, input]);
 
     // Load personalized greeting on mount (only if chat is empty)
     useEffect(() => {
@@ -213,7 +346,7 @@ const ChatScreen = () => {
                 setIsLoadingGreeting(false);
             }
         };
-        
+
         loadGreeting();
     }, []); // Only run once on mount
 
@@ -225,18 +358,109 @@ const ChatScreen = () => {
 
     const fadeAnim = useRef(new Animated.Value(0)).current; // 0 = mic visible, 1 = send visible
     const scrollViewRef = useRef<ScrollView | null>(null);
+    const isUserScrolling = useRef(false);
+    const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     //generate a unique sessionID for this conversation
     const generateSessionId = () => {
         return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     }
 
-    // ✅ Scroll to bottom when new messages are added
+    // Load chat messages from cache on mount
     useEffect(() => {
-        if (scrollViewRef.current) {
+        const loadChatHistory = async () => {
+            if (!user?.id) {
+                setIsLoadingChatHistory(false);
+                return;
+            }
+            
+            setIsLoadingChatHistory(true);
+            try {
+                const cachedMessages = await getCachedUserData<Message[]>(user.id, 'chatMessages');
+                if (cachedMessages && Array.isArray(cachedMessages) && cachedMessages.length > 0) {
+                    console.log('[ChatScreen] Loaded chat history from cache:', cachedMessages.length, 'messages');
+                    
+                    // Mark all cached messages as restored
+                    const restoredIds = new Set<string>(cachedMessages.map(msg => msg.id));
+                    setRestoredMessageIds(restoredIds);
+                    
+                    // Initialize opacity animations for fade-in
+                    cachedMessages.forEach(msg => {
+                        if (!messageOpacityRefs.current[msg.id]) {
+                            messageOpacityRefs.current[msg.id] = new Animated.Value(0);
+                        }
+                    });
+                    
+                    // Set messages - they will fade in
+                    setMessages(cachedMessages);
+                    
+                    // Initialize displayed texts - for restored messages, show full content immediately (no typewriter)
+                    const texts: Record<string, string> = {};
+                    cachedMessages.forEach(msg => {
+                        // For restored messages, show full content immediately (will fade in)
+                        texts[msg.id] = msg.content || '';
+                    });
+                    setDisplayedTexts(texts);
+                    
+                    // Animate fade-in for all restored messages
+                    cachedMessages.forEach((msg, index) => {
+                        const opacityRef = messageOpacityRefs.current[msg.id];
+                        if (opacityRef) {
+                            Animated.timing(opacityRef, {
+                                toValue: 1,
+                                duration: 300,
+                                delay: index * 50, // Stagger the animations
+                                useNativeDriver: true,
+                            }).start();
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('[ChatScreen] Error loading chat history from cache:', error);
+            } finally {
+                setIsLoadingChatHistory(false);
+            }
+        };
+
+        loadChatHistory();
+    }, [user?.id]);
+
+    // Save chat messages to cache whenever they change
+    useEffect(() => {
+        const saveChatHistory = async () => {
+            if (!user?.id || messages.length === 0) return;
+            
+            try {
+                // Only save if we have at least one user message (to avoid saving just greeting/completion messages)
+                const hasUserMessage = messages.some(msg => msg.sender === 'user');
+                if (hasUserMessage) {
+                    await cacheUserData(user.id, 'chatMessages', messages, Number.MAX_SAFE_INTEGER); // Permanent cache
+                }
+            } catch (error) {
+                console.error('[ChatScreen] Error saving chat history to cache:', error);
+            }
+        };
+
+        // Debounce saves to avoid too frequent writes
+        const timeoutId = setTimeout(saveChatHistory, 1000);
+        return () => clearTimeout(timeoutId);
+    }, [messages, user?.id]);
+
+    // ✅ Scroll to bottom when new messages are added (only if user is not manually scrolling)
+    useEffect(() => {
+        if (scrollViewRef.current && !isUserScrolling.current) {
             scrollViewRef.current.scrollToEnd({ animated: true });
         }
     }, [messages]);
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current);
+            }
+        };
+    }, []);
 
     // Typewriter effect for bot messages
     useEffect(() => {
@@ -275,8 +499,8 @@ const ChatScreen = () => {
                         }));
                         charIndex = newCharIndex;
 
-                        // Auto scroll as text types
-                        if (scrollViewRef.current) {
+                        // Auto scroll as text types (only if user is not manually scrolling)
+                        if (scrollViewRef.current && !isUserScrolling.current) {
                             scrollViewRef.current.scrollToEnd({ animated: true });
                         }
                     } else {
@@ -333,13 +557,35 @@ const ChatScreen = () => {
     // Typewriter effect state for each message
     const [displayedTexts, setDisplayedTexts] = useState<Record<string, string>>({});
     const typewriterTimersRef = useRef<Record<string, number>>({});
+    
+    // Track restored messages (from cache) vs new messages
+    const [restoredMessageIds, setRestoredMessageIds] = useState<Set<string>>(new Set());
+    const [isLoadingChatHistory, setIsLoadingChatHistory] = useState(false);
+    const messageOpacityRefs = useRef<Record<string, Animated.Value>>({});
 
-    // Helper function to get auth token
-    const getAuthToken = async (): Promise<string | null> => {
+    // Memoize displayedTexts to prevent unnecessary re-renders
+    const memoizedDisplayedTexts = useMemo(() => displayedTexts, [displayedTexts]);
+
+    // Memoize messages combined with displayed text for typewriter effect
+    const memoizedMessages = useMemo(() => {
+        return messages.map((msg) => {
+            if (msg.sender === 'bot' && msg.type === 'text') {
+                const displayedText = memoizedDisplayedTexts[msg.id] || '';
+                return {
+                    ...msg,
+                    displayedContent: displayedText || msg.content,
+                };
+            }
+            return msg;
+        });
+    }, [messages, memoizedDisplayedTexts]);
+
+    // Helper function to get auth token (memoized with useCallback)
+    const getAuthToken = useCallback(async (): Promise<string | null> => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session?.access_token) {
-                Alert.alert(
+                alert.alert(
                     'Authentication Required',
                     'Please log in to continue.',
                     [{ text: 'OK', onPress: () => router.replace('/login') }]
@@ -348,11 +594,11 @@ const ChatScreen = () => {
             }
             return session.access_token;
         } catch (error) {
-            console.error('Error getting auth token:', error);
-            Alert.alert('Error', 'Failed to authenticate. Please try again.');
+            logger.error('Error getting auth token:', error);
+            alert.error('Failed to authenticate. Please try again.', 'Error');
             return null;
         }
-    };
+    }, [router]);
 
     // Send text message to backend
     const sendText = async () => {
@@ -363,11 +609,13 @@ const ChatScreen = () => {
         tokenBufferRef.current = '';
 
         // Add user message to UI immediately
+        const now = Date.now();
         const userMsg: Message = {
-            id: Date.now().toString(),
+            id: now.toString(),
             type: 'text',
             content: text,
             sender: 'user',
+            timestamp: now,
         };
 
         setMessages((prev) => [...prev, userMsg]);
@@ -385,12 +633,14 @@ const ChatScreen = () => {
         setIsLoading(true);
 
         // Create bot message placeholder for streaming
-        const botMessageId = (Date.now() + 1).toString();
+        const botTimestamp = Date.now() + 1;
+        const botMessageId = botTimestamp.toString();
         const botMsg: Message = {
             id: botMessageId,
             type: 'text',
             content: '',
             sender: 'bot',
+            timestamp: botTimestamp,
         };
         setMessages((prev) => [...prev, botMsg]);
         // Initialize displayed text for typewriter effect
@@ -478,10 +728,9 @@ const ChatScreen = () => {
                     );
                     // Reset displayed text for error message to trigger typewriter effect
                     setDisplayedTexts((prev) => ({ ...prev, [botMessageId]: '' }));
-                    Alert.alert(
-                        'Error',
+                    alert.error(
                         error.message || 'Failed to send message. Please check your connection.',
-                        [{ text: 'OK' }]
+                        'Error'
                     );
                 }
             );
@@ -508,10 +757,9 @@ const ChatScreen = () => {
             );
             // Reset displayed text for error message to trigger typewriter effect
             setDisplayedTexts((prev) => ({ ...prev, [botMessageId]: '' }));
-            Alert.alert(
-                'Error',
+            alert.error(
                 error.message || 'Failed to send message. Please check your connection.',
-                [{ text: 'OK' }]
+                'Error'
             );
         }
 
@@ -539,7 +787,7 @@ const ChatScreen = () => {
                 const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
 
                 if (response.status === 401) {
-                    Alert.alert(
+                    alert.alert(
                         'Session Expired',
                         'Please log in again to continue.',
                         [{ text: 'OK', onPress: () => router.replace('/login') }]
@@ -552,11 +800,13 @@ const ChatScreen = () => {
             const data = await response.json();
 
             // Add bot response to UI
+            const botMsgTimestamp = Date.now() + 1;
             const botMsg: Message = {
-                id: (Date.now() + 1).toString(),
+                id: botMsgTimestamp.toString(),
                 type: 'text',
                 content: data.answer || 'Sorry, I couldn\'t generate a response.',
                 sender: 'bot',
+                timestamp: botMsgTimestamp,
             };
             setMessages((prev) => [...prev, botMsg]);
 
@@ -564,17 +814,18 @@ const ChatScreen = () => {
             console.error('Chat error:', error);
 
             //Show error to user
+            const errorMsgTimestamp = Date.now() + 1;
             const errorMsg: Message = {
-                id: (Date.now() + 1).toString(),
+                id: errorMsgTimestamp.toString(),
                 type: 'text',
                 content: error.message || 'Sorry an error occurred. Please try again.',
                 sender: 'bot',
+                timestamp: errorMsgTimestamp,
             }
 
-            Alert.alert(
-                'Error',
+            alert.error(
                 error.message || 'Failed to send message. Please check your connection.',
-                [{ text: 'OK' }]
+                'Error'
             );
         } finally {
             setIsLoading(false);
@@ -585,24 +836,7 @@ const ChatScreen = () => {
     const sendVoice = async (uri: string) => {
         if (isLoading || isTranscribing) return;
 
-        // Add voice message to UI immediately
-        const voiceMsg: Message = {
-            id: Date.now().toString(),
-            type: 'voice',
-            content: uri,
-            sender: 'user',
-        };
-        setMessages((prev) => [...prev, voiceMsg]);
-
-        // Hide greeting on first message
-        if (messages.length === 0) {
-            Animated.timing(fadeAnim, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: true,
-            }).start();
-        }
-
+        // Don't add voice message to chat - just show transcription popup
         setIsTranscribing(true);
         try {
             let transcribedText: string;
@@ -654,7 +888,7 @@ const ChatScreen = () => {
                     const errorData = await transcribeResponse.json().catch(() => ({ detail: 'Transcription failed' }));
 
                     if (transcribeResponse.status === 401) {
-                        Alert.alert(
+                        alert.alert(
                             'Session Expired',
                             'Please log in again to continue.',
                             [{ text: 'OK', onPress: () => router.replace('/login') }]
@@ -675,80 +909,18 @@ const ChatScreen = () => {
                 setIsTranscribing(false);
             }
 
-            setIsLoading(true);
-
-            // Step 2: Use streaming chat for transcribed text
-            const botMessageId = (Date.now() + 1).toString();
-            const botMsg: Message = {
-                id: botMessageId,
-                type: 'text',
-                content: '',
-                sender: 'bot',
-            };
-            setMessages((prev) => [...prev, botMsg]);
-            // Initialize displayed text for typewriter effect
-            setDisplayedTexts((prev) => ({ ...prev, [botMessageId]: '' }));
-
-            await chatApi.chatStream(
-                transcribedText,
-                sessionId,
-                // onToken: called for each token as it arrives
-                (token: string) => {
-                    setMessages((prev) =>
-                        prev.map((msg) =>
-                            msg.id === botMessageId
-                                ? { ...msg, content: msg.content + token }
-                                : msg
-                        )
-                    );
-                },
-                // onDone: called when streaming completes
-                (answer: string) => {
-                    setIsLoading(false);
-                    console.log('Voice chat completed, total length:', answer.length);
-                },
-                // onError: called if there's an error
-                (error: Error) => {
-                    setIsLoading(false);
-                    const errorContent = error.message || 'Sorry, an error occurred. Please try again.';
-                    setMessages((prev) =>
-                        prev.map((msg) =>
-                            msg.id === botMessageId
-                                ? { ...msg, content: errorContent }
-                                : msg
-                        )
-                    );
-                    // Reset displayed text for error message to trigger typewriter effect
-                    setDisplayedTexts((prev) => ({ ...prev, [botMessageId]: '' }));
-                    Alert.alert(
-                        'Error',
-                        error.message || 'Failed to process voice message.',
-                        [{ text: 'OK' }]
-                    );
-                }
-            );
+            // Set the transcribed text in the input field
+            setInput(transcribedText);
 
         } catch (error: any) {
             console.error('Voice chat error:', error);
             setIsTranscribing(false);
             setIsLoading(false);
 
-            // Show error message to user
-            const errorMsgId = (Date.now() + 1).toString();
-            const errorMsg: Message = {
-                id: errorMsgId,
-                type: 'text',
-                content: error.message || 'Sorry, I couldn\'t process your voice message. Please try again.',
-                sender: 'bot',
-            };
-            setMessages((prev) => [...prev, errorMsg]);
-            // Initialize displayed text for typewriter effect
-            setDisplayedTexts((prev) => ({ ...prev, [errorMsgId]: '' }));
-
-            Alert.alert(
-                'Error',
-                error.message || 'Failed to process voice message.',
-                [{ text: 'OK' }]
+            // Show error to user
+            alert.error(
+                error.message || 'Failed to process voice message. Please try again.',
+                'Transcription Error'
             );
         }
     };
@@ -818,7 +990,7 @@ const ChatScreen = () => {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: themeColors.background }}
             edges={[]}>
-                
+
             <View style={styles.container}>
                 {/* SlidingPanel outside KeyboardAvoidingView - won't affect ChatScreen keyboard behavior */}
                 <SlidingPanel />
@@ -886,13 +1058,79 @@ const ChatScreen = () => {
                                 showsVerticalScrollIndicator={false}
                                 style={{ backgroundColor: 'transparent', zIndex: 1 }}
                                 contentContainerStyle={{ paddingTop: messages.length === 0 ? 0 : spacingY._50 }}
+                                onScrollBeginDrag={() => {
+                                    // User started scrolling manually
+                                    isUserScrolling.current = true;
+                                    if (scrollTimeoutRef.current) {
+                                        clearTimeout(scrollTimeoutRef.current);
+                                    }
+                                }}
+                                onScrollEndDrag={() => {
+                                    // Reset scrolling flag after a delay (iOS can trigger scroll events after drag ends)
+                                    if (scrollTimeoutRef.current) {
+                                        clearTimeout(scrollTimeoutRef.current);
+                                    }
+                                    scrollTimeoutRef.current = setTimeout(() => {
+                                        isUserScrolling.current = false;
+                                    }, 1000); // 1 second delay before allowing auto-scroll again
+                                }}
+                                onMomentumScrollEnd={() => {
+                                    // iOS momentum scrolling ended
+                                    if (scrollTimeoutRef.current) {
+                                        clearTimeout(scrollTimeoutRef.current);
+                                    }
+                                    scrollTimeoutRef.current = setTimeout(() => {
+                                        isUserScrolling.current = false;
+                                    }, 1000);
+                                }}
                             >
-                                {messages.map((msg) => (
-                                    <View key={msg.id}>
-                                        {msg.sender === 'bot' ? (
+                                {/* Loading indicator for chat history */}
+                                {isLoadingChatHistory && messages.length === 0 && (
+                                    <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
+                                        <ActivityIndicator size="large" color={colors.primary} />
+                                    </View>
+                                )}
+
+                                {memoizedMessages.map((msg, index) => {
+                                    const isRestored = restoredMessageIds.has(msg.id);
+                                    const opacityRef = messageOpacityRefs.current[msg.id] || new Animated.Value(isRestored ? 0 : 1);
+                                    if (!messageOpacityRefs.current[msg.id] && !isRestored) {
+                                        messageOpacityRefs.current[msg.id] = new Animated.Value(1);
+                                    }
+                                    
+                                    // Get timestamp for current message
+                                    const currentTimestamp = getMessageTimestamp(msg);
+                                    const currentDateKey = getDateKey(currentTimestamp);
+                                    
+                                    // Get timestamp for previous message (if exists)
+                                    const previousTimestamp = index > 0 ? getMessageTimestamp(memoizedMessages[index - 1]) : null;
+                                    const previousDateKey = previousTimestamp ? getDateKey(previousTimestamp) : null;
+                                    
+                                    // Show date separator if this is the first message or date changed
+                                    const showDateSeparator = index === 0 || currentDateKey !== previousDateKey;
+                                    
+                                    return (
+                                        <React.Fragment key={msg.id}>
+                                            {showDateSeparator && (
+                                                <View style={styles.dateSeparator}>
+                                                    <View style={[styles.dateSeparatorLine, { backgroundColor: themeColors.border || colors.neutral200 }]} />
+                                                    <Typo 
+                                                        size={12} 
+                                                        color={themeColors.textSecondary}
+                                                        style={styles.dateSeparatorText}
+                                                    >
+                                                        {formatChatDate(currentTimestamp)}
+                                                    </Typo>
+                                                    <View style={[styles.dateSeparatorLine, { backgroundColor: themeColors.border || colors.neutral200 }]} />
+                                                </View>
+                                            )}
+                                            <Animated.View 
+                                                style={{ opacity: isRestored ? opacityRef : 1 }}
+                                            >
+                                            {msg.sender === 'bot' ? (
                                             // Bot message: no bubble, white text on black background
                                             <View style={styles.botMessageContainer}>
-                                                
+
                                                 {msg.type === 'text' ? (
                                                     msg.content == '' && (isLoading || isTranscribing) ? (
                                                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -909,13 +1147,24 @@ const ChatScreen = () => {
                                                     ) : (
                                                         <>
                                                             <Text style={[styles.botMessageText, { color: themeColors.textPrimary }]}>
-                                                                {displayedTexts[msg.id] !== undefined ? displayedTexts[msg.id] : (msg.content || '')}
-                                                                {msg.content && displayedTexts[msg.id] !== undefined && displayedTexts[msg.id].length < msg.content.length && (
+                                                                {/* For restored messages, show full content. For new messages, use typewriter effect */}
+                                                                {isRestored 
+                                                                    ? (msg.content || '')
+                                                                    : (displayedTexts[msg.id] !== undefined ? displayedTexts[msg.id] : (msg.content || ''))
+                                                                }
+                                                                {/* Only show cursor for new messages that are still typing */}
+                                                                {!isRestored && msg.content && displayedTexts[msg.id] !== undefined && displayedTexts[msg.id].length < msg.content.length && (
                                                                     <BlinkingCursor />
                                                                 )}
                                                             </Text>
-                                                            {msg.content && !isLoading && !isTranscribing && displayedTexts[msg.id] === msg.content && (
-                                                                <BotMessageActions messageId={msg.id} />
+                                                            {msg.content && !isLoading && !isTranscribing && (
+                                                                isRestored ? (
+                                                                    <BotMessageActions messageId={msg.id} />
+                                                                ) : (
+                                                                    displayedTexts[msg.id] === msg.content && (
+                                                                        <BotMessageActions messageId={msg.id} />
+                                                                    )
+                                                                )
                                                             )}
                                                         </>
                                                     )
@@ -981,8 +1230,10 @@ const ChatScreen = () => {
                                                 </LinearGradient>
                                             </View>
                                         )}
-                                    </View>
-                                ))}
+                                    </Animated.View>
+                                    </React.Fragment>
+                                );
+                                })}
 
                                 {/* Loading indicator for bot response 
                                 {(isLoading || isTranscribing) && (
@@ -1001,15 +1252,33 @@ const ChatScreen = () => {
                         </View>
 
                         <View style={styles.inputSectionWrapper}>
-                            <View style={[
-                                styles.inputContainer,
-                                {
-                                    backgroundColor: themeColors.background,
-                                    borderTopColor: themeColors.textPrimary
-                                }
-                            ]}>
+                            {isTranscribing ? (
+                                <View style={[
+                                    styles.transcriptionPopupContainer,
+                                    {
+                                        backgroundColor: themeColors.background,
+                                        borderTopColor: themeColors.textPrimary
+                                    }
+                                ]}>
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={themeColors.accentPrimary || colors.primary}
+                                        style={{ marginRight: spacingX._10 }}
+                                    />
+                                    <Typo size={16} color={themeColors.textPrimary} fontWeight="500">
+                                        Transcribing...
+                                    </Typo>
+                                </View>
+                            ) : (
+                                <View style={[
+                                    styles.inputContainer,
+                                    {
+                                        backgroundColor: themeColors.background,
+                                        borderTopColor: themeColors.textPrimary
+                                    }
+                                ]}>
 
-                                {/*<TouchableOpacity 
+                                    {/*<TouchableOpacity 
                                 style={styles.plusButton} 
                                 activeOpacity={0.8}
                             >
@@ -1019,7 +1288,8 @@ const ChatScreen = () => {
                                     weight="regular"
                                 />
                             </TouchableOpacity>*/}
-                                <TouchableOpacity
+                                    {/* Paperclip hidden - not visible */}
+                                    {/* <TouchableOpacity
                                     style={styles.iconButton}
                                     activeOpacity={0.7}
                                 >
@@ -1028,62 +1298,61 @@ const ChatScreen = () => {
                                         color={themeColors.textPrimary}
                                         weight="regular"
                                     />
-                                </TouchableOpacity>
+                                </TouchableOpacity> */}
 
-                                <View style={styles.inputWrapper}>
-
-
-                                    <TextInput
-                                        placeholder="Ask anything..."
-                                        placeholderTextColor={colors.neutral400}
-                                        value={input}
-                                        onChangeText={setInput}
-                                        multiline
-                                        textAlignVertical={inputHeight > 56 ? 'top' : 'center'}
-                                        style={[
-                                            styles.textInput,
-                                            {
-                                                height: inputHeight > 56 ? undefined : 56,
-                                                maxHeight: 120,
-                                            }
-                                        ]}
-                                        onContentSizeChange={(e) => {
-                                            const contentHeight = e.nativeEvent.contentSize.height;
-                                            const calculatedHeight = contentHeight < 56 ? 56 : Math.min(contentHeight, 120);
-                                            setInputHeight(calculatedHeight);
-                                        }}
-                                    />
-                                    {/* Send button with gradient */}
-                                    {input.trim() ? (
-                                        <View style={styles.sendButtonContainer}>
-                                            <TouchableOpacity
-                                                onPress={sendText}
-                                                activeOpacity={0.7}
-                                                style={styles.sendButtonTouchable}
-                                            >
-                                                <LinearGradient
-                                                    colors={themeColors.accentGradient}
-                                                    start={{ x: 0, y: 0 }}
-                                                    end={{ x: 1, y: 1 }}
-                                                    style={styles.sendButtonGradient}
+                                    <View style={styles.inputWrapper}>
+                                        <TextInput
+                                            placeholder="Ask anything..."
+                                            placeholderTextColor={colors.neutral400}
+                                            value={input}
+                                            onChangeText={setInput}
+                                            multiline
+                                            textAlignVertical={inputHeight > 56 ? 'top' : 'center'}
+                                            style={[
+                                                styles.textInput,
+                                                {
+                                                    height: inputHeight > 56 ? undefined : 56,
+                                                    maxHeight: 120,
+                                                }
+                                            ]}
+                                            onContentSizeChange={(e) => {
+                                                const contentHeight = e.nativeEvent.contentSize.height;
+                                                const calculatedHeight = contentHeight < 56 ? 56 : Math.min(contentHeight, 120);
+                                                setInputHeight(calculatedHeight);
+                                            }}
+                                        />
+                                        {/* Send button with gradient */}
+                                        {input.trim() ? (
+                                            <View style={styles.sendButtonContainer}>
+                                                <TouchableOpacity
+                                                    onPress={sendText}
+                                                    activeOpacity={0.7}
+                                                    style={styles.sendButtonTouchable}
                                                 >
-                                                    <Icons.PaperPlaneRightIcon
-                                                        size={22}
-                                                        color={colors.white}
-                                                        weight="fill"
-                                                    />
-                                                </LinearGradient>
-                                            </TouchableOpacity>
-                                        </View>
-                                    ) : (
-                                        <View style={styles.micButtonWrapper}>
-                                            <MicButton onRecordingDone={sendVoice} recordingAnimation={recordingAnimation} />
-                                        </View>
-                                    )}
+                                                    <LinearGradient
+                                                        colors={themeColors.accentGradient}
+                                                        start={{ x: 0, y: 0 }}
+                                                        end={{ x: 1, y: 1 }}
+                                                        style={styles.sendButtonGradient}
+                                                    >
+                                                        <Icons.PaperPlaneRightIcon
+                                                            size={22}
+                                                            color={colors.white}
+                                                            weight="fill"
+                                                        />
+                                                    </LinearGradient>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : (
+                                            <View style={styles.micButtonWrapper}>
+                                                <MicButton onRecordingDone={sendVoice} recordingAnimation={recordingAnimation} />
+                                            </View>
+                                        )}
+                                    </View>
+
+
                                 </View>
-
-
-                            </View>
+                            )}
 
                             <View
                                 style={[
@@ -1109,7 +1378,15 @@ const ChatScreen = () => {
     );
 };
 
-export default ChatScreen;
+const ChatScreenComponent = ChatScreen;
+
+export default function ProtectedChatScreen() {
+    return (
+        <AuthGuard>
+            <ChatScreenComponent />
+        </AuthGuard>
+    );
+}
 
 const styles = StyleSheet.create({
     container: {
@@ -1155,6 +1432,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         minHeight: 56,
         maxHeight: 144, // Max height for multiline (120px content + 24px padding)
+    },
+    transcriptionPopupContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: verticalScale(8),
+        paddingBottom: 0,
+        paddingHorizontal: spacingX._15,
+        borderTopWidth: 1,
+        zIndex: 20,
+        minHeight: 76,
     },
     textInput: {
         flex: 1,
@@ -1268,6 +1556,21 @@ const styles = StyleSheet.create({
         maxWidth: '80%',
         marginVertical: 4,
         elevation: 3,
+    },
+    dateSeparator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginVertical: spacingY._16,
+        paddingHorizontal: spacingX._20,
+    },
+    dateSeparatorLine: {
+        flex: 1,
+        height: 1,
+    },
+    dateSeparatorText: {
+        paddingHorizontal: spacingX._12,
+        opacity: 0.7,
     },
     loadingGreeting: {
         padding: spacingY._20,

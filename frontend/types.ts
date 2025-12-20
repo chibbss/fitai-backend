@@ -37,6 +37,8 @@ export interface InputProps extends TextInputProps {
   containerStyle?: ViewStyle | ViewStyle[];
   inputStyle?: TextStyle;
   inputRef?: React.RefObject<TextInput>;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
   //   label?: string;
   //   error?: string;
 }
@@ -82,6 +84,8 @@ export interface ButtonProps extends TouchableOpacityProps {
   loading?: boolean;
   loadingColor?: string;
   children: React.ReactNode;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 export type BackButtonProps = {

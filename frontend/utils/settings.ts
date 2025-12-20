@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors } from "@/constants/theme";
+import { logger } from './logger';
 
 const ACCENT_COLOR_KEY = '@fitai_accent_color';
 const DEFAULT_ACCENT_COLOR = colors.primary; // Match login/signup button color
@@ -27,7 +28,7 @@ export const getAccentColor = async (): Promise<string> => {
         const color = await AsyncStorage.getItem(ACCENT_COLOR_KEY);
         return color || DEFAULT_ACCENT_COLOR;
     } catch (error) {
-        console.error('Error getting accent color:', error);
+        logger.error('Error getting accent color:', error);
         return DEFAULT_ACCENT_COLOR;
     }
 };
@@ -36,7 +37,7 @@ export const setAccentColor = async (color: string): Promise<void> => {
     try {
         await AsyncStorage.setItem(ACCENT_COLOR_KEY, color);
     } catch (error) {
-        console.error('Error setting accent color:', error);
+        logger.error('Error setting accent color:', error);
     }
 };
 

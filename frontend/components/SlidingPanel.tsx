@@ -1,4 +1,4 @@
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native'
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View, ScrollView, KeyboardAvoidingView, Platform, Keyboard } from 'react-native'
 import React, { useMemo, useState, useEffect } from 'react'
 // @ts-ignore
 import Hamburger from 'react-native-animated-hamburger';
@@ -10,7 +10,7 @@ import Typo from './Typo';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Input from './Input';
 import { verticalScale } from '@/utils/styling';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { supabase } from "@/utils/supabase";
 import { getAccentColor, getGradientColors } from '@/utils/settings';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,7 +29,7 @@ interface MenuItem {
 }
 
 const MAIN_MENU_ITEMS: MenuItem[] = [
-    { id: 'home', label: 'Home', icon: 'House' },
+    { id: 'home', label: 'Chat', icon: 'Chat' },
     { id: 'calendar', label: 'Calendar', icon: 'Calendar' },
     { id: 'workout-log', label: 'Workout Log', icon: 'Barbell' },
     { id: 'insights', label: 'Insights', icon: 'ChartLineUp' },
@@ -56,6 +56,7 @@ const SlidingPanel = () => {
     const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
     const router = useRouter();
+    const pathname = usePathname(); // Add this line
     const [gradientColors, setGradientColors] = useState<[string, string]>(['#fafaf9', '#e7e5e4']);
 
     const [showBugReport, setShowBugReport] = useState(false);
@@ -85,7 +86,7 @@ const SlidingPanel = () => {
                     setUserEmail(user.email || 'user@example.com');
                 }
             } catch (error) {
-                console.error('Error fetching user data:', error);
+                // Error fetching user data is non-critical, silently fail
             }
         };
 
@@ -95,6 +96,11 @@ const SlidingPanel = () => {
     const togglePanel = () => {
         const newState = !isOpen;
         setIsOpen(newState);
+
+        // Dismiss keyboard when opening the menu
+        if (newState) {
+            Keyboard.dismiss();
+        }
 
         translateX.value = withTiming(newState ? 0 : -width * 0.8, { duration: 300 });
         overlayOpacity.value = withTiming(newState ? 0.5 : 0, { duration: 300 });
@@ -121,24 +127,30 @@ const SlidingPanel = () => {
 
         switch (itemId) {
             case 'home':
-                router.push('/chatscreen' as any); // Use '/chatscreen' or cast to any
+                // If already on chatscreen, just close panel (no navigation needed)
+                if (pathname === '/chatscreen') {
+                    return;
+                }
+                // Otherwise, replace current screen with chatscreen to go back to existing conversation
+                router.replace('/chatscreen' as any);
                 break;
             case 'calendar':
-                router.push('/calendar' as any); // Use '/calendar' or cast to any
+                router.push('/calendar' as any);
                 break;
             case 'workout-log':
-                router.push('/workout-log' as any); // Use '/workout-log' or cast to any
+                router.push('/workout-log' as any);
                 break;
             case 'insights':
                 router.push('/insights' as any);
                 break;
             default:
-                console.log('Menu item pressed:', itemId);
+                // Handle other menu items
+                break;
         }
     };
 
     const handleHistoryPress = (itemId: string) => {
-        console.log('History item pressed:', itemId);
+        // Handle history item press
         // Navigation will be added later
         closePanel();
     };
@@ -187,8 +199,8 @@ const SlidingPanel = () => {
                     <SafeAreaView edges={['top']} style={styles.safeArea}>
                         {/*<View style={styles.headerSpacer} />*/}
 
-                        {/* Search Bar */}
-                        <View style={styles.searchBarContainer}>
+                        {/* Search Bar - Commented out until history feature is needed */}
+                        {/* <View style={styles.searchBarContainer}>
                             <Input
                                 placeholder='Search History...'
                                 value={searchQuery}
@@ -203,7 +215,7 @@ const SlidingPanel = () => {
                                     />
                                 }
                             />
-                        </View>
+                        </View> */}
 
                         {/* Main Menu Items */}
                         <View style={styles.contentContainer}>
@@ -237,23 +249,23 @@ const SlidingPanel = () => {
                             </View>
 
 
-                            {/* Divider */}
-                            <View style={styles.divider} />
+                            {/* Divider - Commented out since history section is hidden */}
+                            {/* <View style={styles.divider} /> */}
 
-                            {/* History Header */}
-                            <View style={styles.historyHeader}>
+                            {/* History Header - Commented out until history feature is needed */}
+                            {/* <View style={styles.historyHeader}>
                                 <Typo
                                     size={13}
                                     color={colors.neutral400}
                                     fontWeight="600"
                                     style={styles.historyHeaderText}
                                 >
-                                    History {searchQuery.trim() && `(${filteredHistoryItems.length})`}
+                                    History {searchQuery.trim() ? `(${filteredHistoryItems.length})` : ''}
                                 </Typo>
-                            </View>
+                            </View> */}
 
-                            {/* Scrollable History Section */}
-                            <ScrollView
+                            {/* Scrollable History Section - Commented out until history feature is needed */}
+                            {/* <ScrollView
                                 style={styles.historyScrollView}
                                 showsVerticalScrollIndicator={false}
                                 contentContainerStyle={styles.historyContent}
@@ -261,40 +273,6 @@ const SlidingPanel = () => {
                                 keyboardDismissMode='on-drag'
                                 nestedScrollEnabled={true}
                             >
-                                {/*{HISTORY_ITEMS.map((item) => (
-                                <TouchableOpacity
-                                    key={item.id}
-                                    style={styles.historyItem}
-                                    onPress={() => handleHistoryPress(item.id)}
-                                    activeOpacity={0.7}
-                                >
-                                    <View style={styles.historyIcon}>
-                                        <Icons.ChatCircle size={18} color={colors.neutral400} weight="regular" />
-                                    </View>
-
-                                    <View style={styles.historyTextContainer}>
-                                        <Typo
-                                            size={15}
-                                            color={colors.white}
-                                            fontWeight='400'
-                                            textProps={{
-                                                numberOfLines: 1,
-                                                ellipsizeMode: 'tail'
-                                            }}
-                                        >
-                                            {item.title}
-                                        </Typo>
-
-                                        <Typo
-                                            size={12}
-                                            color={colors.neutral400}
-                                            fontWeight="400"
-                                        >
-                                            {item.date}
-                                        </Typo>
-                                    </View>
-                                </TouchableOpacity>
-                            ))}*/}
                                 {filteredHistoryItems.length > 0 ? (
                                     filteredHistoryItems.map((item) => (
                                         <TouchableOpacity
@@ -342,8 +320,7 @@ const SlidingPanel = () => {
                                         </Typo>
                                     </View>
                                 )}
-
-                            </ScrollView>
+                            </ScrollView> */}
                         </View>
 
 
@@ -364,7 +341,6 @@ const SlidingPanel = () => {
                             activeOpacity={0.7}
                             onPress={() => {
                                 setShowBugReport(true);
-                                console.log('Bug report button pressed');
                             }}
                         >
                             <View style={styles.bugReportIconContainer}>
@@ -510,12 +486,12 @@ const styles = StyleSheet.create({
     contentContainer: {
         flex: 1,
         minHeight: 0,
-        paddingBottom: 100,
+        paddingBottom: 0, // Removed padding since history section is gone
     },
     mainMenuSection: {
         paddingHorizontal: spacingX._20,
-        paddingTop: spacingY._5, // Reduced from spacingY._10
-        gap: spacingY._5,
+        paddingTop: spacingY._60, // Increased to account for hamburger button and safe area
+        gap: spacingY._10, // Increased gap for better spacing between items
     },
     menuItem: {
         flexDirection: 'row',

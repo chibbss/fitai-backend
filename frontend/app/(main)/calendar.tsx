@@ -26,6 +26,12 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { verticalScale } from '@/utils/styling';
 import PulseLogo from '@/components/PulseLogo';
 import EmptyCalendarState from '@/components/EmptyCalendarState';
+import { alert } from '@/utils/alert';
+import { AuthGuard } from '@/components/AuthGuard';
+import { perf } from '@/utils/performance';
+import { logger } from '@/utils/logger';
+import { useAuth } from '@/context/AuthContext';
+import { cacheUserData, getCachedUserData } from '@/utils/dataCache';
 
 const { width } = Dimensions.get('window');
 
@@ -91,6 +97,7 @@ interface WorkoutStats {
 const CalendarScreen = () => {
     const router = useRouter();
     const { colors: themeColors } = useTheme();
+    const { user } = useAuth();
     const [workouts, setWorkouts] = useState<CalendarItem[]>([]);
     const [stats, setStats] = useState<WorkoutStats | null>(null);
     const [isLoading, setIsLoading] = useState(true); // Initial load only
@@ -108,6 +115,33 @@ const CalendarScreen = () => {
         return monday.toISOString().split('T')[0];
     });
 
+    // Load cached data on mount
+    useEffect(() => {
+        const loadCachedData = async () => {
+            if (!user?.id) return;
+
+            try {
+                const monthKey = `${selectedMonth.getFullYear()}-${selectedMonth.getMonth()}`;
+                const cachedWorkouts = await getCachedUserData<CalendarItem[]>(user.id, `calendar_${monthKey}`);
+                const cachedStats = await getCachedUserData<WorkoutStats>(user.id, 'calendar_stats');
+
+                if (cachedWorkouts && cachedWorkouts.length > 0) {
+                    setWorkouts(cachedWorkouts);
+                    logger.log(`[Calendar] Loaded ${cachedWorkouts.length} cached workouts for ${monthKey}`);
+                }
+
+                if (cachedStats) {
+                    setStats(cachedStats);
+                    logger.log('[Calendar] Loaded cached stats');
+                }
+            } catch (error) {
+                logger.error('[Calendar] Error loading cached data:', error);
+            }
+        };
+
+        loadCachedData();
+    }, [user?.id, selectedMonth]);
+
     useEffect(() => {
         if (isLoading) {
             // First load - use full loading screen
@@ -120,6 +154,7 @@ const CalendarScreen = () => {
 
     const fetchData = async () => {
         setIsLoading(true);
+        const endPerf = perf.start('fetchData');
         try {
             // 1. Fetch calendar data for current month with enhanced fields
             const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
@@ -129,25 +164,49 @@ const CalendarScreen = () => {
                 startDate.toISOString(),
                 endDate.toISOString()
             );
-            setWorkouts(calendarData.items || []);
+            const workoutItems = calendarData.items || [];
+            setWorkouts(workoutItems);
 
-            // 2. Fetch stats (if endpoint available)
-            if (calendarData.items && calendarData.items.length > 0) {
-                const mostRecentSessionId = calendarData.items[0].session_id;
-                const statsData = await workoutApi.getStats(mostRecentSessionId);
-                if (statsData && statsData.stats) {
-                    setStats(statsData);
-                }
+            // Cache calendar data (permanent - never expires)
+            if (user?.id) {
+                const monthKey = `${selectedMonth.getFullYear()}-${selectedMonth.getMonth()}`;
+                await cacheUserData(user.id, `calendar_${monthKey}`, workoutItems, Number.MAX_SAFE_INTEGER); // Permanent cache
+                logger.log(`[Calendar] Cached ${workoutItems.length} workouts for ${monthKey}`);
             }
+
+            // 2. Start stats fetch immediately (parallel) - don't wait for calendar processing
+            const statsPromise = workoutItems.length > 0
+                ? workoutApi.getStats(workoutItems[0].session_id)
+                    .then(async (statsData) => {
+                        if (statsData && statsData.stats) {
+                            setStats(statsData);
+                            // Cache stats (permanent - never expires)
+                            if (user?.id) {
+                                await cacheUserData(user.id, 'calendar_stats', statsData, Number.MAX_SAFE_INTEGER); // Permanent cache
+                                logger.log('[Calendar] Cached stats');
+                            }
+                        }
+                    })
+                    .catch((statsError: any) => {
+                        // Stats endpoint might not be available or might fail - that's okay, just log it
+                        logger.warn('Failed to load stats:', statsError);
+                    })
+                : Promise.resolve(null);
+
+            // Wait for stats to complete (already started in parallel)
+            await statsPromise;
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to load data');
+            const errorMsg = error?.message;
+            alert.error(errorMsg && typeof errorMsg === 'string' ? errorMsg : 'Failed to load data', 'Error');
         } finally {
             setIsLoading(false);
+            endPerf();
         }
     };
 
     const fetchCalendarData = async () => {
         setIsCalendarLoading(true);
+        const endPerf = perf.start('fetchCalendarData');
         try {
             // 1. Fetch calendar data for current month
             const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
@@ -157,20 +216,43 @@ const CalendarScreen = () => {
                 startDate.toISOString(),
                 endDate.toISOString()
             );
-            setWorkouts(calendarData.items || []);
+            const workoutItems = calendarData.items || [];
+            setWorkouts(workoutItems);
 
-            // 2. Fetch stats (if endpoint available)
-            if (calendarData.items && calendarData.items.length > 0) {
-                const mostRecentSessionId = calendarData.items[0].session_id;
-                const statsData = await workoutApi.getStats(mostRecentSessionId);
-                if (statsData && statsData.stats) {
-                    setStats(statsData);
-                }
+            // Cache calendar data (permanent - never expires)
+            if (user?.id) {
+                const monthKey = `${selectedMonth.getFullYear()}-${selectedMonth.getMonth()}`;
+                await cacheUserData(user.id, `calendar_${monthKey}`, workoutItems, Number.MAX_SAFE_INTEGER); // Permanent cache
+                logger.log(`[Calendar] Cached ${workoutItems.length} workouts for ${monthKey}`);
             }
+
+            // 2. Start stats fetch immediately (parallel) - don't wait for calendar processing
+            const statsPromise = workoutItems.length > 0
+                ? workoutApi.getStats(workoutItems[0].session_id)
+                    .then(async (statsData) => {
+                        if (statsData && statsData.stats) {
+                            setStats(statsData);
+                            // Cache stats (permanent - never expires)
+                            if (user?.id) {
+                                await cacheUserData(user.id, 'calendar_stats', statsData, Number.MAX_SAFE_INTEGER); // Permanent cache
+                                logger.log('[Calendar] Cached stats');
+                            }
+                        }
+                    })
+                    .catch((statsError: any) => {
+                        // Stats endpoint might not be available or might fail - that's okay, just log it
+                        logger.warn('Failed to load stats:', statsError);
+                    })
+                : Promise.resolve(null);
+
+            // Wait for stats to complete (already started in parallel)
+            await statsPromise;
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to load calendar data');
+            const errorMsg = error?.message;
+            alert.error(errorMsg && typeof errorMsg === 'string' ? errorMsg : 'Failed to load calendar data', 'Error');
         } finally {
             setIsCalendarLoading(false);
+            endPerf();
         }
     };
 
@@ -189,25 +271,43 @@ const CalendarScreen = () => {
 
     const handleDayPress = (date: Date) => {
         const dateKey = date.toISOString().split('T')[0];
-        const workout = workoutsByDate[dateKey];
+        const todayKey = new Date().toISOString().split('T')[0];
+        const hasWorkout = !!workoutsByDate[dateKey];
 
-        if (workout) {
-            // Navigate to insights for this workout
+        // Only navigate for today or days that have at least one workout
+        if (!hasWorkout && dateKey !== todayKey) {
+            return;
+        }
+
+        if (dateKey === todayKey) {
+            // Today: navigate without params to show all today's workouts
+            router.push({ pathname: '/insights' as any });
+        } else {
+            // Past day: navigate with date parameter to show all workouts from that day
             router.push({
                 pathname: '/insights' as any,
-                params: { sessionId: workout.session_id },
+                params: { date: dateKey },
             });
-        } else {
-            setSelectedDate(date);
         }
     };
 
     const handleWeeklyDayPress = (sessionId: string | null, date: string) => {
-        if (sessionId) {
-            // Navigate to insights or workout details
+        // Only navigate if there's a workout logged for this day
+        if (!sessionId) {
+            return;
+        }
+
+        const dateKey = date.split('T')[0];
+        const todayKey = new Date().toISOString().split('T')[0];
+
+        if (dateKey === todayKey) {
+            // Today: navigate without params to show all today's workouts
+            router.push({ pathname: '/insights' as any });
+        } else {
+            // Past day: navigate with date parameter to show all workouts from that day
             router.push({
                 pathname: '/insights' as any,
-                params: { sessionId },
+                params: { date: dateKey },
             });
         }
     };
@@ -252,36 +352,34 @@ const CalendarScreen = () => {
     // Show empty state if no workouts
     if (workouts.length === 0) {
         return (
-            <SafeAreaView style={styles.container} edges={['top']}>
+            <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
                 <ScreenWrapper showPattern={false}>
-                    <View style={styles.whiteBackground}>
-                        {/* --- Header --- */}
-                        <View style={styles.header}>
-                            <TouchableOpacity
-                                onPress={() => router.back()}
-                                style={styles.backButton}
-                            >
-                                <Icons.CaretLeft size={26} color={colors.primary} weight="bold" />
-                            </TouchableOpacity>
+                    {/* --- Header --- */}
+                    <View style={styles.header}>
+                        <TouchableOpacity
+                            onPress={() => router.back()}
+                            style={styles.backButton}
+                        >
+                            <Icons.CaretLeft size={26} color={themeColors.textPrimary} weight="bold" />
+                        </TouchableOpacity>
 
-                            <Typo size={24} fontWeight="700" color={colors.black}>
-                                Calendar And Stats
-                            </Typo>
+                        <Typo size={24} fontWeight="700" color={themeColors.textPrimary}>
+                            Calendar And Stats
+                        </Typo>
 
-                            <TouchableOpacity
-                                onPress={() => router.push('/workout-log' as any)}
-                                style={styles.addButton}
-                            >
-                                <Icons.Plus size={26} color={colors.primary} weight="bold" />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Empty State */}
-                        <EmptyCalendarState 
-                            onLogWorkout={() => router.push('/workout-log' as any)}
-                            onChatWithAI={() => router.push('/chatscreen' as any)}
-                        />
+                        <TouchableOpacity
+                            onPress={() => router.push('/workout-log' as any)}
+                            style={styles.addButton}
+                        >
+                            <Icons.Plus size={26} color={themeColors.textPrimary} weight="bold" />
+                        </TouchableOpacity>
                     </View>
+
+                    {/* Empty State */}
+                    <EmptyCalendarState 
+                        onLogWorkout={() => router.push('/workout-log' as any)}
+                        onChatWithAI={() => router.push('/chatscreen' as any)}
+                    />
                 </ScreenWrapper>
             </SafeAreaView>
         );
@@ -352,12 +450,14 @@ const CalendarScreen = () => {
                                 <StatsSection
                                     title="Consistency"
                                     icon="Calendar"
+                                    collapsible={true}
+                                    defaultExpanded={true}
                                     stats={[
                                         { label: 'Sessions this week', value: stats.stats.consistency.sessions_this_week.toString() },
                                         { label: 'Sessions this month', value: stats.stats.consistency.sessions_this_month.toString() },
                                         {
                                             label: 'Current streak',
-                                            value: `${stats.stats.consistency.current_streak} days 🔥`,
+                                            value: `${stats.stats.consistency.current_streak} days`,
                                             highlight: stats.stats.consistency.current_streak >= 7
                                         },
                                         { label: 'Weekly frequency', value: `${stats.stats.consistency.weekly_frequency}x` },
@@ -368,16 +468,19 @@ const CalendarScreen = () => {
                                 <StatsSection
                                     title="Volume"
                                     icon="TrendUp"
+                                    collapsible={true}
+                                    defaultExpanded={true}
+                                    keyMetric={{
+                                        value: `${(stats.stats.volume.total_volume_week / 1000).toFixed(1)} kg`,
+                                        label: 'This Week',
+                                        subtitle: (stats.stats.volume.volume_trend && stats.stats.volume.volume_trend !== 'N/A') ? stats.stats.volume.volume_trend : 'No trend data',
+                                        icon: stats.stats.volume.volume_trend?.includes('+') ? 'TrendUp' : undefined,
+                                    }}
                                     stats={[
-                                        { label: 'Total volume this week', value: `${(stats.stats.volume.total_volume_week / 1000).toFixed(1)} kg` },
+                                        { label: 'This month', value: `${(stats.stats.volume.total_volume_month / 1000).toFixed(1)} kg` },
+                                        { label: 'Avg session', value: `${(stats.stats.volume.avg_session_volume / 1000).toFixed(1)} kg` },
                                         {
-                                            label: 'Volume trend',
-                                            value: stats.stats.volume.volume_trend,
-                                            highlight: stats.stats.volume.volume_trend?.startsWith('+') ?? false
-                                        },
-                                        { label: 'Avg session', value: `${(stats.stats.volume.avg_session_volume / 1000).toFixed(1)}kg` },
-                                        {
-                                            label: 'By group',
+                                            label: 'By Muscle Group',
                                             value: `Push: ${(stats.stats.volume.volume_by_group.push / 1000).toFixed(1)}kg | Pull: ${(stats.stats.volume.volume_by_group.pull / 1000).toFixed(1)}kg | Legs: ${(stats.stats.volume.volume_by_group.legs / 1000).toFixed(1)}kg`
                                         },
                                     ]}
@@ -385,14 +488,17 @@ const CalendarScreen = () => {
 
                                 {/* --- Exercises Frequency Stats --- */}
                                 <StatsSection
-                                    title="Exercises Frequency"
+                                    title="Exercises"
                                     icon="Barbell"
+                                    collapsible={true}
+                                    defaultExpanded={true}
                                     stats={[
+                                        { label: 'Top 5 This Month:', value: '', highlight: true },
                                         ...stats.stats.exercises.top_5.map((ex, idx) => ({
                                             label: `${idx + 1}. ${ex.name}`,
                                             value: `${ex.frequency}x`,
                                         })),
-                                        { label: 'Variety', value: `${stats.stats.exercises.variety} unique exercises` },
+                                        { label: 'Variety', value: `${stats.stats.exercises.variety} exercises` },
                                         { label: 'Most trained', value: stats.stats.exercises.most_trained_group },
                                         { label: 'Least trained', value: stats.stats.exercises.least_trained_group },
                                     ]}
@@ -402,11 +508,22 @@ const CalendarScreen = () => {
                                 <StatsSection
                                     title="Recovery"
                                     icon="Heart"
+                                    collapsible={true}
+                                    defaultExpanded={true}
+                                    keyMetric={{
+                                        value: stats.stats.recovery.avg_recovery_days 
+                                            ? `${stats.stats.recovery.avg_recovery_days} days`
+                                            : 'N/A',
+                                        label: 'Avg Recovery',
+                                        subtitle: stats.stats.recovery.avg_recovery_days 
+                                            ? (stats.stats.recovery.avg_recovery_days <= 2 ? 'Optimal for growth' : 'Consider more rest')
+                                            : 'Insufficient data',
+                                        icon: stats.stats.recovery.avg_recovery_days && stats.stats.recovery.avg_recovery_days <= 2 ? 'Check' : undefined,
+                                    }}
                                     stats={[
-                                        { label: 'Avg recovery', value: `${stats.stats.recovery.avg_recovery_days} days` },
-                                        { label: 'Recovery trend', value: stats.stats.recovery.recovery_trend },
-                                        { label: 'Days since last', value: `${stats.stats.recovery.days_since_last} day${stats.stats.recovery.days_since_last !== 1 ? 's' : ''}` },
-                                        { label: 'Rest days/week', value: stats.stats.recovery.rest_days_per_week.toString() },
+                                        { label: 'Days since last workout', value: `${stats.stats.recovery.days_since_last} day${stats.stats.recovery.days_since_last !== 1 ? 's' : ''}` },
+                                        { label: 'Rest days per week', value: stats.stats.recovery.rest_days_per_week.toString() },
+                                        { label: 'Recovery trend', value: (stats.stats.recovery.recovery_trend && stats.stats.recovery.recovery_trend !== 'N/A') ? stats.stats.recovery.recovery_trend : 'Stable' },
                                     ]}
                                 />
 
@@ -414,10 +531,18 @@ const CalendarScreen = () => {
                                 <StatsSection
                                     title="Progress"
                                     icon="Trophy"
+                                    collapsible={true}
+                                    defaultExpanded={true}
+                                    keyMetric={{
+                                        value: stats.stats.progress.prs_this_week.toString(),
+                                        label: 'PRs This Week',
+                                        subtitle: `${stats.stats.progress.prs_this_month} PRs this month`,
+                                        icon: 'Trophy',
+                                    }}
                                     stats={[
                                         {
                                             label: 'PRs this week',
-                                            value: `${stats.stats.progress.prs_this_week} 🏆`,
+                                            value: stats.stats.progress.prs_this_week.toString(),
                                             highlight: stats.stats.progress.prs_this_week > 0
                                         },
                                         { label: 'PRs this month', value: stats.stats.progress.prs_this_month.toString() },
@@ -570,4 +695,12 @@ const styles = StyleSheet.create({
     },
 });
 
-export default CalendarScreen
+const CalendarScreenComponent = CalendarScreen;
+
+export default function ProtectedCalendarScreen() {
+    return (
+        <AuthGuard>
+            <CalendarScreenComponent />
+        </AuthGuard>
+    );
+}
