@@ -74,11 +74,11 @@ const EmptyCalendarState: React.FC<EmptyCalendarStateProps> = ({
                             end={{ x: 1, y: 0.5 }}
                             style={styles.buttonGradient}
                         >
-                            <Icons.Barbell size={20} color={themeColors.textPrimary} weight="bold" />
+                            <Icons.Barbell size={20} color={themeColors.background} weight="bold" />
                             <Typo
                                 size={18}
                                 fontWeight="700"
-                                color={themeColors.textPrimary}
+                                color={themeColors.background}
                                 style={styles.buttonText}
                             >
                                 Log Your First Workout

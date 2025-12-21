@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { colors, radius, spacingX, spacingY } from '@/constants/theme';
@@ -35,7 +35,15 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
     isLoading = false, // Add this
 }) => {
     const [selectedDate, setSelectedDate] = useState<string>('');
+    const [displayMonth, setDisplayMonth] = useState<Date>(selectedMonth); // Track displayed month
     const { colors: themeColors } = useTheme();
+    
+    // Update displayMonth only when not loading to prevent premature month name change
+    useEffect(() => {
+        if (!isLoading) {
+            setDisplayMonth(selectedMonth);
+        }
+    }, [selectedMonth, isLoading]);
 
     // Format selectedMonth for react-native-calendars
     const currentDate = useMemo(() => {
@@ -256,12 +264,19 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
             {/* Manual Header */}
             <View style={styles.customHeaderWrapper}>
                 <View style={styles.monthYearContainer}>
-                    <Typo size={18} fontWeight="700" color={themeColors.textPrimary}>
-                        {selectedMonth.toLocaleDateString('en-US', { month: 'long' })}
-                    </Typo>
-                    <Typo size={18} fontWeight="400" color={themeColors.textPrimary}>
-                        {' '}{selectedMonth.toLocaleDateString('en-US', { year: 'numeric' })}
-                    </Typo>
+                    {/* Show displayMonth (previous month) during loading to prevent premature update */}
+                    {isLoading ? (
+                        <View style={{ width: 150, height: 20, backgroundColor: themeColors.cardBackground, borderRadius: 4 }} />
+                    ) : (
+                        <>
+                            <Typo size={18} fontWeight="700" color={themeColors.textPrimary}>
+                                {displayMonth.toLocaleDateString('en-US', { month: 'long' })}
+                            </Typo>
+                            <Typo size={18} fontWeight="400" color={themeColors.textPrimary}>
+                                {' '}{displayMonth.toLocaleDateString('en-US', { year: 'numeric' })}
+                            </Typo>
+                        </>
+                    )}
                 </View>
                 <View style={styles.headerButtons}>
                     <TouchableOpacity
@@ -272,7 +287,7 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                         }}
                         style={[styles.navButton, { backgroundColor: themeColors.accentPrimary }]}
                     >
-                        <Icons.CaretLeft size={20} weight='bold' color={themeColors.textPrimary} />
+                        <Icons.CaretLeft size={20} weight='bold' color={themeColors.background} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => {
@@ -282,7 +297,7 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                         }}
                         style={[styles.navButton, { backgroundColor: themeColors.accentPrimary }]}
                     >
-                        <Icons.CaretRight size={20} weight='bold' color={themeColors.textPrimary} />
+                        <Icons.CaretRight size={20} weight='bold' color={themeColors.background} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -384,7 +399,7 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                             calendarBackground: 'transparent', 
                             textSectionTitleColor: colors.primary || '#FF6B35',
                             selectedDayBackgroundColor: themeColors.accentPrimary || '#FF6B35',
-                            selectedDayTextColor: colors.white,
+                            selectedDayTextColor: themeColors.background,
                             todayTextColor: colors.primary || '#FF6B35',
                             dayTextColor: colors.black,
                             textDisabledColor: colors.neutral300,

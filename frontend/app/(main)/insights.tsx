@@ -169,8 +169,8 @@ const InsightsScreen = () => {
                         setExpandedCards(new Set([cachedWorkouts[0].session_id]));
                     }
                     logger.log(`[Insights] Loaded cached insights for ${dateStr}`);
-                    setIsLoading(false);
-                    // Still fetch in background to refresh cache
+                    setIsLoading(false); // Show cached data immediately
+                    // DON'T return early - continue to fetch from backend below
                 }
             }
 

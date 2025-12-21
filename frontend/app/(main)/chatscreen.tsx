@@ -4,7 +4,7 @@ import {
     Animated,
     KeyboardAvoidingView,
     Platform,
-    ScrollView,
+    FlatList,
     StyleSheet,
     Text,
     TextInput,
@@ -53,6 +53,10 @@ interface Message {
     sender: 'user' | 'bot';
     timestamp?: number; // Optional timestamp in milliseconds
 }
+
+type ChatListItem =
+    | { type: 'message'; message: Message; index: number }
+    | { type: 'dateSeparator'; date: string; timestamp: number };
 
 const AnimatedDots = () => {
     const dot1 = useRef(new Animated.Value(0)).current;
@@ -149,33 +153,33 @@ const formatChatDate = (timestamp: number): string => {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     // Reset time to midnight for date comparison
     const messageDateOnly = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
     const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-    
+
     // Check if same day as today
     if (messageDateOnly.getTime() === todayOnly.getTime()) {
         return 'Today';
     }
-    
+
     // Check if same day as yesterday
     if (messageDateOnly.getTime() === yesterdayOnly.getTime()) {
         return 'Yesterday';
     }
-    
+
     // Check if within last 7 days - show day name
     const daysDiff = Math.floor((todayOnly.getTime() - messageDateOnly.getTime()) / (1000 * 60 * 60 * 24));
     if (daysDiff < 7) {
         return messageDate.toLocaleDateString('en-US', { weekday: 'long' }); // Monday, Tuesday, etc.
     }
-    
+
     // Older than 7 days - show full date
-    return messageDate.toLocaleDateString('en-US', { 
-        day: 'numeric', 
-        month: 'long', 
-        year: 'numeric' 
+    return messageDate.toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
     }); // 24 November 2025
 };
 
@@ -252,6 +256,9 @@ const ChatScreen = () => {
     const [personalizedGreeting, setPersonalizedGreeting] = useState<GreetingData | null>(null);
     const [isLoadingGreeting, setIsLoadingGreeting] = useState(true);
 
+    // Input state - declared early because it's used in useEffect dependency array
+    const [input, setInput] = useState('');
+
     // Add effect to show completion message on mount if provided (only if no cached history)
     useEffect(() => {
         const loadCompletionMessage = async () => {
@@ -260,7 +267,7 @@ const ChatScreen = () => {
                 logger.log('[ChatScreen] initialMessage:', params.initialMessage);
                 logger.log('[ChatScreen] Current messages length:', messages.length);
             }
-            
+
             // Don't load completion message if we already have cached chat history
             if (messages.length > 0) {
                 if (__DEV__) {
@@ -268,7 +275,7 @@ const ChatScreen = () => {
                 }
                 return;
             }
-            
+
             // First check params
             const initialMessage = params.initialMessage as string | undefined;
             const prefillQuery = params.prefillQuery as string | undefined;
@@ -293,7 +300,7 @@ const ChatScreen = () => {
                 await AsyncStorage.removeItem('onboarding_completion_message');
                 return;
             }
-            
+
             // Fallback: Check AsyncStorage if params didn't work
             if (messages.length === 0 && !initialMessage) {
                 try {
@@ -324,7 +331,7 @@ const ChatScreen = () => {
                 setInput(prefillQuery);
             }
         };
-        
+
         loadCompletionMessage();
     }, [params.initialMessage, params.prefillQuery, messages.length, input]);
 
@@ -350,16 +357,16 @@ const ChatScreen = () => {
         loadGreeting();
     }, []); // Only run once on mount
 
-    const [input, setInput] = useState('');
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isTranscribing, setIsTranscribing] = useState(false);
 
     const fadeAnim = useRef(new Animated.Value(0)).current; // 0 = mic visible, 1 = send visible
-    const scrollViewRef = useRef<ScrollView | null>(null);
+    const flatListRef = useRef<FlatList<ChatListItem>>(null);
     const isUserScrolling = useRef(false);
-    const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const scrollTimeoutRef = useRef<number | null>(null);
+    const previousMessagesLengthRef = useRef<number>(0);
 
     //generate a unique sessionID for this conversation
     const generateSessionId = () => {
@@ -373,27 +380,34 @@ const ChatScreen = () => {
                 setIsLoadingChatHistory(false);
                 return;
             }
-            
+
             setIsLoadingChatHistory(true);
             try {
+                // Step 1: Load from cache first (fast UX)
                 const cachedMessages = await getCachedUserData<Message[]>(user.id, 'chatMessages');
+                logger.log('[ChatScreen] Cache check - user.id:', user.id);
+                logger.log('[ChatScreen] Cached messages found:', cachedMessages ? cachedMessages.length : 0);
+
                 if (cachedMessages && Array.isArray(cachedMessages) && cachedMessages.length > 0) {
-                    console.log('[ChatScreen] Loaded chat history from cache:', cachedMessages.length, 'messages');
-                    
+                    logger.log('[ChatScreen] Loaded chat history from cache:', cachedMessages.length, 'messages');
+
                     // Mark all cached messages as restored
                     const restoredIds = new Set<string>(cachedMessages.map(msg => msg.id));
                     setRestoredMessageIds(restoredIds);
-                    
+
                     // Initialize opacity animations for fade-in
                     cachedMessages.forEach(msg => {
                         if (!messageOpacityRefs.current[msg.id]) {
                             messageOpacityRefs.current[msg.id] = new Animated.Value(0);
                         }
                     });
-                    
+
                     // Set messages - they will fade in
                     setMessages(cachedMessages);
-                    
+
+                    // Initialize previousMessagesLengthRef to prevent auto-scroll on initial load
+                    previousMessagesLengthRef.current = cachedMessages.length;
+
                     // Initialize displayed texts - for restored messages, show full content immediately (no typewriter)
                     const texts: Record<string, string> = {};
                     cachedMessages.forEach(msg => {
@@ -401,7 +415,7 @@ const ChatScreen = () => {
                         texts[msg.id] = msg.content || '';
                     });
                     setDisplayedTexts(texts);
-                    
+
                     // Animate fade-in for all restored messages
                     cachedMessages.forEach((msg, index) => {
                         const opacityRef = messageOpacityRefs.current[msg.id];
@@ -415,8 +429,60 @@ const ChatScreen = () => {
                         }
                     });
                 }
+
+                // Step 2: ALWAYS fetch from backend (ensures completeness)
+                try {
+                    logger.log('[ChatScreen] Fetching chat history from backend...');
+                    const backendMessages = await chatApi.getChatHistory(500); // Get all messages
+                    logger.log('[ChatScreen] Backend returned:', backendMessages.length, 'messages');
+
+                    // Step 3: Merge (backend is source of truth)
+                    // Deduplicate by message ID, prefer backend messages
+                    const messageMap = new Map<string, Message>();
+                    cachedMessages?.forEach(msg => messageMap.set(msg.id, msg));
+                    backendMessages.forEach(msg => messageMap.set(msg.id, msg)); // Backend overwrites cache
+
+                    const mergedMessages = Array.from(messageMap.values())
+                        .sort((a, b) => {
+                            const aTime = (a as any).timestamp || 0;
+                            const bTime = (b as any).timestamp || 0;
+                            return aTime - bTime;
+                        });
+
+                    // Step 4: Cache merged data (permanent)
+                    await cacheUserData(user.id, 'chatMessages', mergedMessages, Number.MAX_SAFE_INTEGER);
+                    logger.log('[ChatScreen] Cached', mergedMessages.length, 'messages');
+
+                    // Step 5: Update UI if we got new messages
+                    if (mergedMessages.length !== cachedMessages?.length ||
+                        !cachedMessages ||
+                        mergedMessages.length > 0) {
+                        setMessages(mergedMessages);
+
+                        // Re-initialize animations for new messages
+                        mergedMessages.forEach(msg => {
+                            if (!messageOpacityRefs.current[msg.id]) {
+                                messageOpacityRefs.current[msg.id] = new Animated.Value(1); // Already visible
+                            }
+                        });
+
+                        // Update displayed texts
+                        const texts: Record<string, string> = {};
+                        mergedMessages.forEach(msg => {
+                            texts[msg.id] = msg.content || '';
+                        });
+                        setDisplayedTexts(texts);
+                    }
+                } catch (backendError) {
+                    // If backend fails, keep using cache (offline support)
+                    logger.warn('[ChatScreen] Failed to fetch chat history from backend:', backendError);
+                    if (!cachedMessages || cachedMessages.length === 0) {
+                        // No cache and backend failed - show empty state
+                        logger.log('[ChatScreen] No cache and backend failed - showing empty state');
+                    }
+                }
             } catch (error) {
-                console.error('[ChatScreen] Error loading chat history from cache:', error);
+                logger.error('[ChatScreen] Error loading chat history:', error);
             } finally {
                 setIsLoadingChatHistory(false);
             }
@@ -429,7 +495,7 @@ const ChatScreen = () => {
     useEffect(() => {
         const saveChatHistory = async () => {
             if (!user?.id || messages.length === 0) return;
-            
+
             try {
                 // Only save if we have at least one user message (to avoid saving just greeting/completion messages)
                 const hasUserMessage = messages.some(msg => msg.sender === 'user');
@@ -446,18 +512,42 @@ const ChatScreen = () => {
         return () => clearTimeout(timeoutId);
     }, [messages, user?.id]);
 
-    // ✅ Scroll to bottom when new messages are added (only if user is not manually scrolling)
+    // ✅ Scroll to bottom only when a NEW message is added (not during typewriter effect)
     useEffect(() => {
-        if (scrollViewRef.current && !isUserScrolling.current) {
-            scrollViewRef.current.scrollToEnd({ animated: true });
+        const currentLength = messages.length;
+        const previousLength = previousMessagesLengthRef.current;
+
+        // Only auto-scroll if a new message was added (length increased)
+        if (currentLength > previousLength && flatListRef.current && !isUserScrolling.current) {
+            // Reset user scrolling flag when new message arrives (user likely wants to see it)
+            isUserScrolling.current = false;
+
+            // Small delay to ensure FlatList has rendered the new item
+            const scrollTimeout = setTimeout(() => {
+                try {
+                    // flatListData is derived from messages, so we can check messages.length instead
+                    if (flatListRef.current && messages.length > 0) {
+                        flatListRef.current.scrollToEnd({ animated: true });
+                    }
+                } catch (error) {
+                    // Silently handle scroll errors (component might be unmounting)
+                    logger.warn('[ChatScreen] Error scrolling to end:', error);
+                }
+            }, 100); // Increased delay for Android
+
+            return () => clearTimeout(scrollTimeout);
         }
-    }, [messages]);
+
+        // Update previous length
+        previousMessagesLengthRef.current = currentLength;
+    }, [messages.length]); // Removed flatListData.length since it's derived from messages
 
     // Cleanup timeout on unmount
     useEffect(() => {
         return () => {
             if (scrollTimeoutRef.current) {
                 clearTimeout(scrollTimeoutRef.current);
+                scrollTimeoutRef.current = null;
             }
         };
     }, []);
@@ -499,10 +589,7 @@ const ChatScreen = () => {
                         }));
                         charIndex = newCharIndex;
 
-                        // Auto scroll as text types (only if user is not manually scrolling)
-                        if (scrollViewRef.current && !isUserScrolling.current) {
-                            scrollViewRef.current.scrollToEnd({ animated: true });
-                        }
+                        // Don't auto-scroll during typewriter effect - only on new messages
                     } else {
                         clearInterval(typeInterval);
                         delete typewriterTimersRef.current[messageId];
@@ -557,7 +644,7 @@ const ChatScreen = () => {
     // Typewriter effect state for each message
     const [displayedTexts, setDisplayedTexts] = useState<Record<string, string>>({});
     const typewriterTimersRef = useRef<Record<string, number>>({});
-    
+
     // Track restored messages (from cache) vs new messages
     const [restoredMessageIds, setRestoredMessageIds] = useState<Set<string>>(new Set());
     const [isLoadingChatHistory, setIsLoadingChatHistory] = useState(false);
@@ -579,6 +666,180 @@ const ChatScreen = () => {
             return msg;
         });
     }, [messages, memoizedDisplayedTexts]);
+
+    // Create FlatList data structure with messages and date separators
+    const flatListData = useMemo(() => {
+        const items: ChatListItem[] = [];
+
+        // Safety check: ensure memoizedMessages is defined
+        if (!memoizedMessages || !Array.isArray(memoizedMessages)) {
+            return items;
+        }
+
+        memoizedMessages.forEach((msg, index) => {
+            const currentTimestamp = getMessageTimestamp(msg);
+            const currentDateKey = getDateKey(currentTimestamp);
+
+            // Get previous message date
+            const previousTimestamp = index > 0 ? getMessageTimestamp(memoizedMessages[index - 1]) : null;
+            const previousDateKey = previousTimestamp ? getDateKey(previousTimestamp) : null;
+
+            // Add date separator if date changed
+            if (index === 0 || currentDateKey !== previousDateKey) {
+                items.push({
+                    type: 'dateSeparator',
+                    date: formatChatDate(currentTimestamp),
+                    timestamp: currentTimestamp,
+                });
+            }
+
+            // Add message
+            items.push({
+                type: 'message',
+                message: msg,
+                index,
+            });
+        });
+
+        return items;
+    }, [memoizedMessages]);
+
+    // Render function for FlatList items
+    const renderItem = useCallback(({ item }: { item: ChatListItem }) => {
+        if (item.type === 'dateSeparator') {
+            return (
+                <View style={styles.dateSeparator}>
+                    <View style={[styles.dateSeparatorLine, { backgroundColor: themeColors.border || colors.neutral200 }]} />
+                    <Typo
+                        size={12}
+                        color={themeColors.textSecondary}
+                        style={styles.dateSeparatorText}
+                    >
+                        {item.date}
+                    </Typo>
+                    <View style={[styles.dateSeparatorLine, { backgroundColor: themeColors.border || colors.neutral200 }]} />
+                </View>
+            );
+        }
+
+        // Render message
+        const msg = item.message;
+        const isRestored = restoredMessageIds.has(msg.id);
+        const opacityRef = messageOpacityRefs.current[msg.id] || new Animated.Value(isRestored ? 0 : 1);
+        if (!messageOpacityRefs.current[msg.id] && !isRestored) {
+            messageOpacityRefs.current[msg.id] = new Animated.Value(1);
+        }
+
+        return (
+            <Animated.View
+                style={{ opacity: isRestored ? opacityRef : 1 }}
+            >
+                {msg.sender === 'bot' ? (
+                    // Bot message: no bubble, white text on black background
+                    <View style={styles.botMessageContainer}>
+                        {msg.type === 'text' ? (
+                            msg.content == '' && (isLoading || isTranscribing) ? (
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <TypingIndicator
+                                        showWordmark={false}
+                                        caption="Thinking"
+                                    />
+                                </View>
+                            ) : (
+                                <>
+                                    <Text style={[styles.botMessageText, { color: themeColors.textPrimary }]}>
+                                        {isRestored
+                                            ? (msg.content || '')
+                                            : (displayedTexts[msg.id] !== undefined ? displayedTexts[msg.id] : (msg.content || ''))
+                                        }
+                                        {!isRestored && msg.content && displayedTexts[msg.id] !== undefined && displayedTexts[msg.id].length < msg.content.length && (
+                                            <BlinkingCursor />
+                                        )}
+                                    </Text>
+                                    {msg.content && !isLoading && !isTranscribing && (
+                                        isRestored ? (
+                                            <BotMessageActions messageId={msg.id} />
+                                        ) : (
+                                            displayedTexts[msg.id] === msg.content && (
+                                                <BotMessageActions messageId={msg.id} />
+                                            )
+                                        )
+                                    )}
+                                </>
+                            )
+                        ) : (
+                            <TouchableOpacity
+                                style={styles.voiceBubble}
+                                onPress={() => playVoice(msg.content)}
+                            >
+                                <Icons.Play
+                                    size={22}
+                                    color={colors.primary}
+                                    weight="bold"
+                                />
+                                <Text
+                                    style={[
+                                        styles.bubbleText,
+                                        { marginLeft: 6, color: colors.primary },
+                                    ]}
+                                >
+                                    Voice message
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                ) : (
+                    // User message: with accent gradient
+                    <View style={styles.userBubbleContainer}>
+                        <LinearGradient
+                            colors={themeColors.accentGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={[styles.bubble, styles.userBubble]}
+                        >
+                            {msg.type === 'text' ? (
+                                <Text
+                                    style={[
+                                        styles.bubbleText,
+                                        { color: colors.white },
+                                    ]}
+                                >
+                                    {msg.content}
+                                </Text>
+                            ) : (
+                                <TouchableOpacity
+                                    style={styles.voiceBubble}
+                                    onPress={() => playVoice(msg.content)}
+                                >
+                                    <Icons.Play
+                                        size={22}
+                                        color={colors.white}
+                                        weight="bold"
+                                    />
+                                    <Text
+                                        style={[
+                                            styles.bubbleText,
+                                            { marginLeft: 6, color: colors.white },
+                                        ]}
+                                    >
+                                        Voice message
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </LinearGradient>
+                    </View>
+                )}
+            </Animated.View>
+        );
+    }, [memoizedMessages, displayedTexts, isLoading, isTranscribing, themeColors, restoredMessageIds]);
+
+    // Key extractor for FlatList
+    const keyExtractor = useCallback((item: ChatListItem, index: number) => {
+        if (item.type === 'dateSeparator') {
+            return `date-${item.timestamp}`;
+        }
+        return item.message.id;
+    }, []);
 
     // Helper function to get auth token (memoized with useCallback)
     const getAuthToken = useCallback(async (): Promise<string | null> => {
@@ -1053,16 +1314,30 @@ const ChatScreen = () => {
                 >
                     <ScreenWrapperChat showPattern={false} style={{ paddingTop: 40, paddingBottom: 0 }}>
                         <View style={styles.content}>
-                            <ScrollView
-                                ref={scrollViewRef}
+                            {/* Loading indicator for chat history */}
+                            {isLoadingChatHistory && messages.length === 0 && (
+                                <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
+                                    <ActivityIndicator size="large" color={colors.primary} />
+                                </View>
+                            )}
+
+                            <FlatList
+                                ref={flatListRef}
+                                data={flatListData}
+                                renderItem={renderItem}
+                                keyExtractor={keyExtractor}
                                 showsVerticalScrollIndicator={false}
                                 style={{ backgroundColor: 'transparent', zIndex: 1 }}
-                                contentContainerStyle={{ paddingTop: messages.length === 0 ? 0 : spacingY._50 }}
+                                contentContainerStyle={{
+                                    paddingTop: messages.length === 0 ? 0 : spacingY._50,
+                                    paddingBottom: spacingY._20,
+                                }}
                                 onScrollBeginDrag={() => {
                                     // User started scrolling manually
                                     isUserScrolling.current = true;
                                     if (scrollTimeoutRef.current) {
                                         clearTimeout(scrollTimeoutRef.current);
+                                        scrollTimeoutRef.current = null;
                                     }
                                 }}
                                 onScrollEndDrag={() => {
@@ -1072,7 +1347,8 @@ const ChatScreen = () => {
                                     }
                                     scrollTimeoutRef.current = setTimeout(() => {
                                         isUserScrolling.current = false;
-                                    }, 1000); // 1 second delay before allowing auto-scroll again
+                                        scrollTimeoutRef.current = null;
+                                    }, 1000);
                                 }}
                                 onMomentumScrollEnd={() => {
                                     // iOS momentum scrolling ended
@@ -1081,215 +1357,34 @@ const ChatScreen = () => {
                                     }
                                     scrollTimeoutRef.current = setTimeout(() => {
                                         isUserScrolling.current = false;
+                                        scrollTimeoutRef.current = null;
                                     }, 1000);
                                 }}
-                            >
-                                {/* Loading indicator for chat history */}
-                                {isLoadingChatHistory && messages.length === 0 && (
-                                    <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
-                                        <ActivityIndicator size="large" color={colors.primary} />
-                                    </View>
-                                )}
-
-                                {memoizedMessages.map((msg, index) => {
-                                    const isRestored = restoredMessageIds.has(msg.id);
-                                    const opacityRef = messageOpacityRefs.current[msg.id] || new Animated.Value(isRestored ? 0 : 1);
-                                    if (!messageOpacityRefs.current[msg.id] && !isRestored) {
-                                        messageOpacityRefs.current[msg.id] = new Animated.Value(1);
-                                    }
-                                    
-                                    // Get timestamp for current message
-                                    const currentTimestamp = getMessageTimestamp(msg);
-                                    const currentDateKey = getDateKey(currentTimestamp);
-                                    
-                                    // Get timestamp for previous message (if exists)
-                                    const previousTimestamp = index > 0 ? getMessageTimestamp(memoizedMessages[index - 1]) : null;
-                                    const previousDateKey = previousTimestamp ? getDateKey(previousTimestamp) : null;
-                                    
-                                    // Show date separator if this is the first message or date changed
-                                    const showDateSeparator = index === 0 || currentDateKey !== previousDateKey;
-                                    
-                                    return (
-                                        <React.Fragment key={msg.id}>
-                                            {showDateSeparator && (
-                                                <View style={styles.dateSeparator}>
-                                                    <View style={[styles.dateSeparatorLine, { backgroundColor: themeColors.border || colors.neutral200 }]} />
-                                                    <Typo 
-                                                        size={12} 
-                                                        color={themeColors.textSecondary}
-                                                        style={styles.dateSeparatorText}
-                                                    >
-                                                        {formatChatDate(currentTimestamp)}
-                                                    </Typo>
-                                                    <View style={[styles.dateSeparatorLine, { backgroundColor: themeColors.border || colors.neutral200 }]} />
-                                                </View>
-                                            )}
-                                            <Animated.View 
-                                                style={{ opacity: isRestored ? opacityRef : 1 }}
-                                            >
-                                            {msg.sender === 'bot' ? (
-                                            // Bot message: no bubble, white text on black background
-                                            <View style={styles.botMessageContainer}>
-
-                                                {msg.type === 'text' ? (
-                                                    msg.content == '' && (isLoading || isTranscribing) ? (
-                                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                            {/*<Text
-                                                                style={[styles.botMessageText, { color: themeColors.textPrimary }]}
-                                                            >
-                                                                {isTranscribing ? 'Transcribing' : 'Thinking'}
-                                                            </Text>*/}
-                                                            <TypingIndicator
-                                                                showWordmark={false}
-                                                                caption="Thinking"
-                                                            />
-                                                        </View>
-                                                    ) : (
-                                                        <>
-                                                            <Text style={[styles.botMessageText, { color: themeColors.textPrimary }]}>
-                                                                {/* For restored messages, show full content. For new messages, use typewriter effect */}
-                                                                {isRestored 
-                                                                    ? (msg.content || '')
-                                                                    : (displayedTexts[msg.id] !== undefined ? displayedTexts[msg.id] : (msg.content || ''))
-                                                                }
-                                                                {/* Only show cursor for new messages that are still typing */}
-                                                                {!isRestored && msg.content && displayedTexts[msg.id] !== undefined && displayedTexts[msg.id].length < msg.content.length && (
-                                                                    <BlinkingCursor />
-                                                                )}
-                                                            </Text>
-                                                            {msg.content && !isLoading && !isTranscribing && (
-                                                                isRestored ? (
-                                                                    <BotMessageActions messageId={msg.id} />
-                                                                ) : (
-                                                                    displayedTexts[msg.id] === msg.content && (
-                                                                        <BotMessageActions messageId={msg.id} />
-                                                                    )
-                                                                )
-                                                            )}
-                                                        </>
-                                                    )
-                                                ) : (
-                                                    <TouchableOpacity
-                                                        style={styles.voiceBubble}
-                                                        onPress={() => playVoice(msg.content)}
-                                                    >
-                                                        <Icons.Play
-                                                            size={22}
-                                                            color={colors.primary}
-                                                            weight="bold"
-                                                        />
-                                                        <Text
-                                                            style={[
-                                                                styles.bubbleText,
-                                                                { marginLeft: 6, color: colors.primary },
-                                                            ]}
-                                                        >
-                                                            Voice message
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                            </View>
-                                        ) : (
-                                            // User message: with accent gradient
-                                            <View style={styles.userBubbleContainer}>
-                                                <LinearGradient
-                                                    colors={themeColors.accentGradient}
-                                                    start={{ x: 0, y: 0 }}
-                                                    end={{ x: 1, y: 1 }}
-                                                    style={[styles.bubble, styles.userBubble]}
-                                                >
-                                                    {msg.type === 'text' ? (
-                                                        <Text
-                                                            style={[
-                                                                styles.bubbleText,
-                                                                { color: colors.white },
-                                                            ]}
-                                                        >
-                                                            {msg.content}
-                                                        </Text>
-                                                    ) : (
-                                                        <TouchableOpacity
-                                                            style={styles.voiceBubble}
-                                                            onPress={() => playVoice(msg.content)}
-                                                        >
-                                                            <Icons.Play
-                                                                size={22}
-                                                                color={colors.white}
-                                                                weight="bold"
-                                                            />
-                                                            <Text
-                                                                style={[
-                                                                    styles.bubbleText,
-                                                                    { marginLeft: 6, color: colors.white },
-                                                                ]}
-                                                            >
-                                                                Voice message
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    )}
-                                                </LinearGradient>
-                                            </View>
-                                        )}
-                                    </Animated.View>
-                                    </React.Fragment>
-                                );
-                                })}
-
-                                {/* Loading indicator for bot response 
-                                {(isLoading || isTranscribing) && (
-                                    <View style={[styles.bubble, styles.botBubble]}>
-                                        <ActivityIndicator
-                                            size="small"
-                                            color={colors.white}
-                                            style={{ marginRight: 8 }}
-                                        />
-                                        <Text style={[styles.bubbleText, { color: colors.white }]}>
-                                            {isTranscribing ? 'Transcribing...' : 'Thinking...'}
-                                        </Text>
-                                    </View>
-                                )}*/}
-                            </ScrollView>
+                                maintainVisibleContentPosition={{
+                                    minIndexForVisible: 0,
+                                }}
+                                ListEmptyComponent={
+                                    isLoadingChatHistory ? (
+                                        <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
+                                            <ActivityIndicator size="large" color={colors.primary} />
+                                        </View>
+                                    ) : null
+                                }
+                            />
                         </View>
 
                         <View style={styles.inputSectionWrapper}>
-                            {isTranscribing ? (
-                                <View style={[
-                                    styles.transcriptionPopupContainer,
-                                    {
-                                        backgroundColor: themeColors.background,
-                                        borderTopColor: themeColors.textPrimary
-                                    }
-                                ]}>
-                                    <ActivityIndicator
-                                        size="small"
-                                        color={themeColors.accentPrimary || colors.primary}
-                                        style={{ marginRight: spacingX._10 }}
-                                    />
-                                    <Typo size={16} color={themeColors.textPrimary} fontWeight="500">
-                                        Transcribing...
-                                    </Typo>
-                                </View>
-                            ) : (
-                                <View style={[
-                                    styles.inputContainer,
-                                    {
-                                        backgroundColor: themeColors.background,
-                                        borderTopColor: themeColors.textPrimary
-                                    }
-                                ]}>
+                            <View style={[
+                                styles.inputContainer,
+                                {
+                                    backgroundColor: themeColors.background,
+                                    borderTopColor: themeColors.textPrimary
+                                }
+                            ]}>
 
-                                    {/*<TouchableOpacity 
-                                style={styles.plusButton} 
-                                activeOpacity={0.8}
-                            >
-                                <Icons.PlusCircleIcon
-                                    size={32}
-                                    color={themeColors.textPrimary}
-                                    weight="regular"
-                                />
-                            </TouchableOpacity>*/}
-                                    {/* Paperclip hidden - not visible */}
-                                    {/* <TouchableOpacity
+
+                                {/* Paperclip hidden - not visible */}
+                                {/* <TouchableOpacity
                                     style={styles.iconButton}
                                     activeOpacity={0.7}
                                 >
@@ -1300,7 +1395,20 @@ const ChatScreen = () => {
                                     />
                                 </TouchableOpacity> */}
 
-                                    <View style={styles.inputWrapper}>
+                                <View style={styles.inputWrapper}>
+                                    {/* Transcription popup overlay */}
+                                    {isTranscribing ? (
+                                        <View style={[styles.transcriptionPopup, { backgroundColor: themeColors.cardBackground || colors.white }]}>
+                                            <ActivityIndicator
+                                                size="small"
+                                                color={themeColors.accentPrimary || colors.primary}
+                                                style={{ marginRight: spacingX._10 }}
+                                            />
+                                            <Typo size={16} color={themeColors.textPrimary} fontWeight="500">
+                                                Transcribing...
+                                            </Typo>
+                                        </View>
+                                    ) : (
                                         <TextInput
                                             placeholder="Ask anything..."
                                             placeholderTextColor={colors.neutral400}
@@ -1313,6 +1421,10 @@ const ChatScreen = () => {
                                                 {
                                                     height: inputHeight > 56 ? undefined : 56,
                                                     maxHeight: 120,
+                                                    ...(Platform.OS === 'ios' && inputHeight <= 56 && {
+                                                        paddingTop: 18,
+                                                        paddingBottom: 18,
+                                                    }),
                                                 }
                                             ]}
                                             onContentSizeChange={(e) => {
@@ -1321,38 +1433,38 @@ const ChatScreen = () => {
                                                 setInputHeight(calculatedHeight);
                                             }}
                                         />
-                                        {/* Send button with gradient */}
-                                        {input.trim() ? (
-                                            <View style={styles.sendButtonContainer}>
-                                                <TouchableOpacity
-                                                    onPress={sendText}
-                                                    activeOpacity={0.7}
-                                                    style={styles.sendButtonTouchable}
+                                    )}
+                                    {/* Send button with gradient */}
+                                    {input.trim() ? (
+                                        <View style={styles.sendButtonContainer}>
+                                            <TouchableOpacity
+                                                onPress={sendText}
+                                                activeOpacity={0.7}
+                                                style={styles.sendButtonTouchable}
+                                            >
+                                                <LinearGradient
+                                                    colors={themeColors.accentGradient}
+                                                    start={{ x: 0, y: 0 }}
+                                                    end={{ x: 1, y: 1 }}
+                                                    style={styles.sendButtonGradient}
                                                 >
-                                                    <LinearGradient
-                                                        colors={themeColors.accentGradient}
-                                                        start={{ x: 0, y: 0 }}
-                                                        end={{ x: 1, y: 1 }}
-                                                        style={styles.sendButtonGradient}
-                                                    >
-                                                        <Icons.PaperPlaneRightIcon
-                                                            size={22}
-                                                            color={colors.white}
-                                                            weight="fill"
-                                                        />
-                                                    </LinearGradient>
-                                                </TouchableOpacity>
-                                            </View>
-                                        ) : (
-                                            <View style={styles.micButtonWrapper}>
-                                                <MicButton onRecordingDone={sendVoice} recordingAnimation={recordingAnimation} />
-                                            </View>
-                                        )}
-                                    </View>
-
-
+                                                    <Icons.PaperPlaneRightIcon
+                                                        size={22}
+                                                        color={colors.white}
+                                                        weight="fill"
+                                                    />
+                                                </LinearGradient>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ) : (
+                                        <View style={styles.micButtonWrapper}>
+                                            <MicButton onRecordingDone={sendVoice} recordingAnimation={recordingAnimation} />
+                                        </View>
+                                    )}
                                 </View>
-                            )}
+
+
+                            </View>
 
                             <View
                                 style={[
@@ -1430,19 +1542,20 @@ const styles = StyleSheet.create({
         paddingVertical: 0,
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'flex-start',
         minHeight: 56,
         maxHeight: 144, // Max height for multiline (120px content + 24px padding)
     },
-    transcriptionPopupContainer: {
+    transcriptionPopup: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingTop: verticalScale(8),
-        paddingBottom: 0,
-        paddingHorizontal: spacingX._15,
-        borderTopWidth: 1,
-        zIndex: 20,
-        minHeight: 76,
+        height: '100%',
+        width: '100%',
+        borderRadius: radius.full,
+        paddingHorizontal: spacingX._20,
+        minHeight: 56,
     },
     textInput: {
         flex: 1,
@@ -1455,6 +1568,9 @@ const styles = StyleSheet.create({
         paddingRight: spacingX._10,
         includeFontPadding: false,
         textAlignVertical: 'center',
+        ...(Platform.OS === 'ios' && {
+            lineHeight: 20,
+        }),
     },
     sendButtonWrapper: {
         marginLeft: spacingX._5,
@@ -1561,7 +1677,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginVertical: spacingY._16,
+        marginVertical: spacingY._15,
         paddingHorizontal: spacingX._20,
     },
     dateSeparatorLine: {

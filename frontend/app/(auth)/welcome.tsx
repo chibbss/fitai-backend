@@ -190,7 +190,7 @@ const Welcome = () => {
                                     onPress={handleNavigateToRegister}
 
                                 >
-                                    <Typo size={23} color={themeColors.background} fontWeight="bold">Get Started</Typo>
+                                    <Typo size={23} color={themeColors.textPrimary} fontWeight="bold">Get Started</Typo>
                                 </Button>
                             </LinearGradient>
                         </Animated.View>
@@ -314,9 +314,9 @@ const styles = StyleSheet.create({
         width: '100%',
         
         borderRadius: radius.full,
-        borderStyle: 'solid',
-        borderColor: 'white',
-        borderWidth: 1.5,
+        //borderStyle: 'solid',
+        //borderColor: 'white',
+        //borderWidth: 1.5,
         justifyContent: 'center',
         alignItems: 'center',
     },

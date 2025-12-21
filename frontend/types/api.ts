@@ -23,13 +23,16 @@ export interface UserProfile {
 
 export interface WorkoutData {
     session_name?: string;
+    session_type?: string;  // Add this
+    duration_minutes?: number;  // Add this
     exercises: Array<{
-        name: string;
-        sets: Array<{
-            reps?: number;
-            weight?: number;
-            duration?: number;
-        }>;
+        exercise_name: string;  // Changed from "name"
+        exercise_category?: string;  // Add this
+        sets?: number;  // Changed from array to integer
+        reps?: number[];  // Flat array
+        weights?: string[];  // Flat array
+        duration_seconds?: number;
+        notes?: string;
     }>;
     notes?: string;
 }

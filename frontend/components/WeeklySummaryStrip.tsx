@@ -6,6 +6,7 @@ import Typo from './Typo';
 import * as Icons from 'phosphor-react-native';
 const { width } = Dimensions.get('window');
 import { useTheme } from '@/context/ThemeContext';
+import { invalidateCache } from '@/utils/dataCache';
 
 interface DayData {
     date: string;
@@ -31,12 +32,14 @@ interface WeeklySummaryStripProps {
     weekStartDate: string; // ISO date for Monday
     onDayPress: (sessionId: string | null, date: string) => void;
     onWeekChange: (newWeekStart: string) => void;
+    refreshKey?: number; // Add this - increment to trigger refresh
 }
 
 const WeeklySummaryStrip: React.FC<WeeklySummaryStripProps> = ({
     weekStartDate,
     onDayPress,
     onWeekChange,
+    refreshKey, // Add this
 }) => {
     const { colors: themeColors } = useTheme();
     const [weekData, setWeekData] = useState<WeeklySummaryData | null>(null);
@@ -45,7 +48,7 @@ const WeeklySummaryStrip: React.FC<WeeklySummaryStripProps> = ({
 
     useEffect(() => {
         fetchWeekData(weekStartDate);
-    }, [weekStartDate]);
+    }, [weekStartDate, refreshKey]); // Add refreshKey to dependencies
 
     const fetchWeekData = async (startDate: string) => {
         setLoading(true);
@@ -322,7 +325,7 @@ const styles = StyleSheet.create({
     },
     skeletonDayCard: {
         width: 100,
-        minHeight: 145,
+        minHeight: 105,
         backgroundColor: colors.neutral200,
         borderRadius: radius._12,
 

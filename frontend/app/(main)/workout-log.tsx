@@ -25,6 +25,7 @@ import { alert } from '@/utils/alert';
 import { AuthGuard } from '@/components/AuthGuard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
+import { invalidateCache } from '@/utils/dataCache';
 
 interface Exercise {
     exercise_name: string;
@@ -69,15 +70,7 @@ const WorkoutLogScreen = () => {
                 setIsLoadingWorkout(true);
                 try {
                     const workout = await workoutApi.getWorkoutDetails(sessionId);
-                    setWorkoutData({
-                        session_name: workout.session_name || undefined,
-                        session_type: workout.session_type || undefined,
-                        occurred_at: workout.occurred_at || undefined,
-                        duration_minutes: workout.duration_minutes || undefined,
-                        notes: workout.notes || undefined,
-                        exercises: workout.exercises || [],
-                        metadata: workout.metadata || {},
-                    });
+                    setWorkoutData(transformFromApiFormat(workout));
                 } catch (error: any) {
                     alert.error(error.message || 'Failed to load workout', 'Error');
                     router.back();
@@ -99,7 +92,6 @@ const WorkoutLogScreen = () => {
                 if (storedDraft) {
                     const parsed: WorkoutData = JSON.parse(storedDraft);
                     setWorkoutData({
-                        exercises: [],
                         ...parsed,
                         exercises: parsed.exercises || [],
                     });
@@ -160,6 +152,46 @@ const WorkoutLogScreen = () => {
         }));
     };
 
+    // Transform local WorkoutData format to API format
+    const transformToApiFormat = (data: WorkoutData): any => {
+        return {
+            session_name: data.session_name,
+            session_type: data.session_type,  // Add this
+            notes: data.notes,
+            duration_minutes: data.duration_minutes,  // Add this if you have it
+            exercises: data.exercises.map(ex => ({
+                exercise_name: ex.exercise_name,  // Changed from "name"
+                exercise_category: ex.exercise_category,  // Add this
+                sets: ex.sets || (ex.reps?.length || 0),  // Integer, not array
+                reps: ex.reps || [],  // Flat array of integers
+                weights: ex.weights || [],  // Flat array of strings
+                duration_seconds: ex.duration_seconds,
+                notes: ex.notes,
+            })),
+        };
+    };
+
+    // Transform API format to local WorkoutData format
+    const transformFromApiFormat = (data: any): WorkoutData => {
+        return {
+            session_name: data.session_name,
+            session_type: data.session_type,
+            occurred_at: data.occurred_at,
+            duration_minutes: data.duration_minutes,
+            notes: data.notes,
+            exercises: (data.exercises || []).map((ex: any) => ({
+                exercise_name: ex.name || ex.exercise_name || '',
+                exercise_category: ex.exercise_category,
+                sets: ex.sets?.length || 0,
+                reps: ex.sets?.map((s: any) => s.reps).filter((r: any) => r !== undefined) || [],
+                weights: ex.sets?.map((s: any) => s.weight?.toString()).filter((w: any) => w !== undefined) || [],
+                duration_seconds: ex.sets?.[0]?.duration,
+                notes: ex.notes,
+            })),
+            metadata: data.metadata || {},
+        };
+    };
+
     const handleSubmit = async () => {
         // Validate
         if (workoutData.exercises.length === 0) {
@@ -177,23 +209,31 @@ const WorkoutLogScreen = () => {
 
         setIsLoading(true);
         try {
+            const apiData = transformToApiFormat(workoutData);
             if (isEditMode && sessionId) {
                 // Update existing workout
-                await workoutApi.updateWorkout(sessionId, {
-                    ...workoutData,
-                    occurred_at: workoutData.occurred_at || new Date().toISOString(),
-                });
-                alert.success('Workout updated successfully', 'Success', [
-                    { text: 'OK', onPress: () => router.back() },
-                ]);
+                await workoutApi.updateWorkout(sessionId, apiData);
+                alert.success('Workout updated successfully');
+                router.back();
             } else {
                 // Create new workout
-                await workoutApi.logWorkout({
-                    ...workoutData,
-                    occurred_at: workoutData.occurred_at || new Date().toISOString(),
-                });
+                await workoutApi.logWorkout(apiData);
 
-                // Show success alert instead of navigating
+                // Invalidate weekly summary cache to force fresh fetch
+                if (user?.id) {
+                    // Invalidate current week cache
+                    await invalidateCache(user.id, 'weeklySummary_current');
+                    // Invalidate specific week cache if needed
+                    const today = new Date();
+                    const day = today.getDay();
+                    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+                    const monday = new Date(today);
+                    monday.setDate(diff);
+                    const mondayISO = monday.toISOString().split('T')[0];
+                    await invalidateCache(user.id, `weeklySummary_${mondayISO}`);
+                }
+
+                // Show success alert
                 alert.success('Workout logged', 'Success');
                 // Clear any saved draft after successful log
                 try {
@@ -210,7 +250,7 @@ const WorkoutLogScreen = () => {
                 setIsLoading(false);
             }
         } catch (error: any) {
-            alert.error(error.message || (isEditMode ? 'Failed to update workout' : 'Failed to log workout'), 'Error');
+            alert.error(error.message || (isEditMode ? 'Failed to update workout' : 'Failed to log workout'));
             setIsLoading(false);
         }
     };
@@ -282,7 +322,7 @@ const WorkoutLogScreen = () => {
                                                 style={[
                                                     styles.typeButton,
                                                     { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border },
-                                                    workoutData.session_type === type && { backgroundColor: themeColors.accentPrimary, borderColor: themeColors.accentPrimary },
+                                                    workoutData.session_type === type && { backgroundColor: themeColors.accentPrimary, borderColor: themeColors.accentPrimary,  },
                                                 ]}
                                                 onPress={() =>
                                                     setWorkoutData(prev => ({ 
@@ -295,7 +335,7 @@ const WorkoutLogScreen = () => {
                                                     size={14}
                                                     color={
                                                         workoutData.session_type === type
-                                                            ? themeColors.textPrimary
+                                                            ? themeColors.background
                                                             : themeColors.textSecondary
                                                     }
                                                 >
@@ -317,8 +357,8 @@ const WorkoutLogScreen = () => {
                                         onPress={handleAddExercise}
                                         style={[styles.addButton, { backgroundColor: themeColors.accentPrimary }]}
                                     >
-                                        <Icons.Plus size={20} color={themeColors.textPrimary} weight="bold" />
-                                        <Typo size={14} color={themeColors.textPrimary} fontWeight="600">
+                                        <Icons.Plus size={20} color={themeColors.background} weight="bold" />
+                                        <Typo size={14} color={themeColors.background} fontWeight="600">
                                             Add
                                         </Typo>
                                     </TouchableOpacity>

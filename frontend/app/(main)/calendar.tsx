@@ -9,7 +9,7 @@ import { colors, spacingX, spacingY } from '@/constants/theme';
 import { workoutApi } from '@/utils/api';
 import { useRouter } from 'expo-router';
 import * as Icons from 'phosphor-react-native';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -104,6 +104,10 @@ const CalendarScreen = () => {
     const [isCalendarLoading, setIsCalendarLoading] = useState(false); // Calendar loading
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+    const isTransitioningRef = useRef(false); // Synchronous ref to track transitions
+    const previousMonthRef = useRef<Date>(new Date()); // Track previous month
+    const lastNavigationTimeRef = useRef<number>(0); // Track when we last navigated
+    const hasEverLoadedRef = useRef(false); // Track if we've ever successfully loaded data
 
     // Weekly strip state
     const [currentWeekStart, setCurrentWeekStart] = useState<string>(() => {
@@ -127,7 +131,14 @@ const CalendarScreen = () => {
 
                 if (cachedWorkouts && cachedWorkouts.length > 0) {
                     setWorkouts(cachedWorkouts);
+                    hasEverLoadedRef.current = true; // Mark that we've loaded data
                     logger.log(`[Calendar] Loaded ${cachedWorkouts.length} cached workouts for ${monthKey}`);
+                    // Don't clear transition flag here - let fetchCalendarData clear it
+                    // This ensures we don't show empty state if backend returns different data
+                } else if (!isLoading) {
+                    // No cache found - keep transition flag true and previous workouts visible
+                    // This prevents empty state flash - workouts will be updated by fetchCalendarData
+                    // Don't clear workouts here - let fetchCalendarData handle it
                 }
 
                 if (cachedStats) {
@@ -143,11 +154,24 @@ const CalendarScreen = () => {
     }, [user?.id, selectedMonth]);
 
     useEffect(() => {
+        // Check if month actually changed
+        const monthChanged = previousMonthRef.current.getMonth() !== selectedMonth.getMonth() ||
+                            previousMonthRef.current.getFullYear() !== selectedMonth.getFullYear();
+        
+        if (monthChanged && !isLoading) {
+            // Month changed - set transition flag and loading state synchronously to prevent flash
+            // Set both immediately before any async operations
+            isTransitioningRef.current = true;
+            setIsCalendarLoading(true);
+            lastNavigationTimeRef.current = Date.now(); // Track navigation time
+            previousMonthRef.current = new Date(selectedMonth);
+        }
+        
         if (isLoading) {
             // First load - use full loading screen
             fetchData();
-        } else {
-            // Subsequent loads - use calendar skeleton
+        } else if (monthChanged) {
+            // Subsequent loads - loading state already set above, now fetch data
             fetchCalendarData();
         }
     }, [selectedMonth]);
@@ -160,12 +184,19 @@ const CalendarScreen = () => {
             const startDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
             const endDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
 
+            logger.log('[Calendar] Fetching from backend for month:', selectedMonth);
+            logger.log('[Calendar] Date range:', startDate.toISOString(), 'to', endDate.toISOString());
+
             const calendarData = await workoutApi.getCalendar(
                 startDate.toISOString(),
                 endDate.toISOString()
-            );
+            ) as { items?: CalendarItem[]; total?: number };
+
+            logger.log('[Calendar] Backend returned:', calendarData.items?.length || 0, 'workouts');
+
             const workoutItems = calendarData.items || [];
             setWorkouts(workoutItems);
+            hasEverLoadedRef.current = true; // Mark that we've loaded data
 
             // Cache calendar data (permanent - never expires)
             if (user?.id) {
@@ -178,11 +209,13 @@ const CalendarScreen = () => {
             const statsPromise = workoutItems.length > 0
                 ? workoutApi.getStats(workoutItems[0].session_id)
                     .then(async (statsData) => {
-                        if (statsData && statsData.stats) {
-                            setStats(statsData);
+                        // Cast to local WorkoutStats type (has stats property)
+                        const typedStatsData = statsData as unknown as WorkoutStats;
+                        if (typedStatsData && typedStatsData.stats) {
+                            setStats(typedStatsData);
                             // Cache stats (permanent - never expires)
                             if (user?.id) {
-                                await cacheUserData(user.id, 'calendar_stats', statsData, Number.MAX_SAFE_INTEGER); // Permanent cache
+                                await cacheUserData(user.id, 'calendar_stats', typedStatsData, Number.MAX_SAFE_INTEGER); // Permanent cache
                                 logger.log('[Calendar] Cached stats');
                             }
                         }
@@ -196,6 +229,7 @@ const CalendarScreen = () => {
             // Wait for stats to complete (already started in parallel)
             await statsPromise;
         } catch (error: any) {
+            logger.error('[Calendar] Error fetching data:', error);
             const errorMsg = error?.message;
             alert.error(errorMsg && typeof errorMsg === 'string' ? errorMsg : 'Failed to load data', 'Error');
         } finally {
@@ -205,7 +239,7 @@ const CalendarScreen = () => {
     };
 
     const fetchCalendarData = async () => {
-        setIsCalendarLoading(true);
+        // isCalendarLoading is already set in useEffect to prevent flash
         const endPerf = perf.start('fetchCalendarData');
         try {
             // 1. Fetch calendar data for current month
@@ -215,9 +249,15 @@ const CalendarScreen = () => {
             const calendarData = await workoutApi.getCalendar(
                 startDate.toISOString(),
                 endDate.toISOString()
-            );
+            ) as { items?: CalendarItem[]; total?: number };
             const workoutItems = calendarData.items || [];
             setWorkouts(workoutItems);
+            // Clear transition flag once data is loaded (even if empty)
+            // Use longer timeout to ensure state updates have propagated and component has re-rendered
+            // This prevents empty state check from passing during transition
+            setTimeout(() => {
+                isTransitioningRef.current = false;
+            }, 300);
 
             // Cache calendar data (permanent - never expires)
             if (user?.id) {
@@ -230,11 +270,13 @@ const CalendarScreen = () => {
             const statsPromise = workoutItems.length > 0
                 ? workoutApi.getStats(workoutItems[0].session_id)
                     .then(async (statsData) => {
-                        if (statsData && statsData.stats) {
-                            setStats(statsData);
+                        // Cast to local WorkoutStats type (has stats property)
+                        const typedStatsData = statsData as unknown as WorkoutStats;
+                        if (typedStatsData && typedStatsData.stats) {
+                            setStats(typedStatsData);
                             // Cache stats (permanent - never expires)
                             if (user?.id) {
-                                await cacheUserData(user.id, 'calendar_stats', statsData, Number.MAX_SAFE_INTEGER); // Permanent cache
+                                await cacheUserData(user.id, 'calendar_stats', typedStatsData, Number.MAX_SAFE_INTEGER); // Permanent cache
                                 logger.log('[Calendar] Cached stats');
                             }
                         }
@@ -250,6 +292,8 @@ const CalendarScreen = () => {
         } catch (error: any) {
             const errorMsg = error?.message;
             alert.error(errorMsg && typeof errorMsg === 'string' ? errorMsg : 'Failed to load calendar data', 'Error');
+            // Clear transition flag even on error
+            isTransitioningRef.current = false;
         } finally {
             setIsCalendarLoading(false);
             endPerf();
@@ -332,7 +376,7 @@ const CalendarScreen = () => {
         // Only show full loading screen on initial load
         const { colors: themeColors } = useTheme();
         return (
-            
+
             <ScreenWrapper showPattern={false}>
                 <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
                     <Animated.View entering={FadeInDown.delay(150).springify()}>
@@ -349,46 +393,72 @@ const CalendarScreen = () => {
         );
     }
 
-    // Show empty state if no workouts
-    if (workouts.length === 0) {
+    // Show empty state only on initial load completion when there are no workouts
+    // During month navigation (isCalendarLoading or isTransitioningRef), always show calendar view with skeleton
+    // This prevents empty state from showing when navigating to months with no workouts
+    // Use ref for synchronous check to prevent flash during state updates
+    const isTransitioning = isCalendarLoading || isTransitioningRef.current;
+    
+    // Check if we're on the current month
+    const currentMonth = new Date();
+    const isCurrentMonth = selectedMonth.getMonth() === currentMonth.getMonth() && 
+                           selectedMonth.getFullYear() === currentMonth.getFullYear();
+    
+    // Only show empty state if:
+    // - Initial load is complete (isLoading === false)
+    // - We've never loaded data before (hasEverLoadedRef === false) - this means it's truly the first load
+    // - Not transitioning (even if navigating back to current month)
+    // - Not currently loading calendar data
+    // - No workouts
+    // - On current month
+    // This ensures empty state only shows on the very first load, never during month navigation
+    const hasJustNavigated = isTransitioningRef.current || isCalendarLoading;
+    const recentlyNavigated = Date.now() - lastNavigationTimeRef.current < 1000; // Increased to 1 second
+    const isFirstLoad = !hasEverLoadedRef.current;
+    
+    // Only show empty state on the very first load completion, never during navigation
+    if (!isLoading && isFirstLoad && !hasJustNavigated && !recentlyNavigated && workouts.length === 0 && isCurrentMonth) {
+        // Show empty state only on the very first load when there's no data
+        // Never show during month navigation (hasEverLoadedRef will be true after first load)
         return (
-            <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
-                <ScreenWrapper showPattern={false}>
-                    {/* --- Header --- */}
-                    <View style={styles.header}>
-                        <TouchableOpacity
-                            onPress={() => router.back()}
-                            style={styles.backButton}
-                        >
-                            <Icons.CaretLeft size={26} color={themeColors.textPrimary} weight="bold" />
-                        </TouchableOpacity>
+                <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
+                    <ScreenWrapper showPattern={false}>
+                        {/* --- Header --- */}
+                        <View style={styles.header}>
+                            <TouchableOpacity
+                                onPress={() => router.back()}
+                                style={styles.backButton}
+                            >
+                                <Icons.CaretLeft size={26} color={themeColors.textPrimary} weight="bold" />
+                            </TouchableOpacity>
 
-                        <Typo size={24} fontWeight="700" color={themeColors.textPrimary}>
-                            Calendar And Stats
-                        </Typo>
+                            <Typo size={24} fontWeight="700" color={themeColors.textPrimary}>
+                                Calendar And Stats
+                            </Typo>
 
-                        <TouchableOpacity
-                            onPress={() => router.push('/workout-log' as any)}
-                            style={styles.addButton}
-                        >
-                            <Icons.Plus size={26} color={themeColors.textPrimary} weight="bold" />
-                        </TouchableOpacity>
-                    </View>
+                            <TouchableOpacity
+                                onPress={() => router.push('/workout-log' as any)}
+                                style={styles.addButton}
+                            >
+                                <Icons.Plus size={26} color={themeColors.textPrimary} weight="bold" />
+                            </TouchableOpacity>
+                        </View>
 
-                    {/* Empty State */}
-                    <EmptyCalendarState 
-                        onLogWorkout={() => router.push('/workout-log' as any)}
-                        onChatWithAI={() => router.push('/chatscreen' as any)}
-                    />
-                </ScreenWrapper>
-            </SafeAreaView>
-        );
-    }
+                        {/* Empty State */}
+                        <EmptyCalendarState
+                            onLogWorkout={() => router.push('/workout-log' as any)}
+                            onChatWithAI={() => router.push('/chatscreen' as any)}
+                        />
+                    </ScreenWrapper>
+                </SafeAreaView>
+            );
+        }
+        // If navigating to a different month with no workouts, show calendar view (will be empty but navigable)
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
             <ScreenWrapper showPattern={false}>
-            <View style={[styles.whiteBackground, { backgroundColor: themeColors.background }]}>
+                <View style={[styles.whiteBackground, { backgroundColor: themeColors.background }]}>
                     {/* --- Header --- */}
                     <View style={styles.header}>
                         <TouchableOpacity
@@ -415,8 +485,8 @@ const CalendarScreen = () => {
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={styles.scrollContent}
                     >
-                         {/* --- Collapsible Calendar --- */}
-                         <View style={styles.calendarSection}>
+                        {/* --- Collapsible Calendar --- */}
+                        <View style={styles.calendarSection}>
                             <RNCalendarsTest
                                 selectedMonth={selectedMonth}
                                 workouts={workoutsByDate}
@@ -441,7 +511,7 @@ const CalendarScreen = () => {
                                 <QuickStatsCards stats={stats.stats} />
                             </View>
                         )}
-                        
+
 
                         {/* --- Stats Dashboard Section --- */}
                         {stats ? (
@@ -511,11 +581,11 @@ const CalendarScreen = () => {
                                     collapsible={true}
                                     defaultExpanded={true}
                                     keyMetric={{
-                                        value: stats.stats.recovery.avg_recovery_days 
+                                        value: stats.stats.recovery.avg_recovery_days
                                             ? `${stats.stats.recovery.avg_recovery_days} days`
                                             : 'N/A',
                                         label: 'Avg Recovery',
-                                        subtitle: stats.stats.recovery.avg_recovery_days 
+                                        subtitle: stats.stats.recovery.avg_recovery_days
                                             ? (stats.stats.recovery.avg_recovery_days <= 2 ? 'Optimal for growth' : 'Consider more rest')
                                             : 'Insufficient data',
                                         icon: stats.stats.recovery.avg_recovery_days && stats.stats.recovery.avg_recovery_days <= 2 ? 'Check' : undefined,
@@ -582,11 +652,11 @@ const CalendarScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        
+
     },
     whiteBackground: {
         ...StyleSheet.absoluteFillObject,
-        
+
         paddingTop: Platform.OS === 'ios' ? Dimensions.get('window').height * 0.06 : 40,
     },
     header: {

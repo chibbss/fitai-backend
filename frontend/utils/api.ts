@@ -217,59 +217,45 @@ export const workoutApi = {
                         session_id: sessionId,
                         insights: [
                             {
-                                exercise: 'Bench Press',
-                                status: 'pr',
+                                type: 'pr',
                                 message: 'Congratulations! You hit a new personal record with 100kg for 5 reps. This is a 5kg increase from your previous best.',
-                                delta_pct: 12.5,
                                 weight_increase: 5.0,
                             },
                             {
-                                exercise: 'Squat',
-                                status: 'progress',
+                                type: 'progress',
                                 message: 'Great progress! You increased your volume by 8% compared to your last session. Keep pushing!',
-                                delta_pct: 8.2,
                                 weight_increase: 2.5,
                             },
                             {
-                                exercise: 'Deadlift',
-                                status: 'progress',
+                                type: 'progress',
                                 message: 'Solid improvement! Your working sets showed consistent form and strength gains.',
-                                delta_pct: 5.7,
                                 weight_increase: null,
                             },
                             {
-                                exercise: 'Pull-ups',
-                                status: 'maintained',
+                                type: 'maintained',
                                 message: 'You maintained your performance level. Consistency is key to long-term progress.',
-                                delta_pct: 0.0,
                                 weight_increase: null,
                             },
                             {
-                                exercise: 'Overhead Press',
-                                status: 'regression',
+                                type: 'regression',
                                 message: 'Slight decrease in volume this session. This could be due to fatigue or needing more recovery time.',
-                                delta_pct: -3.2,
                                 weight_increase: null,
                             },
                             {
-                                exercise: 'Barbell Rows',
-                                status: 'new',
+                                type: 'new',
                                 message: 'You added a new exercise to your routine! This is a great addition for balanced muscle development.',
-                                delta_pct: null,
                                 weight_increase: null,
                             },
                             {
-                                exercise: 'Leg Press',
-                                status: 'progress',
+                                type: 'progress',
                                 message: 'Excellent volume increase! You\'re building strong foundations with progressive overload.',
-                                delta_pct: 15.3,
                                 weight_increase: 10.0,
                             },
                         ],
                         overall_message: 'Outstanding workout! You showed great progress across multiple exercises with 2 personal records.',
                         avg_volume_change_pct: 6.2,
                         exercise_count: 7,
-                    })
+                    } as InsightsData & { session_id: string; overall_message: string; avg_volume_change_pct: number; exercise_count: number })
                 }, 800);
             });
         }
@@ -381,7 +367,7 @@ export const workoutApi = {
 
         // Try cache first
         if (userId && !MOCK_MODE) {
-            const cached = await getCachedUserData(userId, cacheKey);
+            const cached = await getCachedUserData<WeeklySummary>(userId, cacheKey);
             if (cached) {
                 logger.log('[API] Using cached weekly summary');
                 // Still fetch fresh data in background
@@ -404,7 +390,7 @@ export const workoutApi = {
         let url = `${API_URL}/workouts/weekly-summary`;
         if (startDate) url += `?start_date=${startDate}`;
 
-        const data = await handle401Error(() =>
+        const data = await handle401Error<WeeklySummary>(() =>
             fetch(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -421,7 +407,7 @@ export const workoutApi = {
     },
 
     //Get workout details (for editing)
-    async getWorkoutDetails(sessionId: string) {
+    async getWorkoutDetails(sessionId: string): Promise<WorkoutData & { session_id?: string; occurred_at?: string; duration_minutes?: number }> {
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -442,7 +428,8 @@ export const workoutApi = {
             throw error;
         }
 
-        return await response.json();
+        const data = await response.json();
+        return data as WorkoutData & { session_id?: string; occurred_at?: string; duration_minutes?: number };
     },
 
     //Update workout
@@ -474,7 +461,7 @@ export const workoutApi = {
     },
 
     //get stats
-    async getStats(sessionId: string): Promise<WorkoutStats> {
+    async getStats(sessionId: string): Promise<WorkoutStats | null> {
         // 🤖 Use mock if MOCK_MODE is enabled
         if (MOCK_MODE) {
             logger.log('🤖 MOCK MODE: Using mock stats data');
@@ -527,7 +514,7 @@ export const workoutApi = {
                                 plateaus: [],
                             },
                         },
-                    });
+                    } as any); // Mock data has session_id and stats, but WorkoutStats type doesn't - cast to any
                 }, 300);
             });
         }
@@ -536,13 +523,13 @@ export const workoutApi = {
         if (!token) throw new Error('Authentication required');
 
         try {
-            const data = await handle401Error(() =>
+            const data = await handle401Error<any>(() =>
                 fetch(`${API_URL}/stats/${sessionId}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                     },
                 })
-            );
+            ) as WorkoutStats;
 
             // Cache the result (get userId for caching)
             try {
@@ -1009,6 +996,56 @@ export const chatApi = {
 
         return await response.json();
     },
+
+    // Get chat history from backend
+    async getChatHistory(limit: number = 500, sessionId?: string): Promise<Array<{
+        id: string;
+        type: 'text' | 'voice';
+        content: string;
+        sender: 'user' | 'bot';
+        timestamp?: number;
+    }>> {
+        // 🤖 Use mock if MOCK_MODE is enabled
+        if (MOCK_MODE) {
+            logger.log('🤖 MOCK MODE: Using mock chat history');
+            return [];
+        }
+
+        const token = await getAuthToken();
+        if (!token) throw new Error('Authentication required');
+
+        let url = `${API_URL}/chat/history?limit=${limit}`;
+        if (sessionId) url += `&session_id=${sessionId}`;
+
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            if (response.status === 401) {
+                alert.alert('Session Expired', 'Please log in again.');
+                router.replace('/login');
+                throw new Error('Unauthorized');
+            }
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Transform backend format to frontend Message format
+        const messages = (data.messages || []).map((msg: any) => ({
+            id: msg.id || `${msg.created_at}_${Math.random()}`,
+            type: 'text' as const,
+            content: msg.content || '',
+            sender: msg.role === 'user' ? 'user' : 'bot',
+            timestamp: msg.created_at ? new Date(msg.created_at).getTime() : Date.now(),
+        }));
+
+        return messages;
+    },
 };
 
 // User API calls
@@ -1016,7 +1053,7 @@ export const userApi = {
     // Get user profile
     async getUser(userId: string): Promise<UserProfile> {
         // Try cache first
-        const cached = await getCachedUserData(userId, 'userProfile');
+        const cached = await getCachedUserData<UserProfile>(userId, 'userProfile');
         if (cached) {
             logger.log('[API] Using cached user profile');
             // Still fetch fresh data in background
@@ -1035,7 +1072,7 @@ export const userApi = {
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
-        const data = await handle401Error(() =>
+        const data = await handle401Error<UserProfile>(() =>
             fetch(`${API_URL}/users/${userId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,

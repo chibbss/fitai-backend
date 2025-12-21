@@ -210,7 +210,7 @@ const StatsSection: React.FC<StatsSectionProps> = ({
                 
                 {/* Divider between key metric and secondary stats */}
                 {keyMetric && stats.length > 0 && (
-                    <View style={[styles.divider, { backgroundColor: themeColors.borderMedium || colors.neutral200 }]} />
+                    <View style={[styles.divider, { backgroundColor: themeColors.border || colors.neutral200 }]} />
                 )}
                 
                 {/* Secondary Stats List */}
@@ -282,8 +282,8 @@ const styles = StyleSheet.create({
     },
     keyMetricBox: {
         borderRadius: radius._15,
-        padding: spacingX._24,
-        marginBottom: spacingY._16,
+        padding: spacingX._25,
+        marginBottom: spacingY._15,
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 120,
@@ -292,11 +292,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: spacingX._8,
-        marginBottom: spacingY._8,
+        gap: spacingX._10,
+        marginBottom: spacingY._10,
     },
     keyMetricIcon: {
-        marginRight: spacingX._4,
+        marginRight: spacingX._5,
     },
     keyMetricValueContainer: {
         alignItems: 'center',
@@ -306,14 +306,14 @@ const styles = StyleSheet.create({
         // Value is now in header, no margin needed
     },
     keyMetricLabel: {
-        marginBottom: spacingY._4,
+        marginBottom: spacingY._5,
     },
     keyMetricSubtitle: {
-        textAlign: 'center',
+        alignItems: 'center',
     },
     divider: {
         height: 1,
-        marginVertical: spacingY._16,
+        marginVertical: spacingY._17,
         marginHorizontal: spacingX._20,
     },
 });

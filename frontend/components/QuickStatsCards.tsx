@@ -200,9 +200,9 @@ const styles = StyleSheet.create({
     heroMainContent: {
         flex: 1,
         justifyContent: 'center',
-        alignItems: 'flex-start',
-        gap: spacingY._6,
-        paddingTop: spacingY._8,
+        alignItems: 'center',
+        gap: spacingY._5,
+        paddingTop: spacingY._7,
     },
     heroValue: {
         // No margin needed, gap handles spacing
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
         // No margin needed, gap handles spacing
     },
     heroSubtitle: {
-        marginTop: spacingY._2,
+        marginTop: spacingY._5,
     },
     summaryCard: {
         width: '100%',
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     summaryItem: {
         flex: 1,
         alignItems: 'center',
-        gap: spacingY._4,
+        gap: spacingY._5,
     },
     summaryDivider: {
         width: 1,

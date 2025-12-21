@@ -140,7 +140,7 @@ const WorkoutForm: React.FC<WorkoutFormProps> = ({
                                         size={12}
                                         color={
                                             exercise.exercise_category === cat
-                                                ? themeColors.textPrimary
+                                                ? themeColors.background
                                                 : colors.neutral600
                                         }
                                     >

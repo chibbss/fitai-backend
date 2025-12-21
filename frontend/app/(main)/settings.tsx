@@ -13,7 +13,7 @@ import { Platform, Dimensions } from 'react-native';
 import { alert } from '@/utils/alert';
 import { AuthGuard } from '@/components/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
-import { clearUserData } from '@/utils/dataCache';
+import { logger } from '@/utils/logger';
 
 interface SettingsItem {
     id: string;
@@ -62,17 +62,13 @@ const Settings = () => {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            const userId = user?.id;
-                            // Clear cache before signing out
-                            if (userId) {
-                                await clearUserData(userId);
-                            }
-                            // Sign out (this will also update auth state)
+                            // Don't clear cache - data will persist and be refreshed from backend on next login
+                            // This ensures data is available immediately on next login
                             await signOut();
                             router.replace('/welcome');
                         } catch (error) {
-                            console.error('Logout error:', error);
-                            // Still navigate even if cache clear fails
+                            logger.error('Logout error:', error);
+                            // Still navigate even if sign out fails
                             router.replace('/welcome');
                         }
                     },
