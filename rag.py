@@ -1814,9 +1814,16 @@ class RAGService:
             days_since_monday = now.weekday()
             week_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
         else:
+            # Ensure start_date is timezone-aware before using it
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
             # Ensure start_date is Monday
             days_since_monday = start_date.weekday()
             week_start = (start_date - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Ensure week_start is timezone-aware
+        if week_start.tzinfo is None:
+            week_start = week_start.replace(tzinfo=timezone.utc)
         
         week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
         is_current_week = (week_start <= now <= week_end)
