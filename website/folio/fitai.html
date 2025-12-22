@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>fit.ai – Emmanuel Ochiba</title>
+    
+    <meta name="description" content="An AI-powered fitness coach with deep memory and RAG capabilities. Built with GPT-4o-mini, pgvector, and FastAPI.">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --text-primary: #0a0a0a;
+            --text-secondary: #6b7280;
+            --text-tertiary: #9ca3af;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;
+            --border: #e5e7eb;
+            --fitai-primary: #00ffc8;
+            --fitai-secondary: #00e4ff;
+            --fitai-dark: #000000;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 5%;
+        }
+
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-links a.active {
+            color: var(--text-primary);
+        }
+
+        /* Hero Section - Portfolio Style */
+        .project-hero {
+            padding: 10rem 5% 0;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .hero-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8rem;
+            align-items: center;
+            margin-bottom: 10rem;
+        }
+
+        .hero-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            padding-right: 2rem;
+        }
+
+        .project-label {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            width: fit-content;
+        }
+
+        .project-title {
+            font-size: clamp(3rem, 6vw, 5.5rem);
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.04em;
+            margin-bottom: 1rem;
+        }
+
+        .fitai-title {
+            color: var(--fitai-primary);
+        }
+
+        .project-description {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            max-width: 90%;
+        }
+
+        .project-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .meta-label {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+
+        .meta-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .hero-visual {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        /* Phone Mockup Styles */
+        .phone-mockup {
+            position: relative;
+            width: 320px;
+            height: 692px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            border-radius: 48px;
+            padding: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 
+                0 0 0 1px rgba(0, 0, 0, 0.5),
+                0 0 0 2px rgba(255, 255, 255, 0.05),
+                0 50px 120px rgba(0, 0, 0, 0.9),
+                0 0 100px rgba(0, 255, 200, 0.15),
+                inset 0 0 20px rgba(0, 0, 0, 0.3);
+            filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.5));
+            transform: translateY(0);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .phone-mockup:hover {
+            filter: drop-shadow(0 30px 80px rgba(0, 255, 200, 0.4));
+            transform: translateY(-8px);
+        }
+
+        .phone-notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 30px;
+            background: #000000;
+            border-radius: 0 0 20px 20px;
+            z-index: 10;
+        }
+
+        .phone-notch::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .phone-screen-image {
+            width: 100%;
+            height: 100%;
+            background: #000000;
+            border-radius: 40px;
+            overflow: hidden;
+            position: relative;
+            padding: 0.5rem;
+            display: block;
+        }
+
+        .phone-screen-image img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 35px;
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: #000000;
+            border-radius: 40px;
+            padding: 3rem 1.75rem 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .phone-status-bar {
+            position: absolute;
+            top: 1rem;
+            left: 1.75rem;
+            right: 1.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            color: #ffffff;
+            font-weight: 600;
+            z-index: 5;
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .status-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #ffffff;
+        }
+
+        .phone-screen-chat-accurate {
+            background: #020202;
+            padding: 3rem 1.75rem 2rem;
+        }
+
+        .mockup-greeting {
+            margin-bottom: 1rem;
+        }
+
+        .mockup-greeting-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 2rem;
+            line-height: 1.3;
+            text-align: center;
+            width: 100%;
+        }
+
+        .mockup-greeting-prompts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 0 0.5rem;
+        }
+
+        .mockup-prompt-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.875rem;
+            background: #ffffff;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            color: #000000;
+            font-weight: 500;
+        }
+
+        .mockup-chat-content-accurate {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding: 1rem 0;
+            overflow-y: auto;
+        }
+
+        .mockup-message-accurate {
+            max-width: 85%;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            margin: 0.5rem 0;
+        }
+        
+        .mockup-message-user-accurate {
+            padding: 0.625rem 1rem;
+            border-radius: 15px;
+            border-bottom-right-radius: 0;
+        }
+
+        .mockup-message-bot-accurate {
+            align-self: flex-start;
+            background: transparent;
+            color: #f8fafc;
+            border: none;
+            padding: 0;
+        }
+
+        .mockup-message-user-accurate {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #00ffc8, #00e4ff);
+            color: #000000;
+            font-weight: 500;
+        }
+
+        .mockup-message-text-accurate {
+            color: inherit;
+        }
+
+        .mockup-chat-input-accurate {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .mockup-input-field-accurate {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: #fafaf9;
+            border: none;
+            border-radius: 28px;
+            font-size: 0.75rem;
+            color: #000000;
+        }
+
+        .mockup-mic-button-accurate {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00ffc8, #00e4ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mockup-mic-button-accurate::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            background: #000000;
+            border-radius: 50%;
+        }
+
+        /* Project Details Grid */
+        .project-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6rem;
+            margin-bottom: 8rem;
+            padding: 0 5%;
+            max-width: 1400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .detail-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+
+        .detail-content {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+
+        .detail-content p {
+            margin-bottom: 1.5rem;
+        }
+
+        .detail-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .detail-content h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        /* Tags */
+        .project-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .project-tag {
+            padding: 0.5rem 1.25rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .fitai-tag {
+            background: rgba(0, 255, 200, 0.1);
+            border-color: var(--fitai-primary);
+            color: var(--fitai-primary);
+        }
+
+        /* Full Width Sections */
+        .full-width-section {
+            padding: 8rem 5%;
+            margin: 8rem 0;
+        }
+
+        .section-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0;
+        }
+
+        .section-title {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 700;
+            margin-bottom: 3rem;
+            letter-spacing: -0.03em;
+            text-align: center;
+        }
+
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 3rem;
+        }
+
+        .feature-item {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .feature-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--fitai-primary);
+            line-height: 1;
+        }
+
+        .feature-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+
+        .feature-description {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* Tech Stack */
+        .tech-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .tech-item {
+            padding: 0.75rem 1.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* CTA Section */
+        .cta-section {
+            background: var(--fitai-dark);
+            color: var(--bg-primary);
+            padding: 8rem 5%;
+            text-align: center;
+            margin-top: 8rem;
+        }
+
+        .cta-content {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .cta-title {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.03em;
+        }
+
+        .cta-subtitle {
+            font-size: 1.25rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 2.5rem;
+            line-height: 1.7;
+        }
+
+        .btn {
+            padding: 1rem 2.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--fitai-primary);
+            color: var(--fitai-dark);
+        }
+
+        .btn-primary:hover {
+            background: var(--fitai-secondary);
+        }
+
+        footer {
+            padding: 4rem 5%;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 968px) {
+            .hero-content {
+                grid-template-columns: 1fr;
+                gap: 4rem;
+            }
+
+            .hero-text {
+                padding-right: 0;
+            }
+
+            .hero-visual {
+                padding: 2rem 0;
+            }
+
+            .project-details {
+                grid-template-columns: 1fr;
+                gap: 4rem;
+                padding: 0 5%;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .project-meta-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .phone-mockup {
+                width: 280px;
+                height: 606px;
+            }
+
+            .tech-list {
+                padding-right: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .project-hero {
+                padding: 6rem 5% 0;
+            }
+
+            .hero-content {
+                margin-bottom: 6rem;
+            }
+
+            .full-width-section {
+                padding: 4rem 5%;
+                margin: 4rem 0;
+            }
+
+            .project-details {
+                padding: 0 5%;
+                margin-bottom: 6rem;
+            }
+
+            .phone-mockup {
+                width: 260px;
+                height: 562px;
+            }
+
+            .phone-notch {
+                width: 120px;
+                height: 24px;
+            }
+
+            .project-description {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-container">
+            <a href="index.html" class="logo">Emmanuel Ochiba</a>
+            <ul class="nav-links">
+                <li><a href="resume.html">Resume</a></li>
+                <li><a href="fitai.html" class="active">fit.ai</a></li>
+                <li><a href="projects.html">Projects</a></li>
+                <li><a href="index.html#experience">Experience</a></li>
+                <li><a href="index.html#articles">Articles</a></li>
+                <li><a href="index.html#contact">Contact</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="project-hero">
+        <div class="hero-content">
+            <div class="hero-text">
+                <span class="project-label">Featured Project</span>
+                <h1 class="project-title">
+                    <span class="fitai-title">fit.ai</span><br>
+                    AI-Powered Fitness Coach
+                </h1>
+                <p class="project-description">
+                    An intelligent fitness coaching platform that learns, adapts, and remembers. Built with advanced RAG systems, deep memory architecture, and production-ready ML infrastructure.
+                </p>
+                <div class="project-meta-grid">
+                    <div class="meta-item">
+                        <span class="meta-label">Role</span>
+                        <span class="meta-value">ML/AI Engineer & Founder</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Year</span>
+                        <span class="meta-value">Dec 2025 – Present</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Status</span>
+                        <span class="meta-value">In Development</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Category</span>
+                        <span class="meta-value">AI / ML / Fitness</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="phone-mockup">
+                    <div class="phone-notch"></div>
+                    <div class="phone-screen phone-screen-image">
+                        <img src="images/chat-screenshot.PNG" alt="fit.ai AI Chatbot Interface" style="width: 100%; height: 100%; object-fit: cover; border-radius: 35px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="project-details">
+        <div class="detail-section">
+            <span class="detail-label">Overview</span>
+            <div class="detail-content">
+                <p>
+                    fit.ai is an AI-powered fitness coaching platform that combines advanced retrieval-augmented generation (RAG) with deep memory systems to create a truly personalized fitness experience. Currently serving 7+ beta testers who are actively using the platform.
+                </p>
+                <p>
+                    The platform learns from every interaction, remembers workout history, and adapts coaching strategies to each user's unique journey. Built from the ground up with production ML best practices.
+                </p>
+            </div>
+        </div>
+        <div class="detail-section">
+            <span class="detail-label">Technologies</span>
+            <div class="project-tags">
+                <span class="project-tag fitai-tag">AI</span>
+                <span class="project-tag fitai-tag">RAG</span>
+                <span class="project-tag fitai-tag">Deep Memory</span>
+                <span class="project-tag fitai-tag">FastAPI</span>
+                <span class="project-tag fitai-tag">pgvector</span>
+                <span class="project-tag fitai-tag">GPT-4o-mini</span>
+                <span class="project-tag fitai-tag">PostgreSQL</span>
+                <span class="project-tag fitai-tag">Render</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="full-width-section">
+        <div class="section-content">
+            <h2 class="section-title">Key Features</h2>
+            <div class="features-grid">
+                <div class="feature-item">
+                    <div class="feature-number">01</div>
+                    <h3 class="feature-title">Deep Memory System</h3>
+                    <p class="feature-description">
+                        Long-term memory architecture that stores and retrieves user context across sessions. Enables conversations that reference past workouts, goals, and preferences seamlessly.
+                    </p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-number">02</div>
+                    <h3 class="feature-title">RAG-Powered Coaching</h3>
+                    <p class="feature-description">
+                        Advanced retrieval-augmented generation using text-embedding-3-large and pgvector. Provides accurate, context-aware responses based on fitness knowledge base.
+                    </p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-number">03</div>
+                    <h3 class="feature-title">Workout Tracking</h3>
+                    <p class="feature-description">
+                        Intelligent workout logging with automatic pattern recognition. The AI learns from your progress and suggests optimizations based on performance trends.
+                    </p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-number">04</div>
+                    <h3 class="feature-title">Personalized Insights</h3>
+                    <p class="feature-description">
+                        AI-generated insights that adapt to your fitness level, goals, and preferences. The system continuously learns and refines recommendations.
+                    </p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-number">05</div>
+                    <h3 class="feature-title">Production Infrastructure</h3>
+                    <p class="feature-description">
+                        Scalable backend architecture deployed on Render with PostgreSQL and cloud infrastructure. Built for reliability and performance at scale.
+                    </p>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-number">06</div>
+                    <h3 class="feature-title">Real-time Chat</h3>
+                    <p class="feature-description">
+                        Natural language interface powered by GPT-4o-mini. Ask questions, get workout plans, and receive coaching advice in real-time.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="project-details">
+        <div class="detail-section">
+            <span class="detail-label">Technical Stack</span>
+            <div class="detail-content">
+                <h3>Backend & Infrastructure</h3>
+                <div class="tech-list">
+                    <span class="tech-item">FastAPI</span>
+                    <span class="tech-item">PostgreSQL</span>
+                    <span class="tech-item">pgvector</span>
+                    <span class="tech-item">Render</span>
+                    <span class="tech-item">Alembic</span>
+                </div>
+            </div>
+        </div>
+        <div class="detail-section">
+            <span class="detail-label">AI & ML</span>
+            <div class="detail-content">
+                <h3>Models & Services</h3>
+                <div class="tech-list">
+                    <span class="tech-item">GPT-4o-mini</span>
+                    <span class="tech-item">text-embedding-3-large</span>
+                    <span class="tech-item">OpenAI API</span>
+                    <span class="tech-item">RAG Systems</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="project-details">
+        <div class="detail-section">
+            <span class="detail-label">Architecture</span>
+            <div class="detail-content">
+                <h3>System Design</h3>
+                <p>
+                    The system architecture follows production ML best practices with clear separation of concerns. The RAG pipeline processes user queries, retrieves relevant context from both the knowledge base and user memory, and generates personalized responses.
+                </p>
+                <p>
+                    Deep memory is implemented through a hierarchical storage system that captures both short-term conversation context and long-term user patterns. This enables the AI to maintain continuity across sessions while adapting to evolving user needs.
+                </p>
+            </div>
+        </div>
+                <div class="detail-section">
+            <span class="detail-label">Implementation</span>
+            <div class="detail-content">
+                <h3>Production Ready</h3>
+                <p>
+                    The backend is designed for horizontal scaling, with vector search optimized for low-latency retrieval. Deployed on Render with automated CI/CD pipelines for reliable updates.
+                </p>
+                <p>
+                    Built with scalability, reliability, and developer experience in mind. The platform handles thousands of concurrent users while maintaining sub-second response times.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="project-details" style="background: var(--bg-secondary); padding: 4rem 5%; margin: 4rem 0;">
+        <div class="detail-section" style="grid-column: 1 / -1; max-width: 900px; margin: 0 auto;">
+            <span class="detail-label">Development Philosophy</span>
+            <div class="detail-content">
+                <h3>AI-Native Development</h3>
+                <p>
+                    fit.ai was built using an AI-native development approach, leveraging Cursor, GPT, and Claude as core development tools. This isn't about replacing engineering judgment—it's about accelerating iteration, maintaining high standards, and focusing on system design and architecture.
+                </p>
+                <p>
+                    AI tools enable rapid prototyping of complex ML systems, faster debugging of production issues, and more time spent on high-level architecture decisions. The result? A production-ready platform built with modern development practices, where AI accelerates execution while engineering expertise guides critical decisions.
+                </p>
+                <p style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); font-style: italic; color: var(--text-secondary);">
+                    This approach reflects the future of software engineering: AI as a force multiplier that allows engineers to focus on what matters most—building reliable, scalable systems that solve real problems.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="cta-section">
+        <div class="cta-content">
+            <h2 class="cta-title">Experience fit.ai</h2>
+            <p class="cta-subtitle">
+                Join the waitlist to be among the first to experience AI-powered fitness coaching
+            </p>
+            <a href="../homepage.html" class="btn btn-primary" target="_blank">
+                Visit fit.ai Website
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M7 17L17 7M7 7h10v10"></path>
+                </svg>
+            </a>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2025 Emmanuel Ochiba. Built with passion for AI.</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ – fit.ai</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --electric-teal: #00ffc8;
+            --aqua-glow: #00e4ff;
+            --vibrant-coral: #ff3366;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --bg-black: #000000;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-black);
+            color: var(--text-primary);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        nav {
+            position: fixed;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 2.5rem;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 3rem;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 8rem 5% 4rem;
+        }
+
+        h1 {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 900;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .intro {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            margin-bottom: 3rem;
+        }
+
+        .faq-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .faq-item:hover {
+            border-color: rgba(0, 255, 200, 0.25);
+        }
+
+        .faq-question {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .faq-answer {
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+
+        .faq-answer a {
+            color: var(--electric-teal);
+            text-decoration: none;
+        }
+
+        .faq-answer a:hover {
+            color: var(--aqua-glow);
+        }
+
+        footer {
+            text-align: center;
+            padding: 3rem 5%;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 4rem;
+        }
+
+        footer a {
+            color: var(--electric-teal);
+            text-decoration: none;
+            margin: 0 1rem;
+        }
+
+        footer a:hover {
+            color: var(--aqua-glow);
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">fit.ai</a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="pricing.html">Pricing</a></li>
+            <li><a href="signup.html">Join Waitlist</a></li>
+            <li><a href="contact.html">Contact</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <h1>Frequently Asked Questions</h1>
+        <p class="intro">
+            Questions about fit.ai beta? We've got answers.
+        </p>
+
+        <div class="faq-item">
+            <div class="faq-question">What is fit.ai?</div>
+            <div class="faq-answer">
+                fit.ai is an AI-powered fitness coaching app that helps you track workouts, get personalized insights, and chat with an AI coach that remembers your entire fitness journey.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">How do I join the beta?</div>
+            <div class="faq-answer">
+                Fill out our <a href="signup.html">waitlist form</a>. We'll send your beta link via email. Access fit.ai via TestFlight (iOS) or direct download (Android).
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">What devices are supported?</div>
+            <div class="faq-answer">
+                Currently, fit.ai supports iOS (iPhone) and Android devices. Make sure you specify your device type when signing up for beta access.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Is the beta free?</div>
+            <div class="faq-answer">
+                Yes! The beta is completely free. As a founding member, you'll have early access to all features and help shape the future of fit.ai.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">How do I report bugs?</div>
+            <div class="faq-answer">
+                Use the in-app bug reporting feature (found in Settings). You can also email us directly at <a href="mailto:emmanuelochiba7@gmail.com">emmanuelochiba7@gmail.com</a> with detailed descriptions of any issues you encounter.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Will my data be reset?</div>
+            <div class="faq-answer">
+                During the beta period, we may need to reset data for testing purposes. We'll notify you in advance if this happens. Your feedback and workout history help us improve the app.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">What features are available in beta?</div>
+            <div class="faq-answer">
+                Beta includes core features: workout logging, AI chat coaching, insights and analytics, calendar view, and personalized recommendations. Some features may be refined based on your feedback.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">When is the public launch?</div>
+            <div class="faq-answer">
+                We're preparing for public launch soon. Beta testing will begin before the public launch, and waitlist members will get first access. We'll keep you updated via email as we get closer to launch.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Can I share beta access with friends?</div>
+            <div class="faq-answer">
+                Absolutely! Share your beta link with friends who are interested. The more people testing fit.ai, the better we can make it. We appreciate you spreading the word!
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">Is fit.ai a medical app?</div>
+            <div class="faq-answer">
+                No. fit.ai provides fitness information and coaching suggestions, but it is not medical advice. Always consult with a healthcare provider before starting any exercise program, especially if you have medical conditions.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question">When will I get beta access?</div>
+            <div class="faq-answer">
+                We'll send your beta link via email once you join the waitlist. You'll be among the first to access fit.ai. Questions? <a href="contact.html">Contact us</a>.
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <a href="index.html">Home</a>
+        <a href="signup.html">Join Waitlist</a>
+        <a href="contact.html">Contact</a>
+        <p style="margin-top: 1rem; color: var(--text-secondary);">Built by Emmanuel & Joshua with ❤️ • © 2025</p>
+    </footer>
+</body>
+</html>
+
+

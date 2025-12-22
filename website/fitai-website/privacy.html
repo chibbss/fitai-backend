@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy – fit.ai</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --electric-teal: #00ffc8;
+            --aqua-glow: #00e4ff;
+            --vibrant-coral: #ff3366;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --bg-black: #000000;
+            --bg-surface: #0a0a0a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-black);
+            color: var(--text-primary);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        nav {
+            position: fixed;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 2.5rem;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 3rem;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 8rem 5% 4rem;
+        }
+
+        h1 {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 900;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .last-updated {
+            color: var(--text-secondary);
+            margin-bottom: 3rem;
+            font-size: 0.9rem;
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 2rem;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        p {
+            margin-bottom: 1.5rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+
+        ul {
+            margin-left: 2rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        li {
+            margin-bottom: 0.75rem;
+            line-height: 1.8;
+        }
+
+        .contact-info {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 3rem;
+        }
+
+        .contact-info a {
+            color: var(--electric-teal);
+            text-decoration: none;
+        }
+
+        .contact-info a:hover {
+            color: var(--aqua-glow);
+        }
+
+        footer {
+            text-align: center;
+            padding: 3rem 5%;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 4rem;
+        }
+
+        footer a {
+            color: var(--electric-teal);
+            text-decoration: none;
+            margin: 0 1rem;
+        }
+
+        footer a:hover {
+            color: var(--aqua-glow);
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html" class="logo">fit.ai</a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="signup.html">Join Beta</a></li>
+            <li><a href="contact.html">Contact</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <p class="last-updated">Last Updated: December 2, 2025</p>
+
+        <p>
+            At fit.ai, we are committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and services.
+        </p>
+
+        <h2>1. Information We Collect</h2>
+        
+        <h3>1.1 Personal Information</h3>
+        <p>We collect information that you provide directly to us, including:</p>
+        <ul>
+            <li>Name and email address</li>
+            <li>Fitness goals and preferences</li>
+            <li>Workout data (exercises, sets, reps, weights)</li>
+            <li>Chat conversations with our AI coach</li>
+        </ul>
+
+        <h3>1.2 Usage Data</h3>
+        <p>We automatically collect certain information when you use our app:</p>
+        <ul>
+            <li>Device information (type, operating system)</li>
+            <li>App usage patterns and interactions</li>
+            <li>Performance data and error logs</li>
+        </ul>
+
+        <h2>2. How We Use Your Information</h2>
+        <p>We use the information we collect to:</p>
+        <ul>
+            <li>Provide, maintain, and improve our services</li>
+            <li>Personalize your AI coaching experience</li>
+            <li>Analyze workout patterns and provide insights</li>
+            <li>Respond to your inquiries and support requests</li>
+            <li>Send you updates about the app (with your consent)</li>
+        </ul>
+
+        <h2>3. Data Storage and Security</h2>
+        <p>
+            Your data is stored securely using industry-standard encryption. We use PostgreSQL for structured data and vector databases for AI functionality. All data is stored in secure cloud infrastructure.
+        </p>
+
+        <h2>4. Data Sharing</h2>
+        <p>
+            We do not sell your personal information. We may share your data only in the following circumstances:
+        </p>
+        <ul>
+            <li>With your explicit consent</li>
+            <li>To comply with legal obligations</li>
+            <li>To protect our rights and safety</li>
+            <li>With service providers who assist in operating our app (under strict confidentiality agreements)</li>
+        </ul>
+
+        <h2>5. Your Rights</h2>
+        <p>You have the right to:</p>
+        <ul>
+            <li>Access your personal data</li>
+            <li>Correct inaccurate data</li>
+            <li>Request deletion of your data</li>
+            <li>Export your data</li>
+            <li>Opt-out of certain data processing</li>
+        </ul>
+
+        <h2>6. Third-Party Services</h2>
+        <p>
+            We use third-party services including OpenAI for AI functionality. These services have their own privacy policies, and we encourage you to review them.
+        </p>
+
+        <h2>7. Children's Privacy</h2>
+        <p>
+            Our services are not intended for users under the age of 13. We do not knowingly collect personal information from children under 13.
+        </p>
+
+        <h2>8. Changes to This Policy</h2>
+        <p>
+            We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the "Last Updated" date.
+        </p>
+
+        <div class="contact-info">
+            <h3>Contact Us</h3>
+            <p>
+                If you have questions about this Privacy Policy, please contact us at:
+                <br>
+                <a href="mailto:emmanuelochiba7@gmail.com">emmanuelochiba7@gmail.com</a>
+            </p>
+        </div>
+    </div>
+
+    <footer>
+        <a href="index.html">Home</a>
+        <a href="terms.html">Terms</a>
+        <a href="contact.html">Contact</a>
+        <p style="margin-top: 1rem; color: var(--text-secondary);">Built by Emmanuel & Joshua with ❤️ • © 2025</p>
+    </footer>
+</body>
+</html>
+
+

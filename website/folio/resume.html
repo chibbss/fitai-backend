@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Emmanuel Ochiba - Resume</title>
+    <style>
+        body {
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #000;
+        }
+        .contact {
+            font-size: 11px;
+            margin-bottom: 20px;
+            color: #666;
+        }
+        h2 {
+            font-size: 16px;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .job-title {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .company {
+            font-weight: bold;
+            font-size: 13px;
+            margin-top: 5px;
+        }
+        .date {
+            font-style: italic;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        ul {
+            margin-top: 5px;
+            margin-bottom: 15px;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 6px;
+            font-size: 11px;
+        }
+        .project-title {
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .project-tech {
+            font-style: italic;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .skills-section {
+            font-size: 11px;
+        }
+        .skills-category {
+            margin-bottom: 10px;
+        }
+        .skills-category strong {
+            font-size: 12px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s;
+        }
+        .back-link:hover {
+            color: #000;
+        }
+        .back-link::before {
+            content: "← ";
+            font-size: 16px;
+            margin-right: 5px;
+        }
+        .contact a {
+            color: #333;
+            text-decoration: none;
+        }
+        .contact a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">Back to Home</a>
+    <h1>Emmanuel Ochiba</h1>
+    <div class="contact">
+        14, Eleruwa st. | Lagos, Nigeria (open to relocation) | (+234) 7053359102 | emmanuelochiba7@gmail.com |<br>
+        <a href="https://www.kaggle.com/chibss" target="_blank">Kaggle</a> | 
+        <a href="https://github.com/chibbss" target="_blank">Github</a> | 
+        <a href="https://www.linkedin.com/in/emmanuel-ochiba/" target="_blank">Linkedin</a>
+    </div>
+
+    <h2>EDUCATION</h2>
+    <div class="company">Covenant University</div>
+    <div class="date">September 2016 - July 2021</div>
+    <div>Bsc. Building Technology</div>
+
+    <h2>EXPERIENCE</h2>
+
+    <div class="job-title">Lead AI/ML Engineer</div>
+    <div class="company">Adbirt</div>
+    <div class="date">January 2025 - December 2025</div>
+    <ul>
+        <li>Architected production multi-agent AI system using CrewAI to automate ad campaign creation and optimization, reducing campaign setup time from hours to under 2 minutes</li>
+        <li>Built scalable ML infrastructure with FastAPI REST APIs, enabling real-time conversion prediction, bid optimization, and budget allocation for high-traffic ad-serving scenarios</li>
+        <li>Designed modular ML workflows integrated into experimentation pipelines, enabling rapid algorithm iteration while maintaining production stability</li>
+        <li>Led technical pivot toward proprietary LLM fine-tuning and scalable AI services, directly contributing to $30-50K funding secured from Silverspoon Accelerator</li>
+        <li>Implemented async processing and background tasks in FastAPI, improving throughput and reducing latency for internal and external ML service clients</li>
+        <li>Developed early-stage prediction models under constrained datasets using NumPy, Pandas, and PyTorch, establishing foundation for reinforcement learning–driven ad strategies</li>
+    </ul>
+
+    <div class="job-title">ML/AI Engineer & Founder</div>
+    <div class="company">fit.ai</div>
+    <div class="date">December 2025 - Present</div>
+    <ul>
+        <li>Built end-to-end AI-powered fitness coaching platform using RAG architecture with GPT-5-mini for insights and GPT-4o-mini for chat, serving 7+ active beta testers</li>
+        <li>Architected production ML system with journey-aware workout insights, exercise baseline tracking, and personalized coaching that adapts to user progress from Day 1 to long-term milestones</li>
+        <li>Developed mobile application using React Native and Expo for iOS/Android, implementing cache-first data persistence strategy with backend sync for seamless offline experience</li>
+        <li>Designed and deployed scalable backend with FastAPI, PostgreSQL with pgvector, Redis caching, and Supabase authentication, handling real-time workout logging and AI chat interactions</li>
+        <li>Implemented deep memory system that persists conversation context across sessions, enabling personalized fitness recommendations based on user's complete workout history</li>
+    </ul>
+
+    <div class="job-title">Assistant On-Site Supervisor</div>
+    <div class="company">ARON Nigeria Limited</div>
+    <div class="date">March 2020 - December 2020</div>
+    <ul>
+        <li>Utilized databases, spreadsheets, and data visualization tools to create statistical reports and actionable insights</li>
+        <li>Applied data analysis and machine learning methodologies to identify patterns and optimize operational workflows</li>
+    </ul>
+
+    <h2>PROJECTS</h2>
+
+    <div class="project-title">fit.ai - AI-Powered Fitness Coach</div>
+    <div class="project-tech">December 2025 - Present | Python, FastAPI, React Native, Expo, PostgreSQL, Redis, OpenAI</div>
+    <ul>
+        <li>Production AI fitness coaching platform with 7+ active beta testers</li>
+        <li>RAG-based deep memory system that remembers user's complete fitness journey</li>
+        <li>Journey-aware workout insights using GPT-5-mini, tracking progression from Day 1 to long-term milestones</li>
+        <li>Mobile app (iOS/Android) with offline-first architecture and real-time AI chat</li>
+        <li>Comprehensive workout logging with automatic PR detection and personalized coaching</li>
+    </ul>
+
+    <div class="project-title">ChatGPT Clone</div>
+    <div class="project-tech">January 2023 | Python, Flask, TensorFlow, Docker, Django</div>
+    <ul>
+        <li>Developed ChatGPT clone using OpenAI's GPT-4 architecture</li>
+        <li>Created Flask-based web interface with Django backend for chat history management</li>
+        <li>Implemented Docker containerization for deployment</li>
+        <li>Integrated TensorFlow for model fine-tuning on custom datasets</li>
+    </ul>
+
+    <h2>TECHNICAL SKILLS</h2>
+    <div class="skills-section">
+        <div class="skills-category">
+            <strong>Languages:</strong> Python, SQL, JavaScript, HTML/CSS
+        </div>
+        <div class="skills-category">
+            <strong>Frameworks & Libraries:</strong><br>
+            Backend: FastAPI, Django, Flask<br>
+            Frontend/Mobile: React Native, Expo<br>
+            ML/AI: PyTorch, TensorFlow, Hugging Face Transformers, CrewAI, PEFT, LoRA<br>
+            Data: pandas, NumPy, Matplotlib
+        </div>
+        <div class="skills-category">
+            <strong>AI/LLM Technologies:</strong> OpenAI API (GPT-5-mini, GPT-4o-mini, Whisper, text-embedding-3-small), Claude API, Gemini API, RAG (Retrieval-Augmented Generation), Vector Search (pgvector, Pinecone), Multi-agent orchestration (CrewAI)
+        </div>
+        <div class="skills-category">
+            <strong>Developer Tools:</strong> Git, Cursor, VS Code, PyCharm
+        </div>
+        <div class="skills-category">
+            <strong>Deployment & Infrastructure:</strong> Docker, Render, Google Cloud Platform, AWS
+        </div>
+        <div class="skills-category">
+            <strong>Databases:</strong> PostgreSQL (pgvector), Redis, Supabase
+        </div>
+        <div class="skills-category">
+            <strong>Architecture & Design:</strong> Production ML systems design, Scalable API architecture, Cache-first data persistence strategies, Async processing and background tasks
+        </div>
+    </div>
+</body>
+</html>
+

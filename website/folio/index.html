@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emmanuel Ochiba – ML/AI Engineer</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="ML/AI Engineer specializing in deep learning, computer vision, and production AI systems. Building intelligent solutions that scale.">
+    <meta name="keywords" content="ML Engineer, AI Engineer, Deep Learning, Computer Vision, Machine Learning, AI Developer">
+    <meta name="author" content="Emmanuel Ochiba">
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Emmanuel Ochiba – ML/AI Engineer">
+    <meta property="og:description" content="ML/AI Engineer specializing in deep learning, computer vision, and production AI systems.">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="../logo.svg">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --text-primary: #0a0a0a;
+            --text-secondary: #6b7280;
+            --text-tertiary: #9ca3af;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;
+            --border: #e5e7eb;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --fitai-accent: #00ffc8;
+            --fitai-accent-dark: #00e4ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 5%;
+        }
+
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-links a.active {
+            color: var(--text-primary);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 8rem 5% 4rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .hero-content {
+            width: 100%;
+        }
+
+        .hero-label {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .hero-title {
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+            letter-spacing: -0.04em;
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1.125rem, 2vw, 1.5rem);
+            color: var(--text-secondary);
+            max-width: 700px;
+            line-height: 1.6;
+            margin-bottom: 3rem;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.875rem 2rem;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--text-secondary);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+        }
+
+        /* Section Styles */
+        section {
+            padding: 8rem 5%;
+        }
+
+        .section-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            margin-bottom: 4rem;
+        }
+
+        .section-label {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .section-title {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            letter-spacing: -0.03em;
+        }
+
+        .section-subtitle {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            line-height: 1.7;
+        }
+
+        /* Projects Grid */
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+
+        .project-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .project-card:hover {
+            border-color: var(--text-primary);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+        }
+
+        .project-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .project-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .project-tag {
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .project-description {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 1.5rem;
+        }
+
+        .project-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: color 0.3s;
+        }
+
+        .project-link:hover {
+            color: var(--accent-hover);
+        }
+
+        .project-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Experience Timeline */
+        .experience-timeline {
+            position: relative;
+            padding-left: 8rem;
+        }
+
+        .experience-timeline::before {
+            content: '';
+            position: absolute;
+            left: 3.5rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(180deg, 
+                var(--accent) 0%, 
+                rgba(59, 130, 246, 0.3) 50%, 
+                var(--border) 100%);
+            transform: translateX(-50%);
+        }
+
+        .experience-item {
+            position: relative;
+            margin-bottom: 6rem;
+            padding-left: 4rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .experience-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .experience-item:last-child .experience-timeline::before {
+            bottom: auto;
+            height: 1.5rem;
+        }
+
+        .experience-marker {
+            position: absolute;
+            left: 3.5rem;
+            top: 0.5rem;
+            width: 48px;
+            height: 48px;
+            transform: translateX(-50%);
+            z-index: 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .experience-marker-circle {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-primary);
+            border: 3px solid var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 0 6px var(--bg-primary), 
+                        0 4px 16px rgba(59, 130, 246, 0.2);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .experience-item:hover .experience-marker-circle {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 6px var(--bg-primary), 
+                        0 8px 24px rgba(59, 130, 246, 0.3);
+            border-color: var(--accent-hover);
+        }
+
+        .experience-marker-icon {
+            width: 24px;
+            height: 24px;
+            color: var(--accent);
+            transition: all 0.4s ease;
+        }
+
+        .experience-item:hover .experience-marker-icon {
+            transform: scale(1.1);
+            color: var(--accent-hover);
+        }
+
+        .experience-period {
+            position: absolute;
+            left: -8rem;
+            top: 0.25rem;
+            width: 7rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-align: right;
+            padding-right: 2.5rem;
+            line-height: 1.5;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        .experience-period-year {
+            display: block;
+            font-size: 1rem;
+            color: var(--text-primary);
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+            letter-spacing: -0.01em;
+        }
+
+        .experience-content {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 3rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .experience-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, 
+                rgba(59, 130, 246, 0.03) 0%, 
+                rgba(59, 130, 246, 0) 100%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .experience-item:hover .experience-content {
+            border-color: var(--accent);
+            box-shadow: 0 12px 32px rgba(59, 130, 246, 0.12),
+                        0 0 0 1px rgba(59, 130, 246, 0.08);
+            transform: translateX(12px);
+        }
+
+        .experience-item:hover .experience-content::before {
+            opacity: 1;
+        }
+
+        .experience-header {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .experience-role {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.03em;
+            line-height: 1.2;
+        }
+
+        .experience-company {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1rem;
+            color: var(--accent);
+            font-weight: 600;
+            padding: 0.625rem 1.25rem;
+            background: linear-gradient(135deg, 
+                rgba(59, 130, 246, 0.1) 0%, 
+                rgba(59, 130, 246, 0.05) 100%);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 12px;
+            width: fit-content;
+        }
+
+        .experience-company::before {
+            content: '🏢';
+            font-size: 1.125rem;
+        }
+
+        .experience-company a {
+            color: inherit;
+            text-decoration: none;
+            transition: opacity 0.3s;
+        }
+
+        .experience-company a:hover {
+            opacity: 0.8;
+        }
+
+        .experience-description {
+            color: var(--text-secondary);
+            line-height: 1.75;
+            font-size: 1.0625rem;
+        }
+
+        /* Articles Section */
+        .articles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+
+        .article-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .article-card:hover {
+            border-color: var(--text-primary);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+        }
+
+        .article-platform {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .article-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .article-excerpt {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 1rem;
+        }
+
+        .article-date {
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+        }
+
+        /* Contact Section */
+        .contact-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .contact-link {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s;
+        }
+
+        .contact-link:hover {
+            border-color: var(--text-primary);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .contact-link-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .contact-link-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .contact-link-label {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: var(--text-primary);
+        }
+
+        .contact-link-handle {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        /* Footer */
+        footer {
+            padding: 4rem 5%;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            nav {
+                padding: 1rem 5%;
+            }
+
+            .nav-links {
+                gap: 1.5rem;
+            }
+
+            .nav-links a {
+                font-size: 0.85rem;
+            }
+
+            .hero {
+                padding: 6rem 5% 3rem;
+            }
+
+            section {
+                padding: 4rem 5%;
+            }
+
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .experience-timeline {
+                padding-left: 0;
+            }
+
+            .experience-timeline::before {
+                left: 2rem;
+            }
+
+            .experience-item {
+                padding-left: 5rem;
+                margin-bottom: 4rem;
+            }
+
+            .experience-marker {
+                left: 2rem;
+                width: 40px;
+                height: 40px;
+            }
+
+            .experience-marker-circle {
+                width: 40px;
+                height: 40px;
+                box-shadow: 0 0 0 4px var(--bg-primary), 
+                            0 2px 8px rgba(59, 130, 246, 0.2);
+            }
+
+            .experience-marker-icon {
+                width: 20px;
+                height: 20px;
+            }
+
+            .experience-period {
+                position: static;
+                width: auto;
+                text-align: left;
+                padding-right: 0;
+                margin-bottom: 1rem;
+                font-size: 0.8rem;
+            }
+
+            .experience-period-year {
+                font-size: 0.9rem;
+            }
+
+            .experience-item:hover .experience-content {
+                transform: translateX(0);
+            }
+
+            .experience-content {
+                padding: 2rem;
+            }
+
+            .experience-role {
+                font-size: 1.5rem;
+            }
+
+            .articles-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .contact-links {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Fit.ai specific styling */
+        .fitai-accent {
+            color: var(--fitai-accent);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <a href="index.html" class="logo">Emmanuel Ochiba</a>
+            <ul class="nav-links">
+                <li><a href="resume.html" class="active">Resume</a></li>
+                <li><a href="file:///Users/emmanuelochiba/Desktop/fitai-backend/website/folio/fitai.html">fit.ai</a></li>
+                <li><a href="projects.html">Projects</a></li>
+                <li><a href="index.html#articles">Articles</a></li>
+                <li><a href="index.html#experience">Experience</a></li>
+                <li><a href="index.html#contact">Contact</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <span class="hero-label">Applied ML/AI Engineer</span>
+            <h1 class="hero-title">
+                Building systems<br>
+                for <span style="color: var(--accent);">scale</span> and <span style="color: var(--fitai-accent);">ambiguity</span>
+            </h1>
+            <p class="hero-subtitle">
+                Specializing in production ML systems, multi-agent architectures, and RAG platforms. 
+                Built AI-powered ad optimization at <a href="https://www.adbirt.com" target="_blank" style="color: var(--accent); text-decoration: none;">Adbirt</a> and currently building <span class="fitai-accent">fit.ai</span> – an AI-powered fitness coach serving 7+ beta testers.
+            </p>
+            <div class="hero-cta">
+                <a href="file:///Users/emmanuelochiba/Desktop/fitai-backend/website/folio/fitai.html" class="btn btn-primary">View fit.ai Project</a>
+                <a href="projects.html" class="btn btn-secondary">Explore Projects</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Featured Projects -->
+    <section id="projects">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">Featured</span>
+                <h2 class="section-title">Selected Work</h2>
+                <p class="section-subtitle">
+                    Projects that showcase production ML systems and AI applications
+                </p>
+            </div>
+            <div class="projects-grid">
+                <a href="file:///Users/emmanuelochiba/Desktop/fitai-backend/website/fitai-website/index.html" class="project-card" style="text-decoration: none; color: inherit;">
+                    <h3 class="project-title">fit.ai</h3>
+                    <div class="project-tags">
+                        <span class="project-tag">AI</span>
+                        <span class="project-tag">RAG</span>
+                        <span class="project-tag">Deep Memory</span>
+                        <span class="project-tag">FastAPI</span>
+                    </div>
+                    <p class="project-description">
+                        An AI-powered fitness coach with deep memory and RAG capabilities. Built with GPT-4o-mini, pgvector, and a production-ready FastAPI backend. Features personalized coaching, workout tracking, and intelligent insights.
+                    </p>
+                    <span class="project-link">
+                        View Project
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </span>
+                </a>
+
+                <a href="projects.html" class="project-card" style="text-decoration: none; color: inherit;">
+                    <h3 class="project-title">Kaggle Competitions</h3>
+                    <div class="project-tags">
+                        <span class="project-tag">ML</span>
+                        <span class="project-tag">Deep Learning</span>
+                        <span class="project-tag">CV</span>
+                        <span class="project-tag">NLP</span>
+                    </div>
+                    <p class="project-description">
+                        A collection of machine learning projects from Kaggle competitions. Including computer vision models, NLP pipelines, and time series forecasting solutions.
+                    </p>
+                    <span class="project-link">
+                        Explore Projects
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </span>
+                </a>
+
+                <a href="https://www.adbirt.com" target="_blank" class="project-card" style="text-decoration: none; color: inherit;">
+                    <h3 class="project-title">Adbirt AI Platform</h3>
+                    <div class="project-tags">
+                        <span class="project-tag">CrewAI</span>
+                        <span class="project-tag">Multi-Agent</span>
+                        <span class="project-tag">Ad Optimization</span>
+                        <span class="project-tag">Production ML</span>
+                    </div>
+                    <p class="project-description">
+                        AI-powered ad optimization platform using CrewAI multi-agent system. Automates campaign creation, analyzes landing pages, and optimizes ad placement, targeting, and budget allocation. Reduced setup time from hours to under 2 minutes. Contributed to $30-50K funding from Silverspoon Accelerator.
+                    </p>
+                    <span class="project-link">
+                        View Platform
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- Experience Section -->
+    <section id="experience" class="experience">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">Experience</span>
+                <h2 class="section-title">Professional Journey</h2>
+                <p class="section-subtitle">
+                    Building AI systems and leading technical initiatives
+                </p>
+            </div>
+            <div class="experience-timeline">
+                <div class="experience-item">
+                    <div class="experience-marker">
+                        <div class="experience-marker-circle">
+                            <svg class="experience-marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="experience-period">
+                        <span class="experience-period-year">2025</span>
+                        <span>Dec - Present</span>
+                    </div>
+                    <div class="experience-content">
+                        <div class="experience-header">
+                            <div class="experience-role">ML/AI Engineer & Founder</div>
+                            <div class="experience-company">fit.ai</div>
+                        </div>
+                        <p class="experience-description">
+                            Building an AI-powered fitness coaching platform from the ground up. Designed and implemented RAG system with deep memory, production ML pipeline, and scalable backend infrastructure. Leading full-stack development with focus on AI/ML integration.
+                        </p>
+                    </div>
+                </div>
+                <div class="experience-item">
+                    <div class="experience-marker">
+                        <div class="experience-marker-circle">
+                            <svg class="experience-marker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="experience-period">
+                        <span class="experience-period-year">2025</span>
+                        <span>Jan - Dec</span>
+                    </div>
+                    <div class="experience-content">
+                        <div class="experience-header">
+                            <div class="experience-role">Lead AI/ML Engineer</div>
+                            <div class="experience-company"><a href="https://www.adbirt.com" target="_blank" rel="noopener noreferrer">Adbirt</a></div>
+                        </div>
+                        <p class="experience-description">
+                            Architected and built an AI-powered ad optimization platform that automates campaign creation and performance maximization. Designed a production-ready multi-agent system using CrewAI, where specialized AI agents collaborate to analyze campaign parameters, optimize ad placement, targeting demographics, and budget allocation across multiple advertising channels.
+                        </p>
+                        <p class="experience-description" style="margin-top: 1rem;">
+                            <strong>Key Achievements:</strong> Reduced campaign setup time from hours to under 2 minutes through intelligent automation. The system processes website/landing page URLs, campaign goals (sales, leads, app installs, brand awareness), and automatically generates optimized ad strategies. This AI pipeline directly contributed to securing $30-50K in funding from Silverspoon Accelerator Program.
+                        </p>
+                        <p class="experience-description" style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.95rem;">
+                            <strong>Tech Stack:</strong> CrewAI, Python, LLM APIs, Multi-agent orchestration, Campaign optimization algorithms
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Articles Section -->
+    <section id="articles" style="background: var(--bg-secondary);">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">Writing</span>
+                <h2 class="section-title">Articles & Thoughts</h2>
+                <p class="section-subtitle">
+                    Insights on machine learning, AI systems, and building production ML applications
+                </p>
+            </div>
+            <div class="articles-grid">
+                <a href="https://www.linkedin.com/pulse/from-tokenization-transformer-rebuilding-gpt-2-ground-ochiba-ru6qe/" target="_blank" class="article-card">
+                    <span class="article-platform">LinkedIn</span>
+                    <h3 class="article-title">From Tokenization to Transformer: Rebuilding GPT-2 from the Ground Up (Part 1)</h3>
+                    <p class="article-excerpt">
+                        Building a GPT-2 model from scratch using Sheldon Cooper's dialogue as training data. Deep dive into tokenization, Byte-Pair Encoding, vocabulary creation, and token embeddings—understanding every concept from first principles without shortcuts.
+                    </p>
+                    <div class="article-date">July 2025</div>
+                </a>
+
+                <a href="https://www.linkedin.com/pulse/from-tokenization-transformer-rebuilding-gpt-2-ground-ochiba-nrk4e/?trackingId=KjEWcJQwTA2GhPsDYcEnEw%3D%3D" target="_blank" class="article-card">
+                    <span class="article-platform">LinkedIn</span>
+                    <h3 class="article-title">From Tokenization to Transformer: Rebuilding GPT-2 from the Ground Up (Part 2)</h3>
+                    <p class="article-excerpt">
+                        Continuing the GPT-2 journey: implementing self-attention from scratch, building transformer blocks, multi-head attention mechanisms, and decoding strategies including temperature and top-k sampling. From theory to working implementation.
+                    </p>
+                    <div class="article-date">September 2025</div>
+                </a>
+
+                <a href="https://www.linkedin.com/pulse/i-rebuilt-microsofts-reinforcement-pre-training-rpt-paper-ochiba-m3sme/?trackingId=KjEWcJQwTA2GhPsDYcEnEw%3D%3D" target="_blank" class="article-card">
+                    <span class="article-platform">LinkedIn</span>
+                    <h3 class="article-title">I Rebuilt Microsoft's Reinforcement Pre-training (RPT) Paper on My M1 Mac</h3>
+                    <p class="article-excerpt">
+                        Rebuilding Microsoft's RPT paper—a new scaling paradigm for LLMs that reframes next-token prediction as a reinforcement learning problem. Documenting the implementation process and challenges of running it on Apple Silicon.
+                    </p>
+                    <div class="article-date">July 2025</div>
+                </a>
+
+                <a href="https://huggingface.co/datasets/chibbss/fitai-chat" target="_blank" class="article-card">
+                    <span class="article-platform">Hugging Face</span>
+                    <h3 class="article-title">fitai-chat Dataset</h3>
+                    <p class="article-excerpt">
+                        Curated a conversation dataset of 3,177 fitness coaching interactions for training AI fitness assistants. Initially intended for fine-tuning instruction-tuned LLMs, now serves as the foundation dataset. Using GPT-4o-mini with prompt engineering to scale, with customer chats (with consent) continuously expanding the dataset for better fitness coaching capabilities.
+                    </p>
+                    <div class="article-date">2025</div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">Connect</span>
+                <h2 class="section-title">Let's Connect</h2>
+                <p class="section-subtitle">
+                    Open to collaborations, opportunities, and interesting ML/AI projects
+                </p>
+            </div>
+            <div class="contact-links">
+                <a href="mailto:emmanuelochiba7@gmail.com" class="contact-link">
+                    <div class="contact-link-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                            <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                    </div>
+                    <div class="contact-link-label">Email</div>
+                    <div class="contact-link-handle">emmanuelochiba7@gmail.com</div>
+                </a>
+
+                <a href="https://github.com/chibbss" target="_blank" class="contact-link">
+                    <div class="contact-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        </svg>
+                    </div>
+                    <div class="contact-link-label">GitHub</div>
+                    <div class="contact-link-handle">@chibbss</div>
+                </a>
+
+                <a href="https://www.linkedin.com/in/emmanuel-ochiba/" target="_blank" class="contact-link">
+                    <div class="contact-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                        </svg>
+                    </div>
+                    <div class="contact-link-label">LinkedIn</div>
+                    <div class="contact-link-handle">in/emmanuel-ochiba</div>
+                </a>
+
+                <a href="https://www.kaggle.com/chibss" target="_blank" class="contact-link">
+                    <div class="contact-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.824 0c-1.404.028-2.748.59-3.74 1.52-.055.047-.103.109-.142.17-.038-.061-.086-.123-.141-.17C13.846.59 12.502.028 11.098 0H0v24h1.736v-6.24c0-.788.127-1.569.372-2.32.257-.791.707-1.533 1.322-2.102.616-.57 1.34-.984 2.127-1.217.787-.234 1.6-.253 2.396-.057.415.103.813.278 1.174.517.36.24.673.539.932.883.259-.344.572-.643.932-.883.361-.239.759-.414 1.174-.517.796-.196 1.609-.177 2.396.057.787.233 1.511.647 2.127 1.217.615.57 1.065 1.311 1.322 2.102.245.751.372 1.532.372 2.32V24h1.736V0h-4.784z"/>
+                        </svg>
+                    </div>
+                    <div class="contact-link-label">Kaggle</div>
+                    <div class="contact-link-handle">@chibss</div>
+                </a>
+
+                <a href="https://x.com/yourhandle" target="_blank" class="contact-link">
+                    <div class="contact-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                        </svg>
+                    </div>
+                    <div class="contact-link-label">X (Twitter)</div>
+                    <div class="contact-link-handle">@yourhandle</div>
+                </a>
+
+                <a href="https://x.com/fitai" target="_blank" class="contact-link">
+                    <div class="contact-link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                        </svg>
+                    </div>
+                    <div class="contact-link-label">fit.ai on X</div>
+                    <div class="contact-link-handle">@fitai</div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>© 2025 Emmanuel Ochiba. Built with passion for AI.</p>
+    </footer>
+
+    <script>
+        // Smooth scroll for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

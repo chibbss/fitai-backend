@@ -1,0 +1,46 @@
+<svg width="320" height="90" viewBox="0 0 320 90" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brandGradientDark" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00ffc8" />
+      <stop offset="100%" stop-color="#00e4ff" />
+    </linearGradient>
+    <filter id="pulseGlowDark" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <g fill="none" fill-rule="evenodd">
+    <path
+      d="M40,50 Q55,20 65,35 T100,25"
+      stroke="url(#brandGradientDark)"
+      stroke-width="5.5"
+      stroke-linecap="round"
+    />
+    <circle cx="40" cy="50" r="5.5" fill="url(#brandGradientDark)" />
+    <circle cx="69" cy="39" r="5.3" fill="#ff3366" />
+    <circle cx="100" cy="25" r="5.5" fill="url(#brandGradientDark)" />
+    <g transform="translate(110 20)">
+      <text
+        font-family="'Poppins', sans-serif"
+        font-weight="600"
+        font-size="36"
+        letter-spacing="-3"
+        fill="#e5e5e5"
+      >
+        <tspan x="0" y="32">fit</tspan>
+        <tspan x="37" y="32">ai</tspan>
+      </text>
+      <circle
+        cx="31"
+        cy="28"
+        r="3"
+        fill="url(#brandGradientDark)"
+        filter="url(#pulseGlowDark)"
+      />
+    </g>
+  </g>
+</svg>
+

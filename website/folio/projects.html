@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Projects – Emmanuel Ochiba</title>
+    
+    <meta name="description" content="A collection of machine learning projects from Kaggle competitions and personal research. Computer vision, NLP, and deep learning solutions.">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --text-primary: #0a0a0a;
+            --text-secondary: #6b7280;
+            --text-tertiary: #9ca3af;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;
+            --border: #e5e7eb;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 5%;
+        }
+
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-links a.active {
+            color: var(--text-primary);
+        }
+
+        .page-hero {
+            padding: 10rem 5% 6rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .page-hero-label {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .page-hero-title {
+            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.04em;
+        }
+
+        .page-hero-subtitle {
+            font-size: clamp(1.125rem, 2vw, 1.5rem);
+            color: var(--text-secondary);
+            max-width: 700px;
+            line-height: 1.7;
+        }
+
+        section {
+            padding: 6rem 5%;
+        }
+
+        .section-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            margin-bottom: 4rem;
+        }
+
+        .section-label {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .section-title {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 1rem;
+            letter-spacing: -0.03em;
+        }
+
+        .section-subtitle {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            line-height: 1.7;
+        }
+
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+
+        .project-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem;
+            transition: all 0.3s;
+        }
+
+        .project-card:hover {
+            border-color: var(--text-primary);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+        }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+        }
+
+        .project-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .project-competition {
+            font-size: 0.875rem;
+            color: var(--text-tertiary);
+            margin-bottom: 1rem;
+        }
+
+        .project-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .project-tag {
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .project-description {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 1.5rem;
+        }
+
+        .project-metrics {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .project-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: color 0.3s;
+        }
+
+        .project-link:hover {
+            color: var(--accent-hover);
+        }
+
+        .project-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .kaggle-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .kaggle-badge:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+            border-color: var(--accent);
+        }
+
+        footer {
+            padding: 4rem 5%;
+            text-align: center;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        footer p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .page-hero {
+                padding: 8rem 5% 4rem;
+            }
+
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+
+            section {
+                padding: 4rem 5%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-container">
+            <a href="index.html" class="logo">Emmanuel Ochiba</a>
+            <ul class="nav-links">
+                <li><a href="resume.html">Resume</a></li>
+                <li><a href="fitai.html">fit.ai</a></li>
+                <li><a href="projects.html" class="active">Projects</a></li>
+                <li><a href="index.html#experience">Experience</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="page-hero">
+        <span class="page-hero-label">Machine Learning Projects</span>
+        <h1 class="page-hero-title">Kaggle & ML Projects</h1>
+        <p class="page-hero-subtitle">
+            A collection of machine learning projects from Kaggle competitions and personal research. 
+            Exploring computer vision, NLP, time series, and deep learning solutions.
+        </p>
+        <a href="https://www.kaggle.com/chibss" target="_blank" class="kaggle-badge" style="margin-top: 2rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.825 23.859c-.022.092-.117.141-.281.141h-3.139c-.187 0-.351-.082-.492-.248l-5.178-6.589-1.448 1.448v5.111c0 .235-.117.352-.351.352H5.505c-.235 0-.352-.117-.352-.352V.353c0-.233.117-.353.352-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.234 0 .351.12.246.306l-6.955 8.338 6.955 8.338c.105.186-.012.306-.246.306h-3.139c-.165 0-.281-.082-.351-.248l-5.178-6.589-1.448 1.448v5.111c0 .235-.117.352-.351.352H5.505c-.235 0-.352-.117-.352-.352V.353c0-.233.117-.353.352-.353h2.431c.234 0 .351.12.351.353v14.343l6.203-6.272c.165-.165.33-.246.495-.246h3.239c.234 0 .351.12.246.306l-6.955 8.338 6.955 8.338c.105.186-.012.306-.246.306z"/>
+            </svg>
+            View on Kaggle
+        </a>
+    </div>
+
+    <section>
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">NLP & LLMs</span>
+                <h2 class="section-title">Natural Language Processing</h2>
+                <p class="section-subtitle">
+                    Large language models, chatbots, and sentiment analysis applications
+                </p>
+            </div>
+            <div class="projects-grid">
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">LLaMA 2 Fitness Chatbot</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">LLaMA 2</span>
+                        <span class="project-tag">LLM</span>
+                        <span class="project-tag">NLP</span>
+                        <span class="project-tag">Chatbot</span>
+                    </div>
+                    <p class="project-description">
+                        Implemented a fitness-focused chatbot using LLaMA 2, fine-tuned for workout guidance, nutrition advice, and fitness coaching conversations. Leveraged transformer architecture for natural, context-aware responses that gave birth to the idea of fit.ai.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/llama2-fitness-chatbot" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">Financial Sentiment Analysis</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">Sentiment Analysis</span>
+                        <span class="project-tag">NLP</span>
+                        <span class="project-tag">Financial Data</span>
+                        <span class="project-tag">Text Classification</span>
+                    </div>
+                    <p class="project-description">
+                        Built a sentiment analysis model for financial texts, classifying market sentiment from news articles and social media. Applied advanced NLP techniques to extract actionable insights from unstructured financial data.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/financial-sentiment-analysis" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section style="background: var(--bg-secondary);">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">Financial & Fintech</span>
+                <h2 class="section-title">Financial Machine Learning</h2>
+                <p class="section-subtitle">
+                    Predictive models, portfolio optimization, and financial analytics
+                </p>
+            </div>
+            <div class="projects-grid">
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">Stock Portfolio Optimization</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">Optimization</span>
+                        <span class="project-tag">Finance</span>
+                        <span class="project-tag">Portfolio Theory</span>
+                        <span class="project-tag">Risk Analysis</span>
+                    </div>
+                    <p class="project-description">
+                        Developed an optimization system for stock portfolio allocation, balancing risk and return using modern portfolio theory and machine learning techniques to identify optimal asset allocation strategies.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/stock-portfolio-optimization" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">S&P 500 Weekly Closing Price Prediction</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">Time Series</span>
+                        <span class="project-tag">Forecasting</span>
+                        <span class="project-tag">LSTM</span>
+                        <span class="project-tag">Stock Market</span>
+                    </div>
+                    <p class="project-description">
+                        Built time series forecasting models to predict S&P 500 weekly closing prices using LSTM networks and advanced feature engineering. Explored different architectures for financial time series prediction.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/s-p-500-weekly-closing-price-prediction" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">Bank Customer Churn Model</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">Classification</span>
+                        <span class="project-tag">Customer Analytics</span>
+                        <span class="project-tag">Finance</span>
+                        <span class="project-tag">Predictive Modeling</span>
+                    </div>
+                    <p class="project-description">
+                        Developed a predictive model to identify customers at risk of churning from a bank. Analyzed financial behavior patterns and implemented classification algorithms to help retain customers and reduce attrition.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/bank-customer-churn-model-financial-perspective" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">SVC Loan Predictor Model</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">SVM</span>
+                        <span class="project-tag">Credit Risk</span>
+                        <span class="project-tag">Classification</span>
+                        <span class="project-tag">Scikit-learn</span>
+                    </div>
+                    <p class="project-description">
+                        Built a Support Vector Classifier model to predict loan default risk. Implemented feature engineering, hyperparameter tuning, and model evaluation techniques to assess creditworthiness effectively.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/svc-loan-predictor-model" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section>
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">Computer Vision & Generative AI</span>
+                <h2 class="section-title">Image Generation & Analysis</h2>
+                <p class="section-subtitle">
+                    Exploring generative models and computer vision applications
+                </p>
+            </div>
+            <div class="projects-grid">
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">Exploring Stable Diffusion</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">Stable Diffusion</span>
+                        <span class="project-tag">Generative AI</span>
+                        <span class="project-tag">Diffusion Models</span>
+                        <span class="project-tag">Image Generation</span>
+                    </div>
+                    <p class="project-description">
+                        Explored Stable Diffusion architecture for image generation, understanding the diffusion process, latent space manipulation, and prompt engineering techniques for high-quality image synthesis.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/exploring-stable-diffusion" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section style="background: var(--bg-secondary);">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-label">Predictive Analytics & ML</span>
+                <h2 class="section-title">Regression & Classification</h2>
+                <p class="section-subtitle">
+                    Machine learning models for diverse real-world applications
+                </p>
+            </div>
+            <div class="projects-grid">
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">House Rent Predictor</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">Regression</span>
+                        <span class="project-tag">Real Estate</span>
+                        <span class="project-tag">Feature Engineering</span>
+                        <span class="project-tag">XGBoost</span>
+                    </div>
+                    <p class="project-description">
+                        Built a regression model to predict house rental prices using location, property features, and market data. Implemented advanced feature engineering and ensemble methods for accurate price prediction.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/house-rent-predictor" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">Click Through Rate Analysis</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">CTR</span>
+                        <span class="project-tag">Marketing Analytics</span>
+                        <span class="project-tag">Classification</span>
+                        <span class="project-tag">Digital Marketing</span>
+                    </div>
+                    <p class="project-description">
+                        Analyzed click-through rates for digital advertising campaigns, building predictive models to optimize ad performance. Explored feature importance and user behavior patterns to improve conversion rates.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/click-through-rate-analysis" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">Flight Delay Cause Analysis</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">Aeroguard</span>
+                        <span class="project-tag">Aviation</span>
+                        <span class="project-tag">Data Analysis</span>
+                        <span class="project-tag">Root Cause Analysis</span>
+                    </div>
+                    <p class="project-description">
+                        Conducted comprehensive analysis of flight delay causes using aviation data. Identified key factors contributing to delays and built models to predict and mitigate disruption risks in airline operations.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/aeroguard-flight-delay-cause-analysis" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+
+                <div class="project-card">
+                    <div class="project-header">
+                        <div>
+                            <h3 class="project-title">Unearthing Masculinity: Clustering Insights</h3>
+                            <div class="project-competition">Kaggle Project</div>
+                        </div>
+                    </div>
+                    <div class="project-tags">
+                        <span class="project-tag">Clustering</span>
+                        <span class="project-tag">Unsupervised Learning</span>
+                        <span class="project-tag">Social Science</span>
+                        <span class="project-tag">K-Means</span>
+                    </div>
+                    <p class="project-description">
+                        Applied clustering techniques to analyze social science data, uncovering patterns and insights through unsupervised learning. Explored dimensionality reduction and cluster validation methods for meaningful segmentation.
+                    </p>
+                    <a href="https://www.kaggle.com/code/chibss/unearthing-masculinity-clustering-insights" target="_blank" class="project-link">
+                        View Notebook
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 17L17 7M7 7h10v10"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>© 2025 Emmanuel Ochiba. Built with passion for AI.</p>
+    </footer>
+</body>
+</html>
+
+
+
+
+

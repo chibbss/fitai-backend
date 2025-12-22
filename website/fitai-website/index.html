@@ -1,0 +1,3169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>fit.ai – Your AI-Powered Fitness Coach</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="fit.ai - The AI fitness coach that remembers everything. Gets smarter over time, celebrates your PRs, and provides personalized guidance. Download free beta - iOS & Android available now.">
+    <meta name="keywords" content="AI fitness coach, AI personal trainer, fitness app that remembers, workout tracker with AI, personalized fitness coach, AI workout coach, fitness coach app, smart workout tracker">
+    <meta name="author" content="fit.ai">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://fitailive.com/">
+    <meta property="og:title" content="fit.ai – Your AI-Powered Fitness Coach">
+    <meta property="og:description" content="The AI fitness coach that remembers everything. Gets smarter over time and provides personalized guidance. Download free beta - iOS & Android available now.">
+    <meta property="og:image" content="https://fitailive.com/og-image.png">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://fitailive.com/">
+    <meta name="twitter:title" content="fit.ai – Your AI-Powered Fitness Coach">
+    <meta name="twitter:description" content="The AI fitness coach that remembers everything. Gets smarter over time and provides personalized guidance. Download free beta - iOS & Android available now.">
+    <meta name="twitter:image" content="https://fitailive.com/og-image.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="apple-touch-icon" href="logo.svg">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --electric-teal: #00ffc8;
+            --aqua-glow: #00e4ff;
+            --vibrant-coral: #ff3366;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --bg-black: #000000;
+            --bg-surface: #0a0a0a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-black);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            line-height: 1.6;
+            font-weight: 400;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Minimal Navigation - Floating & Centered */
+        nav {
+            position: fixed;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 2.5rem;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 3rem;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            white-space: nowrap;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        /* Hero Section - Creative Layout */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10rem 5% 4rem;
+            position: relative;
+        }
+
+        .hero-content {
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            z-index: 2;
+        }
+
+        .hero-text {
+            z-index: 2;
+        }
+
+        .hero-center {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 2rem;
+        }
+
+        .hero-right {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            align-items: flex-end;
+            z-index: 2;
+        }
+
+        .hero-visual {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2rem;
+            margin-bottom: 6rem;
+        }
+
+        /* Content below phone - AI Insights */
+        .hero-below-phone {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 600px;
+            margin-top: 4rem;
+        }
+
+        .ai-insight {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem 1.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: 3px solid;
+            border-radius: 12px;
+            transition: all 0.3s;
+            opacity: 0;
+        }
+
+        .ai-insight-1 {
+            border-left-color: var(--vibrant-coral);
+        }
+
+        .ai-insight-2 {
+            border-left-color: var(--electric-teal);
+        }
+
+        .ai-insight-3 {
+            border-left-color: var(--aqua-glow);
+        }
+
+        .ai-insight:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateX(8px);
+            border-color: rgba(0, 255, 200, 0.2);
+        }
+
+        .ai-insight-icon {
+            font-size: 1.75rem;
+            flex-shrink: 0;
+            filter: drop-shadow(0 0 8px rgba(0, 255, 200, 0.3));
+        }
+
+        .ai-insight-content {
+            flex: 1;
+        }
+
+        .ai-insight-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .ai-insight-text {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            line-height: 1.5;
+            font-weight: 500;
+        }
+
+        .ai-insight {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem 1.75rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: 3px solid;
+            border-radius: 12px;
+            transition: all 0.3s;
+            opacity: 0;
+        }
+
+        .ai-insight-1 {
+            border-left-color: var(--vibrant-coral);
+        }
+
+        .ai-insight-2 {
+            border-left-color: var(--electric-teal);
+        }
+
+        .ai-insight-3 {
+            border-left-color: var(--aqua-glow);
+        }
+
+        .ai-insight:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateX(8px);
+            border-color: rgba(0, 255, 200, 0.2);
+        }
+
+        .ai-insight-icon {
+            font-size: 1.75rem;
+            flex-shrink: 0;
+            filter: drop-shadow(0 0 8px rgba(0, 255, 200, 0.3));
+        }
+
+        .ai-insight-content {
+            flex: 1;
+        }
+
+        .ai-insight-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .ai-insight-text {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            line-height: 1.5;
+            font-weight: 500;
+        }
+
+        /* Decorative elements for left and right sides */
+        .hero-stat {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: left;
+            transition: all 0.3s;
+        }
+
+        .hero-stat:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(0, 255, 200, 0.2);
+            transform: translateY(-4px);
+        }
+
+        .hero-stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .hero-stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .hero-feature {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+
+        .hero-feature:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(0, 255, 200, 0.2);
+        }
+
+        .hero-feature-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .hero-feature-text {
+            flex: 1;
+        }
+
+        .hero-feature-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .hero-feature-desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .hero-badge {
+            display: none;
+        }
+
+        .hero-title {
+            font-size: clamp(3.5rem, 8vw, 6.5rem);
+            font-weight: 900;
+            line-height: 0.95;
+            margin-bottom: 1.5rem;
+            margin-top: 0;
+            color: var(--text-primary);
+            letter-spacing: -0.04em;
+            opacity: 0;
+            animation: fadeInUp 0.8s ease-out 0.2s forwards;
+            text-align: center;
+        }
+
+        .hero-title .highlight {
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            line-height: 1.7;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            font-weight: 400;
+            opacity: 0;
+            animation: fadeInUp 0.8s ease-out 0.4s forwards;
+            text-align: center;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            opacity: 0;
+            animation: fadeInUp 0.8s ease-out 0.6s forwards;
+        }
+
+        .btn {
+            padding: 1.1rem 2.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            border: none;
+            letter-spacing: -0.01em;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            color: var(--bg-black);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 40px rgba(0, 255, 200, 0.4);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1.5px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--electric-teal);
+            background: rgba(0, 255, 200, 0.05);
+        }
+
+        /* Realistic iPhone Mockup */
+        .phone-mockup {
+            position: relative;
+            width: 320px;
+            height: 692px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            border-radius: 48px;
+            padding: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 
+                0 0 0 1px rgba(0, 0, 0, 0.5),
+                0 0 0 2px rgba(255, 255, 255, 0.05),
+                0 50px 120px rgba(0, 0, 0, 0.9),
+                0 0 100px rgba(0, 255, 200, 0.15),
+                inset 0 0 20px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transform-origin: center center;
+            filter: drop-shadow(0 20px 60px rgba(0, 0, 0, 0.5));
+            will-change: transform, opacity;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            transform: translateZ(0);
+        }
+
+        .phone-mockup:hover {
+            filter: drop-shadow(0 30px 80px rgba(0, 255, 200, 0.4));
+            z-index: 10 !important;
+        }
+
+        /* iPhone notch */
+        .phone-notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 30px;
+            background: var(--bg-black);
+            border-radius: 0 0 20px 20px;
+            z-index: 10;
+        }
+
+        .phone-notch::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        @keyframes floatPhone {
+            0%, 100% {
+                transform: translateY(0) rotate(-1deg);
+            }
+            50% {
+                transform: translateY(-15px) rotate(1deg);
+            }
+        }
+
+        /* Decorative elements around phone */
+        .phone-decoration {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 255, 200, 0.1), transparent);
+            filter: blur(40px);
+            animation: pulseGlow 4s ease-in-out infinite;
+        }
+
+        .phone-decoration-1 {
+            top: -50px;
+            left: -50px;
+            animation-delay: 0s;
+        }
+
+        .phone-decoration-2 {
+            bottom: -50px;
+            right: -50px;
+            animation-delay: 2s;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% {
+                opacity: 0.3;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.6;
+                transform: scale(1.2);
+            }
+        }
+
+        .phone-screen-image {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-black);
+            border-radius: 40px;
+            overflow: hidden;
+            position: relative;
+            padding: 0.5rem;
+            display: block;
+        }
+
+        .phone-screen-image img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 35px;
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-black);
+            border-radius: 40px;
+            padding: 3rem 1.75rem 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Status bar */
+        .phone-status-bar {
+            position: absolute;
+            top: 1rem;
+            left: 1.75rem;
+            right: 1.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            color: var(--text-primary);
+            font-weight: 600;
+            z-index: 5;
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .status-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--text-primary);
+        }
+
+        .phone-header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .phone-logo {
+            width: 40px;
+            height: 40px;
+            filter: drop-shadow(0 0 10px rgba(0, 255, 200, 0.5));
+        }
+
+        .phone-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .phone-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 1.25rem;
+            transition: all 0.3s;
+        }
+
+        .phone-card:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(0, 255, 200, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .phone-card-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .phone-card-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.2;
+        }
+
+        .phone-card-text {
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            line-height: 1.5;
+            margin-top: 0.5rem;
+            opacity: 0.9;
+        }
+
+        /* Three Phone Mockups Container - Creative Layout */
+        .phone-mockups-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1200px;
+        }
+
+        .phone-mockup-1 {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-120%, -50%) rotate(-12deg) scale(0.9);
+            z-index: 3;
+            opacity: 0;
+            animation: gentlePhoneEntrance 1.4s cubic-bezier(0.4, 0, 0.2, 1) 0.8s forwards, floatPhone1 6s ease-in-out infinite 2.2s;
+        }
+
+        .phone-mockup-2 {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(0deg) scale(1);
+            z-index: 2;
+            opacity: 0;
+            animation: gentlePhoneEntrance2 1.4s cubic-bezier(0.4, 0, 0.2, 1) 1s forwards, floatPhone2 6s ease-in-out infinite 2.4s;
+        }
+
+        .phone-mockup-3 {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(20%, -50%) rotate(12deg) scale(0.9);
+            z-index: 1;
+            opacity: 0;
+            animation: gentlePhoneEntrance3 1.4s cubic-bezier(0.4, 0, 0.2, 1) 1.2s forwards, floatPhone3 6s ease-in-out infinite 2.6s;
+        }
+
+        @keyframes floatPhone1 {
+            0%, 100% {
+                transform: translate(-120%, calc(-50% + 0px)) rotate(-12deg) scale(0.9);
+            }
+            50% {
+                transform: translate(-120%, calc(-50% - 20px)) rotate(-10deg) scale(0.9);
+            }
+        }
+
+        @keyframes floatPhone2 {
+            0%, 100% {
+                transform: translate(-50%, calc(-50% + 0px)) rotate(0deg) scale(1);
+            }
+            50% {
+                transform: translate(-50%, calc(-50% - 25px)) rotate(2deg) scale(1);
+            }
+        }
+
+        @keyframes gradientFlow {
+            0%, 100% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .pricing-card-featured:hover {
+            transform: translateY(-4px);
+            border-color: var(--electric-teal);
+            box-shadow: 0 20px 40px rgba(0, 255, 200, 0.2);
+        }
+
+        /* Fix for Annual card left-side brightness issue */
+        .pricing-card-side:last-child {
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2) !important;
+            border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+
+        .pricing-card-side:last-child::before {
+            display: none !important;
+        }
+
+        .pricing-card .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(0, 255, 200, 0.4);
+        }
+
+        .pricing-card-side .cta-button:hover {
+            transform: none;
+            cursor: not-allowed;
+        }
+
+        @keyframes floatPhone3 {
+            0%, 100% {
+                transform: translate(20%, calc(-50% + 0px)) rotate(12deg) scale(0.9);
+            }
+            50% {
+                transform: translate(20%, calc(-50% - 20px)) rotate(10deg) scale(0.9);
+            }
+        }
+
+        /* Add depth with shadows and glows */
+        .phone-mockup-1::before {
+            content: '';
+            position: absolute;
+            inset: -20px;
+            background: radial-gradient(circle, rgba(0, 255, 200, 0.15), transparent 70%);
+            filter: blur(30px);
+            z-index: -1;
+            border-radius: 60px;
+        }
+
+        .phone-mockup-2::before {
+            content: '';
+            position: absolute;
+            inset: -30px;
+            background: radial-gradient(circle, rgba(0, 255, 200, 0.2), transparent 70%);
+            filter: blur(40px);
+            z-index: -1;
+            border-radius: 60px;
+        }
+
+        .phone-mockup-3::before {
+            content: '';
+            position: absolute;
+            inset: -20px;
+            background: radial-gradient(circle, rgba(0, 228, 255, 0.15), transparent 70%);
+            filter: blur(30px);
+            z-index: -1;
+            border-radius: 60px;
+        }
+
+        /* Chat Screen Mockup */
+        .phone-screen-chat {
+            padding: 3rem 1rem 1rem;
+        }
+
+        .mockup-chat-header {
+            text-align: center;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 1rem;
+        }
+
+        .mockup-chat-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .mockup-chat-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            overflow-y: auto;
+            padding-bottom: 1rem;
+        }
+
+        .mockup-message {
+            max-width: 75%;
+            padding: 0.75rem 1rem;
+            border-radius: 18px;
+            font-size: 0.75rem;
+            line-height: 1.4;
+        }
+
+        .mockup-message-bot {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .mockup-message-user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            color: var(--bg-black);
+            font-weight: 500;
+        }
+
+        .mockup-typing-indicator {
+            display: flex;
+            gap: 0.25rem;
+            align-self: flex-start;
+            padding: 0.75rem 1rem;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 18px;
+        }
+
+        .mockup-typing-indicator span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            animation: typingDot 1.4s ease-in-out infinite;
+        }
+
+        .mockup-typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .mockup-typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typingDot {
+            0%, 60%, 100% {
+                opacity: 0.3;
+                transform: translateY(0);
+            }
+            30% {
+                opacity: 1;
+                transform: translateY(-4px);
+            }
+        }
+
+        .mockup-chat-input {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .mockup-input-field {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .mockup-mic-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mockup-mic-button::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            background: var(--bg-black);
+            border-radius: 50%;
+        }
+
+        /* Workout Logger Mockup */
+        .phone-screen-workout {
+            padding: 3rem 1rem 1rem;
+        }
+
+        .mockup-workout-header {
+            text-align: center;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 1rem;
+        }
+
+        .mockup-workout-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .mockup-workout-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow-y: auto;
+        }
+
+        .mockup-exercise-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .mockup-exercise-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+        }
+
+        .mockup-exercise-sets {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .mockup-set {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            font-size: 0.75rem;
+        }
+
+        .mockup-set-number {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .mockup-set-details {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .mockup-set-pr {
+            border: 1px solid rgba(0, 255, 200, 0.3);
+            background: rgba(0, 255, 200, 0.05);
+        }
+
+        .mockup-pr-badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            color: var(--bg-black);
+            border-radius: 8px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            margin-left: 0.5rem;
+        }
+
+        .mockup-add-exercise {
+            padding: 1rem;
+            text-align: center;
+            color: var(--electric-teal);
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: 1px dashed rgba(0, 255, 200, 0.3);
+            border-radius: 12px;
+        }
+
+        .mockup-workout-footer {
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .mockup-save-button {
+            width: 100%;
+            padding: 0.875rem;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            color: var(--bg-black);
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        /* Stats/Calendar Mockup */
+        .phone-screen-stats {
+            padding: 3rem 1rem 1rem;
+        }
+
+        .mockup-stats-header {
+            text-align: center;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 1rem;
+        }
+
+        .mockup-stats-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .mockup-stats-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .mockup-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+
+        .mockup-stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1rem 0.75rem;
+            text-align: center;
+        }
+
+        .mockup-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.2;
+            margin-bottom: 0.25rem;
+        }
+
+        .mockup-stat-label {
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .mockup-calendar {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .mockup-calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .mockup-calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+        }
+
+        .mockup-cal-day {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .mockup-cal-day-workout {
+            background: linear-gradient(135deg, rgba(0, 255, 200, 0.2), rgba(0, 228, 255, 0.2));
+            border-color: rgba(0, 255, 200, 0.3);
+            position: relative;
+        }
+
+        .mockup-cal-day-workout::after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--electric-teal);
+        }
+
+        @media (max-width: 1200px) {
+            .phone-mockups-container {
+                height: 500px;
+            }
+
+            .phone-mockup-1 {
+                transform: translate(-110%, -50%) rotate(-10deg) scale(0.8);
+            }
+
+            .phone-mockup-2 {
+                transform: translate(-50%, -50%) rotate(0deg) scale(0.9);
+            }
+
+            .phone-mockup-3 {
+                transform: translate(10%, -50%) rotate(10deg) scale(0.8);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .phone-mockups-container {
+                height: 400px;
+            }
+
+            .phone-mockup {
+                width: 240px;
+                height: 520px;
+            }
+
+            .phone-mockup-1 {
+                transform: translate(-100%, -50%) rotate(-8deg) scale(0.7);
+            }
+
+            .phone-mockup-2 {
+                transform: translate(-50%, -50%) rotate(0deg) scale(0.75);
+            }
+
+            .phone-mockup-3 {
+                transform: translate(0%, -50%) rotate(8deg) scale(0.7);
+            }
+        }
+
+
+        /* Features Section - Dribbble Style (Old) */
+        .features {
+            padding: 10rem 5%;
+            position: relative;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .features-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 5rem;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .section-header.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .section-label {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            background: rgba(255, 51, 102, 0.1);
+            border: 1px solid rgba(255, 51, 102, 0.2);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--vibrant-coral);
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .section-title {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+            letter-spacing: -0.04em;
+        }
+
+        .section-subtitle {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.7;
+            font-weight: 400;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 2.5rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            opacity: 1;
+            transform: translateY(0);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .feature-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(0, 255, 200, 0.05), transparent);
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(0, 255, 200, 0.25);
+            background: rgba(255, 255, 255, 0.04);
+            box-shadow: 0 20px 60px rgba(0, 255, 200, 0.1);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1.5rem;
+        }
+
+        .feature-icon-wrapper {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 8px 24px rgba(0, 255, 200, 0.3);
+        }
+
+        .feature-icon-wrapper svg {
+            width: 32px;
+            height: 32px;
+            color: var(--bg-black);
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+
+        .feature-description {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            font-size: 1rem;
+            font-weight: 400;
+        }
+
+        .feature-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--electric-teal);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            transition: all 0.3s;
+        }
+
+        .feature-link:hover {
+            gap: 0.75rem;
+            color: var(--aqua-glow);
+        }
+
+        .feature-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Social Proof Section */
+        .social-proof {
+            padding: 6rem 5%;
+            background: rgba(255, 255, 255, 0.01);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .social-proof-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .social-proof-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .social-proof-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4rem;
+            text-align: center;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .stat-value {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        @media (max-width: 768px) {
+            .social-proof-stats {
+                grid-template-columns: 1fr;
+                gap: 3rem;
+            }
+        }
+
+        /* CTA Section */
+        .cta {
+            padding: 12rem 5%;
+            text-align: center;
+            position: relative;
+        }
+
+        .cta-container {
+            max-width: 800px;
+            margin: 0 auto;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .cta-container.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .cta-title {
+            font-size: clamp(3rem, 7vw, 5rem);
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 2rem;
+            color: var(--text-primary);
+            letter-spacing: -0.04em;
+        }
+
+        .cta-text {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            margin-bottom: 3rem;
+            line-height: 1.7;
+        }
+
+        /* Scroll to Top Button */
+        .scroll-to-top {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            color: var(--bg-black);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 999;
+            box-shadow: 0 8px 24px rgba(0, 255, 200, 0.3);
+        }
+
+        .scroll-to-top.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .scroll-to-top:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0, 255, 200, 0.4);
+        }
+
+        .scroll-to-top svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Footer */
+        footer {
+            padding: 6rem 5% 3rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .footer-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 4rem;
+        }
+
+        .footer-brand {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.03em;
+        }
+
+        .footer-description {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .footer-section h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.875rem;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 1rem;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: var(--electric-teal);
+        }
+
+        .footer-bottom {
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        /* Scroll Animations */
+        .scroll-animate {
+            opacity: 0;
+            transform: translateY(50px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .scroll-animate.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .scroll-fade {
+            opacity: 0;
+            transition: opacity 0.8s ease-out;
+        }
+
+        .scroll-fade.visible {
+            opacity: 1;
+        }
+
+        .scroll-slide-left {
+            opacity: 0;
+            transform: translateX(-100px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .scroll-slide-left.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .scroll-slide-right {
+            opacity: 0;
+            transform: translateX(100px);
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .scroll-slide-right.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        /* Minimal Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes gentlePhoneEntrance {
+            from {
+                opacity: 0;
+                transform: translate(-120%, -50%) rotate(-12deg) scale(0.85);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-120%, -50%) rotate(-12deg) scale(0.9);
+            }
+        }
+
+        @keyframes gentlePhoneEntrance2 {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) rotate(0deg) scale(0.85);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) rotate(0deg) scale(1);
+            }
+        }
+
+        @keyframes gentlePhoneEntrance3 {
+            from {
+                opacity: 0;
+                transform: translate(20%, -50%) rotate(12deg) scale(0.85);
+            }
+            to {
+                opacity: 1;
+                transform: translate(20%, -50%) rotate(12deg) scale(0.9);
+            }
+        }
+
+        /* Subtle gradient background */
+        .gradient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle at 20% 50%, rgba(0, 255, 200, 0.05) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(0, 228, 255, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        /* Feature Showcase Section - Abstract Creative Layout */
+        .feature-showcase {
+            padding: 8rem 5%;
+            position: relative;
+            overflow: visible;
+        }
+
+        .showcase-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            position: relative;
+            min-height: 180vh;
+        }
+
+        .showcase-item {
+            position: relative;
+            margin-bottom: 20rem;
+            opacity: 0;
+            transition: opacity 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .showcase-item.visible {
+            opacity: 1;
+        }
+
+        .showcase-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .showcase-content {
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        /* Abstract positioning - alternating layouts */
+        .showcase-item-1 .showcase-content {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .showcase-item-1 .showcase-visual {
+            filter: drop-shadow(0 30px 80px rgba(0, 255, 200, 0.3));
+        }
+
+        .showcase-item-2 .showcase-content {
+            grid-template-columns: 1fr 1fr;
+            direction: rtl;
+        }
+
+        .showcase-item-2 .showcase-content > * {
+            direction: ltr;
+        }
+
+        .showcase-item-2 .showcase-visual {
+            filter: drop-shadow(0 30px 80px rgba(250, 204, 21, 0.3));
+        }
+
+        .showcase-item-3 .showcase-content {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .showcase-item-3 .showcase-visual {
+            filter: drop-shadow(0 30px 80px rgba(0, 228, 255, 0.3));
+        }
+
+        .showcase-text {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            z-index: 2;
+        }
+
+        .showcase-title {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 900;
+            line-height: 1.1;
+            color: var(--text-primary);
+            letter-spacing: -0.04em;
+            margin-bottom: 1rem;
+        }
+
+        .showcase-description {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 1.5rem;
+        }
+
+        .showcase-features {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .showcase-features li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .showcase-features li::before {
+            content: '✓';
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            color: var(--bg-black);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .showcase-visual {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            will-change: transform;
+        }
+
+        .showcase-phone {
+            width: 320px;
+            height: 692px;
+            opacity: 0;
+            will-change: transform, opacity;
+            transform-origin: center center;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            perspective: 1000px;
+        }
+
+        /* Combined entrance + floating animations - smooth transition */
+        @keyframes phoneEntrance1 {
+            0% {
+                opacity: 0;
+                transform: scale(0.88) rotate(-8deg) translateY(40px);
+            }
+            60% {
+                opacity: 1;
+                transform: scale(1.02) rotate(-8deg) translateY(-5px);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) rotate(-8deg) translateY(0);
+            }
+        }
+
+        @keyframes phoneEntrance2 {
+            0% {
+                opacity: 0;
+                transform: scale(0.88) rotate(12deg) translateY(40px);
+            }
+            60% {
+                opacity: 1;
+                transform: scale(1.02) rotate(12deg) translateY(-5px);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) rotate(12deg) translateY(0);
+            }
+        }
+
+        @keyframes phoneEntrance3 {
+            0% {
+                opacity: 0;
+                transform: scale(0.88) rotate(-5deg) translateY(40px);
+            }
+            60% {
+                opacity: 1;
+                transform: scale(1.02) rotate(-5deg) translateY(-5px);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) rotate(-5deg) translateY(0);
+            }
+        }
+
+        /* Smooth floating animation - starts after entrance */
+        .showcase-item-1.visible .showcase-phone {
+            animation: phoneEntrance1 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards,
+                       floatSmooth1 8s cubic-bezier(0.4, 0, 0.6, 1) 1.6s infinite;
+        }
+
+        .showcase-item-2.visible .showcase-phone {
+            animation: phoneEntrance2 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards,
+                       floatSmooth2 10s cubic-bezier(0.4, 0, 0.6, 1) 1.6s infinite;
+        }
+
+        .showcase-item-3.visible .showcase-phone {
+            animation: phoneEntrance3 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards,
+                       floatSmooth3 9s cubic-bezier(0.4, 0, 0.6, 1) 1.6s infinite;
+        }
+
+        @keyframes floatSmooth1 {
+            0%, 100% {
+                transform: scale(1) rotate(-8deg) translateY(0px) translateZ(0);
+            }
+            50% {
+                transform: scale(1) rotate(-9deg) translateY(-12px) translateZ(0);
+            }
+        }
+
+        @keyframes floatSmooth2 {
+            0%, 100% {
+                transform: scale(1) rotate(12deg) translateY(0px) translateZ(0);
+            }
+            50% {
+                transform: scale(1) rotate(11deg) translateY(-12px) translateZ(0);
+            }
+        }
+
+        @keyframes floatSmooth3 {
+            0%, 100% {
+                transform: scale(1) rotate(-5deg) translateY(0px) translateZ(0);
+            }
+            50% {
+                transform: scale(1) rotate(-6deg) translateY(-12px) translateZ(0);
+            }
+        }
+
+        /* Decorative elements for abstract feel */
+        .showcase-visual::before {
+            content: '';
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 255, 200, 0.08), transparent 70%);
+            filter: blur(50px);
+            z-index: -1;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulseGlow 6s ease-in-out infinite;
+        }
+
+        .showcase-item-2 .showcase-visual::before {
+            background: radial-gradient(circle, rgba(250, 204, 21, 0.08), transparent 70%);
+            animation-delay: 2s;
+        }
+
+        .showcase-item-3 .showcase-visual::before {
+            background: radial-gradient(circle, rgba(0, 228, 255, 0.08), transparent 70%);
+            animation-delay: 4s;
+        }
+
+        /* Accurate Chat Screen Styles */
+        .phone-screen-chat-accurate {
+            background: #020202;
+            padding: 3rem 1rem 1rem;
+        }
+
+        .mockup-greeting {
+            padding: 2rem 1rem;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60%;
+            width: 100%;
+        }
+
+        .mockup-greeting-title {
+            font-size: 2.125rem;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 1.875rem;
+            line-height: 1.2;
+            text-align: center;
+            width: 100%;
+        }
+
+        .mockup-greeting-prompts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 0 0.3125rem;
+        }
+
+        .mockup-prompt-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.9375rem;
+            background: #ffffff;
+            border-radius: 10px;
+            font-size: 0.9375rem;
+            color: #000000;
+            font-weight: 500;
+            width: 48%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .mockup-prompt-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .mockup-chat-content-accurate {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding: 1rem 0;
+            overflow-y: auto;
+        }
+
+        .mockup-message-accurate {
+            max-width: 85%;
+            padding: 0;
+            border-radius: 0;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            margin: 0.5rem 0;
+        }
+        
+        .mockup-message-user-accurate {
+            padding: 0.625rem 1rem;
+            border-radius: 15px;
+            border-bottom-right-radius: 0;
+        }
+
+        .mockup-message-bot-accurate {
+            align-self: flex-start;
+            background: transparent;
+            color: #f8fafc;
+            border: none;
+            padding: 0;
+        }
+
+        .mockup-message-user-accurate {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #00ffc8, #00e4ff);
+            color: #ffffff;
+            font-weight: 500;
+            padding: 0.625rem;
+            border-radius: 15px;
+            border-bottom-right-radius: 0;
+            max-width: 80%;
+            margin: 0.25rem 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .mockup-message-bot-accurate {
+            align-self: flex-start;
+            background: transparent;
+            color: #f8fafc;
+            border: none;
+            padding: 0;
+            max-width: 85%;
+            margin: 0.5rem 0;
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        .mockup-message-text-accurate {
+            color: inherit;
+            font-size: 1rem;
+        }
+
+        .mockup-chat-input-accurate {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .mockup-input-wrapper-accurate {
+            flex: 1;
+            background: #fafaf9;
+            border-radius: 28px;
+            padding: 0 0.625rem;
+            min-height: 56px;
+            display: flex;
+            align-items: center;
+            flex-direction: row;
+        }
+
+        .mockup-input-field-accurate {
+            flex: 1;
+            padding: 0;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            font-size: 1rem;
+            color: #000000;
+            outline: none;
+        }
+
+        .mockup-mic-button-accurate {
+            width: 50px;
+            height: 50px;
+            border-radius: 28px;
+            background: linear-gradient(135deg, #00ffc8, #00e4ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-left: 0.625rem;
+        }
+
+        .mockup-mic-button-accurate::after {
+            content: '🎤';
+            font-size: 22px;
+            filter: brightness(0) invert(1);
+        }
+
+        /* Accurate Workout Log Styles */
+        .phone-screen-workout-accurate {
+            background: #f8fafc;
+            padding: 3rem 1rem 1rem;
+        }
+
+        .mockup-workout-header-accurate {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.9375rem 1.25rem;
+            margin-bottom: 0;
+        }
+
+        .mockup-workout-back-button {
+            width: 34px;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mockup-workout-back-button svg {
+            stroke: #0ea5e9;
+        }
+
+        .mockup-workout-title-accurate {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #020202;
+            flex: 1;
+            text-align: center;
+        }
+
+        .mockup-workout-placeholder {
+            width: 34px;
+        }
+
+        .mockup-workout-content-accurate {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow-y: auto;
+        }
+
+        .mockup-exercise-card-accurate {
+            background: #fafaf9;
+            border: 1px solid #e7e5e4;
+            border-radius: 15px;
+            padding: 0.9375rem;
+            margin-bottom: 0.9375rem;
+        }
+
+        .mockup-exercise-header-accurate {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 1rem;
+        }
+
+        .mockup-exercise-name-accurate {
+            font-size: 0.875rem;
+            color: #57534e;
+            margin-bottom: 0.5rem;
+        }
+
+        .mockup-sets-table-accurate {
+            background: #ffffff;
+            border-radius: 10px;
+            padding: 0.625rem;
+        }
+
+        .mockup-sets-header-accurate {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.5rem;
+            padding-bottom: 0.625rem;
+            border-bottom: 1px solid #e7e5e4;
+            margin-bottom: 0.625rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #57534e;
+            text-align: center;
+        }
+
+        .mockup-sets-row-accurate {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.5rem;
+            padding: 0.625rem 0;
+            align-items: center;
+        }
+
+        .mockup-sets-row-accurate span:first-child {
+            text-align: center;
+            font-size: 0.875rem;
+            color: #57534e;
+        }
+
+        .mockup-sets-row-accurate input {
+            background: #fafaf9;
+            border: 1px solid #e7e5e4;
+            border-radius: 6px;
+            padding: 0.3125rem;
+            font-size: 0.875rem;
+            text-align: center;
+            color: #000000;
+        }
+
+        .mockup-sets-row-pr {
+            position: relative;
+        }
+
+        .mockup-pr-badge-accurate {
+            position: absolute;
+            right: -2.5rem;
+            padding: 0.15rem 0.5rem;
+            background: linear-gradient(135deg, #facc15, #eab308);
+            color: #000000;
+            border-radius: 8px;
+            font-size: 0.65rem;
+            font-weight: 700;
+        }
+
+        .mockup-add-exercise-accurate {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3125rem;
+            padding: 0.625rem 0.75rem;
+            background: #0ea5e9;
+            color: #ffffff;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .mockup-add-exercise-accurate::before {
+            content: '+';
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+
+        .mockup-workout-footer-accurate {
+            padding: 0.9375rem 1.25rem;
+            border-top: 1px solid #0ea5e9;
+            background: #f8fafc;
+        }
+
+        .mockup-save-button-accurate {
+            width: 100%;
+            padding: 0.9375rem;
+            background: #0ea5e9;
+            color: #ffffff;
+            border-radius: 15px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.625rem;
+        }
+
+        .mockup-save-button-accurate::after {
+            content: '✓';
+            font-size: 1.25rem;
+        }
+
+        /* Accurate Stats/Calendar Styles */
+        .phone-screen-stats-accurate {
+            background: #f8fafc;
+            padding: 3rem 1rem 1rem;
+        }
+
+        .mockup-stats-header-accurate {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .mockup-stats-title-accurate {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #000000;
+            flex: 1;
+            text-align: center;
+        }
+
+        .mockup-stats-content-accurate {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .mockup-quick-stats-accurate {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.625rem;
+        }
+
+        .mockup-quick-stat-card-accurate {
+            background: #f1f5f9;
+            border: none;
+            border-radius: 15px;
+            padding: 0.9375rem;
+            text-align: center;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mockup-quick-stat-icon-accurate {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: rgba(168, 168, 168, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.3125rem;
+        }
+
+        .mockup-quick-stat-value-accurate {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #020202;
+            line-height: 1.2;
+            margin-top: 0.3125rem;
+            margin-bottom: 0;
+        }
+
+        .mockup-quick-stat-label-accurate {
+            font-size: 0.75rem;
+            color: #475569;
+            text-transform: none;
+            letter-spacing: 0;
+            margin-top: 0.3125rem;
+        }
+
+        .mockup-calendar-accurate {
+            background: #fafaf9;
+            border: 1px solid #e7e5e4;
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .mockup-calendar-header-accurate {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.75rem;
+            color: #57534e;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .mockup-calendar-grid-accurate {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 0.5rem;
+        }
+
+        .mockup-cal-day-accurate {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            background: #ffffff;
+            border: 1px solid #e7e5e4;
+        }
+
+        .mockup-cal-day-workout-accurate {
+            background: linear-gradient(135deg, rgba(250, 204, 21, 0.2), rgba(234, 179, 8, 0.2));
+            border-color: rgba(250, 204, 21, 0.3);
+            position: relative;
+        }
+
+        .mockup-cal-day-workout-accurate::after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #facc15;
+        }
+
+        @media (max-width: 1024px) {
+            .feature-showcase {
+                padding: 6rem 5%;
+            }
+
+            .showcase-container {
+                min-height: auto;
+            }
+
+            .showcase-item {
+                margin-bottom: 8rem;
+            }
+
+            .showcase-content {
+                grid-template-columns: 1fr !important;
+                gap: 3rem;
+                direction: ltr !important;
+            }
+
+            .showcase-content > * {
+                direction: ltr;
+            }
+
+            .showcase-visual {
+                order: -1;
+            }
+
+            .showcase-item-1 .showcase-visual,
+            .showcase-item-2 .showcase-visual,
+            .showcase-item-3 .showcase-visual {
+                transform: none;
+            }
+
+            .showcase-phone {
+                width: 280px;
+                height: 606px;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .features-main .features-grid,
+            .features .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+
+        @media (max-width: 1024px) {
+            .hero-content {
+                grid-template-columns: 1fr;
+                gap: 4rem;
+                text-align: center;
+            }
+
+            .hero-left,
+            .hero-right {
+                display: none;
+            }
+
+            .hero-title,
+            .hero-subtitle,
+            .hero-cta {
+                text-align: center;
+            }
+
+            .hero-cta {
+                justify-content: center;
+            }
+
+            .hero-center {
+                order: -1;
+            }
+
+            .hero-below-phone {
+                max-width: 100%;
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .pricing-cards-container {
+                grid-template-columns: repeat(2, 1fr) !important;
+                max-width: 800px !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .pricing-section {
+                padding: 6rem 5% !important;
+            }
+
+            .pricing-cards-container {
+                grid-template-columns: 1fr !important;
+                max-width: 400px !important;
+            }
+            
+            .pricing-card {
+                max-width: 100% !important;
+            }
+
+            .pricing-card-featured {
+                order: -1;
+            }
+        }
+
+        @media (max-width: 640px) {
+            nav {
+                top: 1rem;
+                padding: 0.875rem 1.5rem;
+                gap: 2rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .hero {
+                padding: 6rem 5% 3rem;
+            }
+
+            .phone-mockup {
+                width: 260px;
+                height: 562px;
+            }
+
+            .phone-notch {
+                width: 120px;
+                height: 24px;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="gradient-bg"></div>
+
+    <!-- Navigation -->
+    <nav>
+        <a href="index.html" class="logo">fit.ai</a>
+        <ul class="nav-links">
+            <li><a href="index.html#feature-showcase">Features</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="signup.html">Start Free Beta</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+        </ul>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <!-- Hero Content - Centered -->
+            <div class="hero-center">
+                <div class="hero-text">
+                    <h1 class="hero-title">
+                        Your Fitness<br>
+                        Coach,<br>
+                        <span class="highlight">Reimagined</span>
+                    </h1>
+                    <p class="hero-subtitle">
+                        Unlike other fitness apps, fit.ai remembers every conversation, workout, and preference. It gets smarter the more you use it — like a personal trainer who knows your entire journey.
+                    </p>
+                    <div class="hero-cta" style="margin-top: 4rem;">
+                        <a href="signup.html" class="btn btn-primary">Start Free Beta</a>
+                        <a href="faq.html" class="btn btn-secondary">Learn More</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Feature Showcase Section - Abstract Creative Layout -->
+    <section class="feature-showcase" id="feature-showcase">
+        <div class="showcase-container">
+            <!-- Feature 1: AI Chatbot -->
+            <div class="showcase-item showcase-item-1">
+                <div class="showcase-content">
+                    <div class="showcase-visual">
+                        <div class="phone-mockup showcase-phone">
+                            <div class="phone-notch"></div>
+                            <div class="phone-screen phone-screen-image">
+                                <img src="images/chat-screenshot.PNG" alt="fit.ai AI Chatbot Interface" style="width: 100%; height: 100%; object-fit: cover; border-radius: 35px;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="showcase-text">
+                        <h2 class="showcase-title">AI-Powered Chat That Never Forgets</h2>
+                        <p class="showcase-description">
+                            Chat with an AI coach that remembers every conversation, workout, and preference. Get personalized advice that adapts to your goals and evolves with your progress.
+                        </p>
+                        <ul class="showcase-features">
+                            <li>Deep memory of all conversations</li>
+                            <li>Personalized workout recommendations</li>
+                            <li>Real-time coaching and motivation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature 2: Workout Logger -->
+            <div class="showcase-item showcase-item-2">
+                <div class="showcase-content">
+                    <div class="showcase-visual">
+                        <div class="phone-mockup showcase-phone">
+                            <div class="phone-notch"></div>
+                            <div class="phone-screen phone-screen-image">
+                                <img src="images/workout-log-screenshot.PNG" alt="fit.ai Smart Workout Tracking" style="width: 100%; height: 100%; object-fit: cover; border-radius: 35px;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="showcase-text">
+                        <h2 class="showcase-title">Smart Workout Tracking</h2>
+                        <p class="showcase-description">
+                            Log workouts effortlessly with our intuitive interface. Our AI automatically detects PRs, analyzes performance patterns, and provides instant insights to keep you motivated.
+                        </p>
+                        <ul class="showcase-features">
+                            <li>Automatic PR detection</li>
+                            <li>Exercise categorization</li>
+                            <li>Performance pattern analysis</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature 3: Calendar & Stats -->
+            <div class="showcase-item showcase-item-3">
+                <div class="showcase-content">
+                    <div class="showcase-text">
+                        <h2 class="showcase-title">Progress Analytics & Calendar</h2>
+                        <p class="showcase-description">
+                            Visualize your fitness journey with comprehensive stats, calendar views, and data-driven insights that show your progress over time.
+                        </p>
+                        <ul class="showcase-features">
+                            <li>Calendar view of all workouts</li>
+                            <li>Quick stats at a glance</li>
+                            <li>Detailed progress tracking</li>
+                        </ul>
+                    </div>
+                    <div class="showcase-visual">
+                        <div class="phone-mockup showcase-phone">
+                            <div class="phone-notch"></div>
+                            <div class="phone-screen phone-screen-image">
+                                <img src="images/calendar-stats-screenshot.PNG" alt="fit.ai Calendar and Stats" style="width: 100%; height: 100%; object-fit: cover; border-radius: 35px;">
+                                    </div>
+                                    </div>
+                                </div>
+                                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Social Proof Section -->
+    <section class="social-proof">
+        <div class="social-proof-container scroll-animate">
+            <div class="social-proof-stats">
+                <div class="stat-item">
+                    <div class="stat-value">7+</div>
+                    <div class="stat-label">Beta Users</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">100%</div>
+                    <div class="stat-label">Free During Beta</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">Now Live</div>
+                    <div class="stat-label">iOS & Android</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="features-container">
+            <div class="section-header scroll-animate">
+                <span class="section-label">Features</span>
+                <h2 class="section-title">Everything You Need to Succeed</h2>
+                <p class="section-subtitle">
+                    A complete fitness ecosystem powered by AI that adapts to your goals and remembers every detail of your journey.
+                </p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon-wrapper">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="22"></line>
+                                <line x1="8" y1="22" x2="16" y2="22"></line>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">AI-Powered Coaching</h3>
+                        <p class="feature-description">
+                            Get personalized workout plans and advice from an AI coach that learns your preferences and adapts in real-time to help you reach your goals.
+                        </p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon-wrapper">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">Smart Workout Tracking</h3>
+                        <p class="feature-description">
+                            Log workouts effortlessly. Our AI automatically detects PRs, analyzes performance patterns, and provides instant insights to keep you motivated.
+                        </p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon-wrapper">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+                                <path d="M8 11h8"></path>
+                                <path d="M8 7h6"></path>
+                                <path d="M8 15h4"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">Deep Memory System</h3>
+                        <p class="feature-description">
+                            Your AI coach remembers every conversation, workout, and preference. The more you use it, the smarter it gets. It's like having a personal trainer who never forgets your entire fitness journey.
+                        </p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon-wrapper">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="20" x2="18" y2="10"></line>
+                                <line x1="12" y1="20" x2="12" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="14"></line>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">Progress Analytics</h3>
+                        <p class="feature-description">
+                            Visualize your fitness journey with comprehensive stats, calendar views, and data-driven insights that show your progress over time.
+                        </p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon-wrapper">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">Instant Insights</h3>
+                        <p class="feature-description">
+                            Get real-time feedback after every workout. Know when you hit PRs, when to rest, and how to optimize your training for better results.
+                        </p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-header">
+                        <div class="feature-icon-wrapper">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">Personalized Goals</h3>
+                        <p class="feature-description">
+                            Set and achieve goals with AI-powered recommendations tailored to your experience level, preferences, and fitness aspirations.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta" id="cta">
+        <div class="cta-container scroll-animate">
+            <h2 class="cta-title">Ready to Experience AI Coaching That Actually Knows You?</h2>
+            <p class="cta-text">
+                Join 7+ beta users getting personalized AI fitness coaching. fit.ai remembers everything and gets smarter over time. Start your free beta — no credit card required.
+            </p>
+            <a href="signup.html" class="btn btn-primary" style="font-size: 1.125rem; padding: 1.25rem 3rem;">Start Free Beta</a>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="pricing-section" style="padding: 8rem 5%; max-width: 1400px; margin: 0 auto;">
+        <div class="pricing-header scroll-animate" style="text-align: center; margin-bottom: 5rem;">
+            <h1 style="font-size: clamp(2.5rem, 5vw, 3.5rem); font-weight: 800; margin-bottom: 1rem; color: var(--text-primary); letter-spacing: -0.03em;">Simple, Transparent Pricing</h1>
+            <p class="pricing-subtitle" style="font-size: 1.125rem; color: var(--text-secondary); max-width: 600px; margin: 0 auto; line-height: 1.7;">
+                Start your free beta today. Early adopters get grandfathered pricing.
+            </p>
+        </div>
+
+        <div class="pricing-cards-container scroll-animate" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; max-width: 1400px; margin: 0 auto 5rem; align-items: stretch;">
+            <!-- Card 1: Monthly Plan (Coming Soon) -->
+            <div class="pricing-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 2.5rem; display: flex; flex-direction: column; transition: all 0.3s ease;">
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: inline-block; padding: 0.4rem 0.9rem; background: rgba(255, 51, 102, 0.1); border: 1px solid rgba(255, 51, 102, 0.2); border-radius: 6px; font-size: 0.7rem; color: var(--vibrant-coral); font-weight: 600; margin-bottom: 1.5rem;">Coming Soon</div>
+                    <div class="plan-name" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">Monthly</div>
+                    <div class="price-container" style="margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <span class="price" style="font-size: 3rem; font-weight: 800; line-height: 1; color: var(--text-primary); letter-spacing: -0.03em;">$9.99</span>
+                        </div>
+                        <div class="price-period" style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.75rem;">per month</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">Early adopter pricing</div>
+                    </div>
+                </div>
+                <ul class="features-list" style="list-style: none; margin-bottom: 2rem; flex-grow: 1;">
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>All features included</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Grandfathered pricing</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>AI chatbot & insights</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Workout logger & stats</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Calendar & progress</span>
+                    </li>
+                </ul>
+                <a href="signup.html" class="cta-button" style="display: block; width: 100%; padding: 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 0.95rem; text-align: center; transition: all 0.3s; cursor: not-allowed; opacity: 0.5;">Coming Soon</a>
+            </div>
+
+            <!-- Card 2: Quarterly Plan (Coming Soon) -->
+            <div class="pricing-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 2.5rem; display: flex; flex-direction: column; transition: all 0.3s ease;">
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: inline-block; padding: 0.4rem 0.9rem; background: rgba(255, 51, 102, 0.1); border: 1px solid rgba(255, 51, 102, 0.2); border-radius: 6px; font-size: 0.7rem; color: var(--vibrant-coral); font-weight: 600; margin-bottom: 1.5rem;">Coming Soon</div>
+                    <div class="plan-name" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">Quarterly</div>
+                    <div class="price-container" style="margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <span class="price" style="font-size: 3rem; font-weight: 800; line-height: 1; color: var(--text-primary); letter-spacing: -0.03em;">$25</span>
+                        </div>
+                        <div class="price-period" style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.75rem;">per 3 months</div>
+                        <div style="font-size: 0.75rem; color: var(--electric-teal); font-weight: 600; margin-bottom: 0.25rem;">Save $5/quarter</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">Early adopter pricing</div>
+                    </div>
+                </div>
+                <ul class="features-list" style="list-style: none; margin-bottom: 2rem; flex-grow: 1;">
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>All features included</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Quarterly savings</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>AI chatbot & insights</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Workout logger & stats</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Calendar & progress</span>
+                    </li>
+                </ul>
+                <a href="signup.html" class="cta-button" style="display: block; width: 100%; padding: 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 0.95rem; text-align: center; transition: all 0.3s; cursor: not-allowed; opacity: 0.5;">Coming Soon</a>
+            </div>
+
+            <!-- Center Card: Beta Access (Featured) -->
+            <div class="pricing-card pricing-card-featured" style="background: rgba(0, 255, 200, 0.05); border: 2px solid var(--electric-teal); border-radius: 20px; padding: 2.5rem; display: flex; flex-direction: column; transition: all 0.3s ease; position: relative;">
+                <div style="position: absolute; top: 1.5rem; right: 1.5rem; padding: 0.4rem 0.9rem; background: var(--electric-teal); border-radius: 6px; font-size: 0.7rem; color: var(--bg-black); font-weight: 700;">Current</div>
+                <div style="margin-bottom: 1.5rem;">
+                    <div class="plan-name" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem; margin-top: 0.5rem;">Beta Access</div>
+                    <div class="price-container" style="margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <span class="price" style="font-size: 3rem; font-weight: 800; line-height: 1; background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -0.03em;">Free</span>
+                        </div>
+                        <div class="price-period" style="font-size: 0.875rem; color: var(--text-secondary);">Unlimited use during beta</div>
+                    </div>
+                </div>
+                <ul class="features-list" style="list-style: none; margin-bottom: 2rem; flex-grow: 1;">
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Unlimited AI chatbot</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Deep memory system</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Smart workout logger</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Real-time AI insights</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Comprehensive stats</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Calendar & progress</span>
+                    </li>
+                </ul>
+                <a href="signup.html" class="cta-button" style="display: block; width: 100%; padding: 1rem; background: var(--electric-teal); color: var(--bg-black); text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 0.95rem; text-align: center; transition: all 0.3s;">Start Free Beta</a>
+            </div>
+
+            <!-- Card 4: Annual Plan (Coming Soon) -->
+            <div class="pricing-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 2.5rem; display: flex; flex-direction: column; transition: all 0.3s ease;">
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: inline-block; padding: 0.4rem 0.9rem; background: rgba(255, 51, 102, 0.1); border: 1px solid rgba(255, 51, 102, 0.2); border-radius: 6px; font-size: 0.7rem; color: var(--vibrant-coral); font-weight: 600; margin-bottom: 1.5rem;">Coming Soon</div>
+                    <div class="plan-name" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1rem;">Annual</div>
+                    <div class="price-container" style="margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <span class="price" style="font-size: 3rem; font-weight: 800; line-height: 1; color: var(--text-primary); letter-spacing: -0.03em;">$89.99</span>
+                        </div>
+                        <div class="price-period" style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.75rem;">per year</div>
+                        <div style="font-size: 0.75rem; color: var(--electric-teal); font-weight: 600; margin-bottom: 0.25rem;">Save $30/year</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">Early adopter pricing</div>
+                    </div>
+                </div>
+                <ul class="features-list" style="list-style: none; margin-bottom: 2rem; flex-grow: 1;">
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>All features included</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Best value pricing</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>AI chatbot & insights</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Workout logger & stats</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style="flex-shrink: 0;">
+                            <path d="M16.667 5L7.5 14.167 3.333 10" stroke="var(--electric-teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Calendar & progress</span>
+                    </li>
+                </ul>
+                <a href="signup.html" class="cta-button" style="display: block; width: 100%; padding: 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 0.95rem; text-align: center; transition: all 0.3s; cursor: not-allowed; opacity: 0.5;">Coming Soon</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div>
+                <div class="footer-brand">fit.ai</div>
+                <p class="footer-description">
+                    Your AI-powered fitness coach that learns, adapts, and remembers. Transform your journey with personalized guidance and intelligent insights.
+                </p>
+            </div>
+            <div class="footer-section">
+                <h4>Product</h4>
+                <ul class="footer-links">
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#pricing">Pricing</a></li>
+                    <li><a href="signup.html">Start Free Beta</a></li>
+                    <li><a href="faq.html">FAQ</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Support</h4>
+                <ul class="footer-links">
+                    <li><a href="contact.html">Contact</a></li>
+                    <li><a href="faq.html">Help Center</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Legal</h4>
+                <ul class="footer-links">
+                    <li><a href="privacy.html">Privacy</a></li>
+                    <li><a href="terms.html">Terms</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>Built by Emmanuel & Joshua with ❤️ • © 2025</p>
+        </div>
+    </footer>
+
+    <!-- Scroll to Top Button -->
+    <button class="scroll-to-top" aria-label="Scroll to top">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 15l-6-6-6 6"></path>
+        </svg>
+    </button>
+
+    <script>
+        // Intersection Observer for scroll animations
+        const observerOptions = {
+            threshold: 0.2,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    // Handle pricing cards container specifically
+                    if (entry.target.classList.contains('pricing-cards-container')) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                    }
+                }
+            });
+        }, observerOptions);
+
+        // Observe all scroll-animate elements
+        document.querySelectorAll('.scroll-animate, .scroll-fade, .scroll-slide-left, .scroll-slide-right').forEach(el => {
+            observer.observe(el);
+        });
+
+        // Observe feature cards with stagger
+        const featureCards = document.querySelectorAll('.feature-card');
+        featureCards.forEach((card, index) => {
+            observer.observe(card);
+            // Add stagger delay
+            card.style.transitionDelay = `${index * 0.1}s`;
+        });
+
+        // Observe section headers
+        document.querySelectorAll('.section-header').forEach(el => {
+            observer.observe(el);
+        });
+
+        // Observe CTA section
+        document.querySelectorAll('.cta-container').forEach(el => {
+            observer.observe(el);
+        });
+
+        // Observe social proof
+        document.querySelectorAll('.social-proof-container').forEach(el => {
+            observer.observe(el);
+        });
+
+        // Observe AI insights with staggered animation
+        document.querySelectorAll('.ai-insight').forEach((el, index) => {
+            observer.observe(el);
+            // Add delay based on index for staggered effect
+            el.style.transitionDelay = `${index * 0.15}s`;
+        });
+
+        // Observe showcase items
+        document.querySelectorAll('.showcase-item').forEach((item, index) => {
+            observer.observe(item);
+            // Add stagger delay for smooth sequential appearance
+            item.style.transitionDelay = `${index * 0.2}s`;
+        });
+
+        // Parallax effect for phone mockup
+        let lastScroll = 0;
+        window.addEventListener('scroll', () => {
+            const scrollY = window.scrollY;
+            const phoneMockup = document.querySelector('.phone-mockup');
+            
+            if (phoneMockup) {
+                const rect = phoneMockup.getBoundingClientRect();
+                const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+                
+                if (isVisible && scrollY < window.innerHeight) {
+                    const progress = Math.max(0, Math.min(1, scrollY / window.innerHeight));
+                    const translateY = progress * 30;
+                    const rotate = progress * 5;
+                    phoneMockup.style.transform = `translateY(${translateY}px) rotate(${rotate}deg)`;
+                }
+            }
+            
+            lastScroll = scrollY;
+        }, { passive: true });
+
+        // Scroll to top button
+        const scrollToTopBtn = document.querySelector('.scroll-to-top');
+        
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 500) {
+                scrollToTopBtn.classList.add('visible');
+            } else {
+                scrollToTopBtn.classList.remove('visible');
+            }
+        }, { passive: true });
+
+        scrollToTopBtn.addEventListener('click', () => {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    </script>
+</body>
+</html>
