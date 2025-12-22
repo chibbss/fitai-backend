@@ -1774,9 +1774,11 @@ class RAGService:
                     continue
                 
                 # Check against pre-computed max
-                prev_max = pr_max_weights.get(exercise_name, 0.0)
-                if curr_max > prev_max:
-                    return True
+                # Only mark as PR if we have historical data (not first time)
+                if exercise_name in pr_max_weights:
+                    prev_max = pr_max_weights[exercise_name]
+                    if curr_max > prev_max:
+                        return True
             return False
         
         def calculate_intensity_level(volume_kg: float, avg_session_volume: Optional[float] = None) -> str:
