@@ -422,7 +422,7 @@ const Register = () => {
                                         autoCapitalize="none"
                                         autoCorrect={false}
                                         icon={
-                                            <Icons.PasswordIcon size={verticalScale(26)}
+                                            <Icons.EnvelopeIcon size={verticalScale(26)}
                                                 color={colors.neutral600}
                                             />
                                         }

@@ -28,6 +28,7 @@ const VerifyEmailOTP = () => {
     const [otp, setOtp] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
     const [isResending, setIsResending] = useState(false);
+    const [hasNavigated, setHasNavigated] = useState(false); // Add flag to prevent double navigation
     const opacity = useSharedValue(1);
     const translateY = useSharedValue(0);
 
@@ -39,16 +40,13 @@ const VerifyEmailOTP = () => {
         };
     });
 
-    // Listen for auth state changes
+    // Listen for auth state changes - but don't auto-navigate (we'll handle it manually)
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log('Auth event on verify OTP page:', event);
 
-            if (event === 'SIGNED_IN' && session) {
-                // User verified their OTP and is now signed in
-                console.log('User signed in after OTP verification');
-                router.replace('/onboarding');
-            }
+            // Don't auto-navigate - we'll handle navigation manually after showing the alert
+            // This prevents the popup from appearing over the onboarding screen
         });
 
         return () => subscription.unsubscribe();
@@ -62,6 +60,11 @@ const VerifyEmailOTP = () => {
 
         if (!email) {
             alert.error('Email address not found', 'Error');
+            return;
+        }
+
+        if (hasNavigated) {
+            // Prevent double navigation
             return;
         }
 
@@ -105,17 +108,32 @@ const VerifyEmailOTP = () => {
                     });
 
                     if (!response.ok) {
-                        console.error('Backend profile creation error:', await response.text());
+                        const errorText = await response.text();
+                        console.error('Backend profile creation error:', errorText);
+                        // Don't block user - continue anyway
                     }
                 } catch (apiError) {
                     console.error('Backend profile creation exception:', apiError);
                     // Don't block user from continuing even if backend fails
                 }
 
-                // Auth state change will handle navigation to onboarding
+                // Show success alert FIRST
                 alert.success('Email verified successfully!', 'Success');
+                
+                // Wait a moment for the alert to be shown, then navigate
+                // This ensures the popup appears before navigation
+                setTimeout(() => {
+                    if (!hasNavigated) {
+                        setHasNavigated(true);
+                        setIsVerifying(false);
+                        router.replace('/onboarding');
+                    }
+                }, 1500); // 1.5 seconds - enough time for alert to show
+            } else {
+                setIsVerifying(false);
             }
         } catch (error: any) {
+            console.error('OTP verification error:', error);
             alert.error(error.message || 'Failed to verify OTP', 'Error');
             setIsVerifying(false);
         }

@@ -35,6 +35,7 @@ const Login = () => {
     const passwordRef = useRef('');
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
+    const [hasError, setHasError] = useState(false);
     const router = useRouter();
     const opacity = useSharedValue(1);
     const translateY = useSharedValue(0);
@@ -43,13 +44,25 @@ const Login = () => {
 
     useFocusEffect(
         React.useCallback(() => {
-            opacity.value = 1;
-            translateY.value = 0;
+            try {
+                opacity.value = 1;
+                translateY.value = 0;
+                setHasError(false);
+            } catch (error) {
+                console.error('Error in useFocusEffect:', error);
+                setHasError(true);
+            }
         }, [])
     );
 
     const navigateToRegister = () => {
-        router.replace("/register");
+        try {
+            router.replace("/register");
+        } catch (error) {
+            console.error('Navigation error:', error);
+            // Fallback to push if replace fails
+            router.push("/register");
+        }
     };
 
     const handleNavigateToRegister = () => {
@@ -347,28 +360,58 @@ const Login = () => {
         );
     }
 
-    const GradientText = ({ text }: { text: string }) => (
-        <MaskedView
-            style={{ marginBottom: 2 }}
-            maskElement={
-                <Typo fontWeight={'bold'} size={20}>{text}</Typo>
-            }>
-            <LinearGradient
-                colors={themeColors.accentGradient}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-            >
-                <Typo fontWeight={'bold'} size={20} style={{ opacity: 0 }}>
+    const GradientText = ({ text }: { text: string }) => {
+        // Fallback for iOS if MaskedView causes issues
+        if (Platform.OS === 'ios') {
+            return (
+                <Typo fontWeight={'bold'} size={20} color={themeColors.accentPrimary || colors.primary}>
                     {text}
                 </Typo>
-            </LinearGradient>
-        </MaskedView>
-    );
+            );
+        }
+        return (
+            <MaskedView
+                style={{ marginBottom: 2 }}
+                maskElement={
+                    <Typo fontWeight={'bold'} size={20}>{text}</Typo>
+                }>
+                <LinearGradient
+                    colors={themeColors.accentGradient}
+                    start={{ x: 0, y: 0.5 }}
+                    end={{ x: 1, y: 0.5 }}
+                >
+                    <Typo fontWeight={'bold'} size={20} style={{ opacity: 0 }}>
+                        {text}
+                    </Typo>
+                </LinearGradient>
+            </MaskedView>
+        );
+    };
+
+    // Error fallback UI
+    if (hasError) {
+        return (
+            <ScreenWrapper showPattern={false} bgOpacity={0.5}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                    <Typo size={18} color={themeColors.textPrimary} style={{ textAlign: 'center', marginBottom: 20 }}>
+                        Something went wrong. Please try again.
+                    </Typo>
+                    <Button onPress={() => {
+                        setHasError(false);
+                        router.replace('/welcome');
+                    }}>
+                        <Typo color={themeColors.background}>Go Back</Typo>
+                    </Button>
+                </View>
+            </ScreenWrapper>
+        );
+    }
 
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
-            behavior={Platform.OS == 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
             <ScreenWrapper showPattern={false} bgOpacity={0.5} /*backgroundImage={require('@/assets/images/fitness-app-assets/welcome.png')}*/>
                 <Animated.View
@@ -378,7 +421,10 @@ const Login = () => {
                     <View style={styles.container}>
                         <View style={styles.header}>
                             <BackButton iconSize={38} />
-                            <Pressable onPress={handleForgotPassword}>
+                            <Pressable 
+                                onPress={handleForgotPassword}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
                                 <Typo size={17} color={colors.white}>Forgot your password?</Typo>
                             </Pressable>
                         </View>
@@ -405,7 +451,7 @@ const Login = () => {
                                         autoCapitalize="none"
                                         autoCorrect={false}
                                         icon={
-                                            <Icons.PasswordIcon size={verticalScale(26)}
+                                            <Icons.EnvelopeIcon size={verticalScale(26)}
                                                 color={colors.neutral600}
                                             />
                                         }
@@ -459,6 +505,10 @@ const Login = () => {
                                     <Image
                                         source={require('../../assets/images/images/google.png')}
                                         style={styles.googleIcon}
+                                        resizeMode="contain"
+                                        onError={(e) => {
+                                            console.log('Google image load error:', e);
+                                        }}
                                     />
                                     <Typo fontWeight={'bold'} color={colors.black}>
                                         Continue with Google
@@ -469,6 +519,10 @@ const Login = () => {
                                     <Image
                                         source={require('../../assets/images/images/apple.png')}
                                         style={styles.googleIcon}
+                                        resizeMode="contain"
+                                        onError={(e) => {
+                                            console.log('Apple image load error:', e);
+                                        }}
                                     />
                                     <Typo fontWeight={'bold'} color={colors.black}>
                                         Continue with Apple

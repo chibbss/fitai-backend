@@ -25,13 +25,33 @@ import type {
 const refreshSessionToken = async (): Promise<boolean> => {
     try {
         const { data: { session }, error } = await supabase.auth.refreshSession();
+        
+        // Handle invalid refresh token
+        if (error && (error.message?.includes('Invalid Refresh Token') || 
+                      error.message?.includes('refresh_token_not_found'))) {
+            logger.log('[API] Invalid refresh token detected, clearing session');
+            await supabase.auth.signOut().catch(() => {
+                // Ignore signOut errors
+            });
+            return false;
+        }
+        
         if (error || !session) {
             logger.error('[API] Error refreshing session:', error);
             return false;
         }
         return true;
-    } catch (error) {
-        logger.error('[API] Refresh session error:', error);
+    } catch (error: any) {
+        // Check if it's an invalid refresh token error
+        if (error?.message?.includes('Invalid Refresh Token') || 
+            error?.message?.includes('refresh_token_not_found')) {
+            logger.log('[API] Invalid refresh token in catch, clearing session');
+            await supabase.auth.signOut().catch(() => {
+                // Ignore signOut errors
+            });
+        } else {
+            logger.error('[API] Refresh session error:', error);
+        }
         return false;
     }
 };
@@ -365,20 +385,8 @@ export const workoutApi = {
         const userId = session?.user?.id;
         const cacheKey = `weeklySummary_${startDate || 'current'}`;
 
-        // Try cache first
-        if (userId && !MOCK_MODE) {
-            const cached = await getCachedUserData<WeeklySummary>(userId, cacheKey);
-            if (cached) {
-                logger.log('[API] Using cached weekly summary');
-                // Still fetch fresh data in background
-                this.getWeeklySummaryFresh(startDate, userId, cacheKey).catch(err => {
-                    logger.warn('[API] Background weekly summary fetch failed:', err);
-                });
-                return cached;
-            }
-        }
-
-        // Fetch fresh
+        // Always fetch fresh data from backend (cache is handled by component)
+        // This ensures data is always up-to-date, similar to calendar and insights
         return this.getWeeklySummaryFresh(startDate, userId, cacheKey);
     },
 

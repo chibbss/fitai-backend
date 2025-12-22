@@ -58,13 +58,32 @@ export const setupAuthListener = () => {
     }
 
     try {
-      const { data } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
+      
+      // Handle invalid refresh token
+      if (error && (error.message?.includes('Invalid Refresh Token') || 
+                    error.message?.includes('refresh_token_not_found'))) {
+        console.log('[supabase] Invalid refresh token, clearing session');
+        await supabase.auth.signOut().catch(() => {
+          // Ignore signOut errors
+        });
+        return;
+      }
+      
       console.log(
         '[supabase] App foregrounded. Session',
         data.session ? 'present' : 'missing'
       );
     } catch (error) {
       console.warn('[supabase] Failed to refresh session after foreground.', error);
+      // Clear session on error to prevent stuck state
+      try {
+        await supabase.auth.signOut().catch(() => {
+          // Ignore signOut errors
+        });
+      } catch {
+        // Ignore
+      }
     }
   };
 

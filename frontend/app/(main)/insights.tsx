@@ -151,28 +151,34 @@ const InsightsScreen = () => {
     }, []);
 
     const fetchWorkoutsForDate = useCallback(async (targetDate: Date) => {
-        setIsLoading(true);
-        try {
-            // Get date range for the target date (using UTC to match API)
-            // Parse the date string if targetDate was created from a date string like "2025-12-13"
-            const dateStr = targetDate.toISOString().split('T')[0]; // e.g., "2025-12-13"
+        // Get date range for the target date (using UTC to match API)
+        // Parse the date string if targetDate was created from a date string like "2025-12-13"
+        const dateStr = targetDate.toISOString().split('T')[0]; // e.g., "2025-12-13"
+        
+        // Step 1: Try to load cached insights first - show immediately if exists
+        let hasCache = false;
+        if (user?.id) {
+            const cachedInsights = await getCachedUserData<InsightsData>(user.id, `insights_${dateStr}`);
+            const cachedWorkouts = await getCachedUserData<WorkoutWithInsights[]>(user.id, `insights_workouts_${dateStr}`);
             
-            // Try to load cached insights first
-            if (user?.id) {
-                const cachedInsights = await getCachedUserData<InsightsData>(user.id, `insights_${dateStr}`);
-                const cachedWorkouts = await getCachedUserData<WorkoutWithInsights[]>(user.id, `insights_workouts_${dateStr}`);
-                
-                if (cachedInsights && cachedWorkouts && cachedWorkouts.length > 0) {
-                    setInsights(cachedInsights);
-                    setWorkoutsForDate(cachedWorkouts);
-                    if (cachedWorkouts.length > 0) {
-                        setExpandedCards(new Set([cachedWorkouts[0].session_id]));
-                    }
-                    logger.log(`[Insights] Loaded cached insights for ${dateStr}`);
-                    setIsLoading(false); // Show cached data immediately
-                    // DON'T return early - continue to fetch from backend below
+            if (cachedInsights && cachedWorkouts && cachedWorkouts.length > 0) {
+                setInsights(cachedInsights);
+                setWorkoutsForDate(cachedWorkouts);
+                if (cachedWorkouts.length > 0) {
+                    setExpandedCards(new Set([cachedWorkouts[0].session_id]));
                 }
+                logger.log(`[Insights] Showing cached insights for ${dateStr} immediately`);
+                setIsLoading(false); // Show cached data immediately
+                hasCache = true;
+            } else {
+                setIsLoading(true); // Only show loading if no cache
             }
+        } else {
+            setIsLoading(true);
+        }
+        
+        // Step 2: Fetch from backend in background (non-blocking if cache was shown)
+        try {
 
             const startDate = new Date(dateStr + 'T00:00:00.000Z'); // UTC midnight
             const endDate = new Date(dateStr + 'T23:59:59.999Z'); // UTC end of day
@@ -266,17 +272,16 @@ const InsightsScreen = () => {
             // Generate aggregated overall message and chat prompt
             generateAggregatedInsights(workoutsWithInsights, targetDate);
 
-            // Cache insights data
-            if (user?.id && insights) {
-                await cacheUserData(user.id, `insights_${dateStr}`, insights, 24 * 60 * 60 * 1000); // 24 hours
-                await cacheUserData(user.id, `insights_workouts_${dateStr}`, workoutsWithInsights, 24 * 60 * 60 * 1000); // 24 hours
-                logger.log(`[Insights] Cached insights for ${dateStr}`);
-            }
+            // Cache insights data (insights state will be updated by generateAggregatedInsights)
+            // We'll cache in the useEffect that watches insights state
         } catch (error: any) {
             console.error('Error fetching workouts for date:', error);
-            setIsLoading(false);
-            setWorkoutsForDate([]);
-            setInsights(null);
+            // Only clear state if we didn't have cache (to preserve cache on error)
+            if (!hasCache) {
+                setIsLoading(false);
+                setWorkoutsForDate([]);
+                setInsights(null);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -290,14 +295,18 @@ const InsightsScreen = () => {
             const dateStr = targetDate.toISOString().split('T')[0];
             try {
                 await cacheUserData(user.id, `insights_${dateStr}`, insights, Number.MAX_SAFE_INTEGER); // Permanent cache
-                logger.log(`[Insights] Cached insights for ${dateStr}`);
+                // Also cache workouts if available
+                if (workoutsForDate.length > 0) {
+                    await cacheUserData(user.id, `insights_workouts_${dateStr}`, workoutsForDate, Number.MAX_SAFE_INTEGER); // Permanent cache
+                }
+                logger.log(`[Insights] Cached insights and workouts for ${dateStr}`);
             } catch (error) {
                 logger.error('[Insights] Error caching insights:', error);
             }
         };
 
         cacheInsights();
-    }, [insights, user?.id, targetDate]);
+    }, [insights, workoutsForDate, user?.id, targetDate]);
 
     useEffect(() => {
         // Determine target date: use provided date param or default to today

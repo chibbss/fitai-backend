@@ -73,18 +73,20 @@ export interface ApiError {
 }
 
 export interface WeeklySummary {
-    start_date: string;
-    end_date: string;
-    total_workouts: number;
-    total_volume_kg: number;
-    average_volume_kg: number;
-    pr_count: number;
     days: Array<{
         date: string;
-        workout_count: number;
+        day_name: string;
+        day_number: number;
+        has_workout: boolean;
+        session_id: string | null;
         volume_kg: number;
+        intensity_level: 'light' | 'medium' | 'heavy' | 'very_heavy';
         has_pr: boolean;
+        exercise_count: number;
     }>;
+    week_start: string;
+    week_end: string;
+    is_current_week: boolean;
 }
 
 export type OnboardingStep = 'intro' | 'goal' | 'experience' | 'preference' | 'details' | 'success' | 'why' | 'training_style' | 'notes';

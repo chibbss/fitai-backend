@@ -190,7 +190,7 @@ const Welcome = () => {
                                     onPress={handleNavigateToRegister}
 
                                 >
-                                    <Typo size={23} color={themeColors.textPrimary} fontWeight="bold">Get Started</Typo>
+                                    <Typo size={25} color={themeColors.background} fontWeight="bold">Get Started</Typo>
                                 </Button>
                             </LinearGradient>
                         </Animated.View>

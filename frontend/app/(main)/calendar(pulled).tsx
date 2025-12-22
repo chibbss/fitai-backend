@@ -119,7 +119,7 @@ const CalendarScreen = () => {
         return monday.toISOString().split('T')[0];
     });
 
-    // Load cached data on mount
+    // Load cached data on mount - show immediately before backend fetch
     useEffect(() => {
         const loadCachedData = async () => {
             if (!user?.id) return;

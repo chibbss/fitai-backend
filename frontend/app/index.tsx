@@ -49,52 +49,74 @@ const SplashScreen = () => {
     useEffect(() => {
         if (!shouldNavigate) return;
         if (!rootState?.key || !rootNavigation?.isReady()) return;
-        if (authLoading) return; // Wait for auth check to complete
+
+        // Timeout fallback - if auth loading takes too long, navigate to welcome
+        const timeoutId = setTimeout(() => {
+            if (authLoading) {
+                logger.warn('[Splash] Auth check timeout, navigating to welcome');
+                router.replace('/welcome');
+            }
+        }, 5000); // 5 second timeout
+
+        // Wait for auth check to complete, but with timeout protection
+        if (authLoading) {
+            return () => clearTimeout(timeoutId);
+        }
 
         const checkAuthAndOnboarding = async () => {
-            if (!isAuthenticated || !user) {
-                logger.log('❌ User not authenticated, navigating to welcome');
-                router.replace('/welcome');
-                return;
-            }
-
-            // Check onboarding status
             try {
-                const { isComplete, userData } = await checkOnboardingStatus(user.id);
-                
-                logger.log('[Splash] Onboarding check result:', {
-                    userId: user.id,
-                    isComplete,
-                    hasUserData: !!userData,
-                });
-                
-                if (isComplete) {
-                    logger.log('✅ User authenticated and onboarding complete, navigating to chatscreen');
-                    router.replace('/chatscreen');
-                } else {
-                    logger.log('⚠️ User authenticated but onboarding incomplete, navigating to onboarding');
-                    logger.log('[Splash] User data received:', {
-                        hasGoals: !!userData?.goals,
-                        hasProfile: !!userData?.profile,
-                        primaryGoal: userData?.goals?.primary_goal,
-                        experienceLevel: userData?.profile?.experience_level,
-                        workoutPreference: userData?.profile?.workout_preference,
+                if (!isAuthenticated || !user) {
+                    logger.log('❌ User not authenticated, navigating to welcome');
+                    router.replace('/welcome');
+                    return;
+                }
+
+                // Check onboarding status
+                try {
+                    const { isComplete, userData } = await checkOnboardingStatus(user.id);
+                    
+                    logger.log('[Splash] Onboarding check result:', {
+                        userId: user.id,
+                        isComplete,
+                        hasUserData: !!userData,
                     });
+                    
+                    if (isComplete) {
+                        logger.log('✅ User authenticated and onboarding complete, navigating to chatscreen');
+                        router.replace('/chatscreen');
+                    } else {
+                        logger.log('⚠️ User authenticated but onboarding incomplete, navigating to onboarding');
+                        logger.log('[Splash] User data received:', {
+                            hasGoals: !!userData?.goals,
+                            hasProfile: !!userData?.profile,
+                            primaryGoal: userData?.goals?.primary_goal,
+                            experienceLevel: userData?.profile?.experience_level,
+                            workoutPreference: userData?.profile?.workout_preference,
+                        });
+                        router.replace('/onboarding');
+                    }
+                } catch (error: any) {
+                    logger.error('Error checking onboarding status:', error);
+                    logger.error('Error details:', {
+                        message: error?.message,
+                        stack: error?.stack,
+                        userId: user.id,
+                    });
+                    // On error, assume onboarding incomplete and redirect to onboarding
                     router.replace('/onboarding');
                 }
             } catch (error: any) {
-                logger.error('Error checking onboarding status:', error);
-                logger.error('Error details:', {
-                    message: error?.message,
-                    stack: error?.stack,
-                    userId: user.id,
-                });
-                // On error, assume onboarding incomplete and redirect to onboarding
-                router.replace('/onboarding');
+                logger.error('[Splash] Unexpected error in auth check:', error);
+                // Fallback to welcome screen on any error
+                router.replace('/welcome');
+            } finally {
+                clearTimeout(timeoutId);
             }
         };
 
         checkAuthAndOnboarding();
+
+        return () => clearTimeout(timeoutId);
     }, [shouldNavigate, rootState, rootNavigation, isAuthenticated, authLoading, user, router]);
 
     return (

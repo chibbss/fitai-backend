@@ -30,13 +30,25 @@ export default function RootLayout() {
      const cleanupCache = async () => {
        try {
          const { supabase } = await import('@/utils/supabase');
-         const { data: { session } } = await supabase.auth.getSession();
+         const { data: { session }, error } = await supabase.auth.getSession();
+         
+         // Handle invalid refresh token
+         if (error && (error.message?.includes('Invalid Refresh Token') || 
+                       error.message?.includes('refresh_token_not_found'))) {
+           logger.log('[RootLayout] Invalid refresh token detected, clearing session');
+           await supabase.auth.signOut().catch(() => {
+             // Ignore signOut errors
+           });
+           return;
+         }
+         
          if (session?.user?.id) {
            const { checkAndCleanupStorage } = await import('@/utils/dataCache');
            await checkAndCleanupStorage(session.user.id);
          }
        } catch (error) {
          logger.error('[RootLayout] Cache cleanup error:', error);
+         // Continue even if cache cleanup fails
        }
      };
      cleanupCache();

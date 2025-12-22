@@ -14,10 +14,26 @@ const BackButton = ({
 
     const router = useRouter();
 
+    const handleBack = () => {
+        try {
+            if (router.canGoBack()) {
+                router.back();
+            } else {
+                // If no history, navigate to welcome
+                router.replace('/welcome');
+            }
+        } catch (error) {
+            console.error('BackButton navigation error:', error);
+            // Fallback to welcome screen
+            router.replace('/welcome');
+        }
+    };
+
     return (
         <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={handleBack}
             style={[styles.button, style]}
+            activeOpacity={0.7}
         >
             <CaretLeft size={verticalScale(iconSize)} color={color} weight='bold'/>
         </TouchableOpacity>

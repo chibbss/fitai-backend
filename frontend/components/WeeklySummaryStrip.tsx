@@ -6,7 +6,9 @@ import Typo from './Typo';
 import * as Icons from 'phosphor-react-native';
 const { width } = Dimensions.get('window');
 import { useTheme } from '@/context/ThemeContext';
-import { invalidateCache } from '@/utils/dataCache';
+import { invalidateCache, getCachedUserData } from '@/utils/dataCache';
+import { useAuth } from '@/context/AuthContext';
+import { logger } from '@/utils/logger';
 
 interface DayData {
     date: string;
@@ -39,24 +41,58 @@ const WeeklySummaryStrip: React.FC<WeeklySummaryStripProps> = ({
     weekStartDate,
     onDayPress,
     onWeekChange,
-    refreshKey, // Add this
+    refreshKey,
 }) => {
     const { colors: themeColors } = useTheme();
+    const { user } = useAuth();
     const [weekData, setWeekData] = useState<WeeklySummaryData | null>(null);
     const [loading, setLoading] = useState(true);
     const [scrollX, setScrollX] = useState(0);
 
+    // Load cached data first (instant UX)
+    useEffect(() => {
+        const loadCachedData = async () => {
+            if (!user?.id) return;
+            
+            try {
+                const cacheKey = `weeklySummary_${weekStartDate || 'current'}`;
+                const cached = await getCachedUserData<WeeklySummaryData>(user.id, cacheKey);
+                if (cached) {
+                    setWeekData(cached);
+                    logger.log(`[WeeklySummary] Loaded cached data for ${weekStartDate || 'current'}`);
+                    setLoading(false); // Show cached data immediately
+                }
+            } catch (error) {
+                logger.error('[WeeklySummary] Error loading cached data:', error);
+            }
+        };
+        
+        loadCachedData();
+    }, [user?.id, weekStartDate]);
+
+    // Always fetch from backend (ensures freshness)
     useEffect(() => {
         fetchWeekData(weekStartDate);
-    }, [weekStartDate, refreshKey]); // Add refreshKey to dependencies
+    }, [weekStartDate, refreshKey]);
 
     const fetchWeekData = async (startDate: string) => {
-        setLoading(true);
+        // Don't set loading to true if we already have cached data (prevents flash)
+        if (!weekData) {
+            setLoading(true);
+        }
+        
         try {
+            // This will fetch fresh data from backend (API handles cache internally)
             const data = await workoutApi.getWeeklySummary(startDate);
             setWeekData(data);
+            logger.log(`[WeeklySummary] Fetched fresh data from backend for ${startDate || 'current'}`);
         } catch (error: any) {
-            console.error('Failed to fetch weekly summary:', error);
+            logger.error('[WeeklySummary] Failed to fetch weekly summary:', error);
+            // If we have cached data, keep showing it even if backend fails
+            if (!weekData) {
+                // No cache and backend failed - show error state
+                setWeekData(null);
+            }
         } finally {
             setLoading(false);
         }

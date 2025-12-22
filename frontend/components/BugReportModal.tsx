@@ -233,7 +233,7 @@ const BugReportModal: React.FC<BugReportModalProps> = ({ visible, onClose }) => 
                                         loadingColor={themeColors.textPrimary}
                                         style={styles.submitButton}
                                     >
-                                        <Typo size={16} color={colors.white} fontWeight="600">
+                                        <Typo size={16} color={colors.black} fontWeight="600">
                                             Submit Report
                                         </Typo>
                                     </Button>
