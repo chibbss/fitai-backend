@@ -303,6 +303,17 @@ class ChatResponse(BaseModel):
     claims: List[Dict[str, Any]] | None = None
 
 
+class ChatMessageResponse(BaseModel):
+    id: str
+    role: str  # "user" or "assistant"
+    content: str
+    created_at: str  # ISO timestamp
+
+
+class ChatHistoryResponse(BaseModel):
+    messages: List[ChatMessageResponse]
+
+
 # NOTE: Transcribe endpoint now only returns the transcribed text.
 class TranscribeResponse(BaseModel):
     transcribed_text: str
@@ -667,6 +678,53 @@ async def chat(
         raise HTTPException(status_code=504, detail="Request timeout - please try again")
     except Exception as e:
         logger.error("/chat error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=sanitize_error_message(e))
+
+
+# -------------------------------------------------
+# Chat History Endpoint
+# -------------------------------------------------
+@app.get("/chat/history", response_model=ChatHistoryResponse)
+@limiter.limit(os.getenv("RATE_LIMIT_CHAT", "60/minute"))
+async def get_chat_history(
+    request: Request,
+    limit: int = Query(500, ge=1, le=1000, description="Maximum number of messages to return"),
+    session_id: Optional[str] = Query(None, description="Optional session ID filter. If not provided, returns messages from all sessions."),
+    user: AuthUser = Depends(get_current_user),
+) -> ChatHistoryResponse:
+    """
+    Get chat message history for the authenticated user.
+    
+    Returns messages in chronological order (oldest first).
+    Messages are retrieved from the database (source of truth).
+    
+    Query Parameters:
+    - limit: Maximum number of messages (1-1000, default: 500)
+    - session_id: Optional filter to get messages from a specific session
+    """
+    try:
+        messages = rag_service.get_chat_history(
+            user_id=user.user_id,
+            limit=limit,
+            session_id=session_id,
+        )
+        
+        # Convert to response format
+        message_responses = [
+            ChatMessageResponse(
+                id=msg["id"],
+                role=msg["role"],
+                content=msg["content"],
+                created_at=msg["created_at"],
+            )
+            for msg in messages
+        ]
+        
+        return ChatHistoryResponse(messages=message_responses)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("/chat/history error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=sanitize_error_message(e))
 
 

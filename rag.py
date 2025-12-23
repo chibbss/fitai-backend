@@ -3507,6 +3507,50 @@ Generate an analytical insight based on the data above. Include specific numbers
         dq = self._ensure_session(key)
         return list(dq)[-max_messages:]
 
+    def get_chat_history(self, user_id: str, limit: int = 500, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Retrieve chat message history for a user.
+        
+        Args:
+            user_id: User identifier
+            limit: Maximum number of messages to return (default: 500)
+            session_id: Optional session filter. If None, returns messages from all sessions.
+        
+        Returns:
+            List of message dictionaries with keys: id, role, content, created_at
+        """
+        try:
+            with self.SessionLocal() as session:
+                stmt = (
+                    select(ChatMessageModel)
+                    .where(ChatMessageModel.user_id == user_id)
+                    .order_by(ChatMessageModel.created_at.desc())
+                    .limit(limit)
+                )
+                
+                # Filter by session_id if provided
+                if session_id:
+                    stmt = stmt.where(ChatMessageModel.session_id == session_id)
+                
+                rows = session.execute(stmt).scalars().all()
+                
+                # Convert to list of dicts, sorted ascending by created_at
+                messages = []
+                for row in reversed(rows):  # Reverse to get ascending order
+                    # Format datetime as ISO string
+                    created_at_str = row.created_at.isoformat() if isinstance(row.created_at, datetime) else str(row.created_at)
+                    messages.append({
+                        "id": row.id,
+                        "role": row.role,
+                        "content": row.content,
+                        "created_at": created_at_str,
+                    })
+                
+                return messages
+        except Exception as e:
+            self.logger.warning("Failed to retrieve chat history from database: %s", e, exc_info=True)
+            return []
+
     def clear_session(self, user_id: str, session_id: Optional[str]) -> None:
         key = self._get_session_key(user_id, session_id)
         if self._redis is not None:
