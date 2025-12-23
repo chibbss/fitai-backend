@@ -624,8 +624,20 @@
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ detail: 'Failed to submit signup' }));
-                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                    let errorMessage = `HTTP error! status: ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.detail || errorData.message || errorMessage;
+                    } catch (e) {
+                        // If response is not JSON, try to get text
+                        try {
+                            const text = await response.text();
+                            if (text) errorMessage = text;
+                        } catch (e2) {
+                            // Ignore
+                        }
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const result = await response.json();
@@ -634,7 +646,20 @@
                 window.location.href = 'thank-you.html';
             } catch (error) {
                 console.error('Form submission error:', error);
-                alert('Sorry, there was an error submitting your signup. Please try again or contact us directly.');
+                
+                // Show more helpful error message
+                let errorMsg = 'Sorry, there was an error submitting your signup.';
+                if (error.message) {
+                    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                        errorMsg = 'Network error: Could not connect to server. Please check your connection and try again.';
+                    } else if (error.message.includes('CORS')) {
+                        errorMsg = 'Connection error: Please contact support.';
+                    } else {
+                        errorMsg = `Error: ${error.message}`;
+                    }
+                }
+                
+                alert(errorMsg + '\n\nIf this persists, please contact us directly at emmanuelochiba7@gmail.com');
                 
                 // Reset button state
                 submitButton.disabled = false;

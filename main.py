@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request, Body
 from fastapi import Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 
@@ -38,6 +39,17 @@ app = FastAPI(title="Production RAG API", version="1.0.0")
 rag_service = RAGService()
 _scheduler: Optional[BackgroundScheduler] = None
 limiter = Limiter(key_func=get_remote_address)
+
+# CORS configuration
+allowed_origins = os.getenv("CORS_ORIGINS", "https://fitailive.com,https://www.fitailive.com").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+logger.info("CORS configured for origins: %s", allowed_origins)
 
 # Initialize Sentry before app starts (middleware must be added before startup)
 if os.getenv("SENTRY_DSN"):
@@ -686,7 +698,7 @@ async def beta_signup(
             conn.execute(
                 sql_text(
                     """
-                    INSERT INTO beta_signups (id, name, email, device, status, metadata, created_at, updated_at)
+                    INSERT INTO beta_signups (id, name, email, device, status, meta_data, created_at, updated_at)
                     VALUES (:id, :name, :email, :device, 'pending', CAST(:metadata AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     """
                 ),
@@ -695,7 +707,7 @@ async def beta_signup(
                     "name": payload.name.strip(),
                     "email": payload.email.strip().lower(),
                     "device": payload.device,
-                    "metadata": metadata_json,
+                    "meta_data": metadata_json,
                 },
             )
             conn.commit()
