@@ -41,13 +41,15 @@ _scheduler: Optional[BackgroundScheduler] = None
 limiter = Limiter(key_func=get_remote_address)
 
 # CORS configuration
-allowed_origins = os.getenv("CORS_ORIGINS", "https://fitailive.com,https://www.fitailive.com").split(",")
+cors_origins_env = os.getenv("CORS_ORIGINS", "https://fitailive.com,https://www.fitailive.com")
+allowed_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 logger.info("CORS configured for origins: %s", allowed_origins)
 
