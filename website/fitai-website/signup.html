@@ -341,20 +341,29 @@
         .checkbox-label input[type="checkbox"] {
             position: absolute;
             opacity: 0;
-            width: 0;
-            height: 0;
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            padding: 0;
+            left: 0;
+            top: 2px;
+            z-index: 2;
+            cursor: pointer;
+            pointer-events: auto;
         }
 
         .checkmark {
             width: 20px;
             height: 20px;
             min-width: 20px;
+            flex-shrink: 0;
             border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 4px;
             background: rgba(255, 255, 255, 0.03);
             transition: all 0.3s;
             position: relative;
             margin-top: 2px;
+            pointer-events: none;
         }
 
         .checkbox-label input[type="checkbox"]:checked + .checkmark {
@@ -378,6 +387,8 @@
             font-size: 0.9rem;
             color: var(--text-secondary);
             line-height: 1.6;
+            flex: 1;
+            padding-left: 0;
         }
 
         .checkbox-label:hover .checkmark {
