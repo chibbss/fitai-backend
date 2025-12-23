@@ -137,6 +137,86 @@
         .back-link:hover {
             color: var(--aqua-glow);
         }
+
+        .gym-buddy-section {
+            background: rgba(0, 255, 200, 0.05);
+            border: 1px solid rgba(0, 255, 200, 0.2);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        .gym-buddy-section h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .gym-buddy-section p {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            line-height: 1.8;
+        }
+
+        .share-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .share-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .share-button:hover {
+            background: rgba(0, 255, 200, 0.1);
+            border-color: var(--electric-teal);
+            transform: translateY(-2px);
+        }
+
+        .share-button svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .copy-link-button {
+            background: linear-gradient(135deg, var(--electric-teal), var(--aqua-glow));
+            color: var(--bg-black);
+            border: none;
+        }
+
+        .copy-link-button:hover {
+            background: linear-gradient(135deg, var(--aqua-glow), var(--electric-teal));
+            transform: translateY(-2px);
+        }
+
+        .copy-success {
+            display: none;
+            color: var(--electric-teal);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .copy-success.show {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -162,6 +242,36 @@
             </ol>
         </div>
 
+        <div class="gym-buddy-section">
+            <h2>💪 Tell a Gym Buddy</h2>
+            <p>
+                Know someone who'd love fit.ai? Share the beta with your workout partner and build together!
+            </p>
+            <div class="share-buttons">
+                <button class="share-button copy-link-button" id="copyLinkBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                    Copy Link
+                </button>
+                <a href="mailto:?subject=Check%20out%20fit.ai%20-%20AI%20Fitness%20Coach&body=Hey!%20I%20just%20signed%20up%20for%20fit.ai%2C%20an%20AI%20fitness%20coach%20that%20actually%20remembers%20your%20workouts.%20Thought%20you%20might%20be%20interested!%20Sign%20up%20here%3A%20https%3A%2F%2Ffitailive.com%2Fsignup.html" class="share-button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                    </svg>
+                    Email Friend
+                </a>
+                <a href="https://twitter.com/intent/tweet?text=Just%20signed%20up%20for%20fit.ai%20-%20an%20AI%20fitness%20coach%20that%20remembers%20everything!%20Check%20it%20out%3A%20https%3A%2F%2Ffitailive.com%2Fsignup.html" target="_blank" class="share-button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path>
+                    </svg>
+                    Share on X
+                </a>
+            </div>
+            <div class="copy-success" id="copySuccess">Link copied to clipboard! 🎉</div>
+        </div>
+
         <div class="contact-box">
             <p style="margin: 0; color: var(--text-secondary);">
                 Questions? Contact us at 
@@ -171,6 +281,50 @@
 
         <a href="index.html" class="back-link">← Back to Home</a>
     </div>
+
+    <script>
+        // Copy link functionality
+        document.getElementById('copyLinkBtn').addEventListener('click', function() {
+            const signupUrl = window.location.origin + '/signup.html';
+            
+            // Use modern Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(signupUrl).then(function() {
+                    showCopySuccess();
+                }).catch(function(err) {
+                    // Fallback for older browsers
+                    fallbackCopy(signupUrl);
+                });
+            } else {
+                // Fallback for older browsers
+                fallbackCopy(signupUrl);
+            }
+        });
+
+        function showCopySuccess() {
+            const successMsg = document.getElementById('copySuccess');
+            successMsg.classList.add('show');
+            setTimeout(function() {
+                successMsg.classList.remove('show');
+            }, 3000);
+        }
+
+        function fallbackCopy(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showCopySuccess();
+            } catch (err) {
+                alert('Failed to copy. Please copy manually: ' + text);
+            }
+            document.body.removeChild(textArea);
+        }
+    </script>
 </body>
 </html>
 

@@ -561,10 +561,13 @@
         <a href="index.html">Home</a>
         <a href="privacy.html">Privacy</a>
         <a href="terms.html">Terms</a>
-        <p style="margin-top: 1rem; color: var(--text-secondary);">Built by Emmanuel & Joshua with ❤️ • © 2025</p>
+        <p style="margin-top: 1rem; color: var(--text-secondary);">Built with AI and ❤️ • © 2025</p>
     </footer>
 
     <script>
+        // API endpoint - update this to your backend URL
+        const API_BASE_URL = 'https://fitai-api.onrender.com';  // Update to your actual backend URL
+        
         document.getElementById('betaSignupForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -600,26 +603,32 @@
             buttonLoader.style.display = 'block';
 
             try {
-                // For YC-level: Simple, elegant submission
-                // Store submission data
-                localStorage.setItem('betaSignup', JSON.stringify({
-                    name: formData.name,
-                    email: formData.email,
-                    device: formData.device,
-                    timestamp: new Date().toISOString()
-                }));
+                // Submit to backend API
+                const response = await fetch(`${API_BASE_URL}/beta/signup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
 
-                // Simulate submission delay for better UX
-                await new Promise(resolve => setTimeout(resolve, 800));
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ detail: 'Failed to submit signup' }));
+                    throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
                 
-                // Redirect to thank you page
-                // Note: In production, you'd submit to your backend API which then
-                // forwards to Google Forms or stores in your database
+                // Redirect to thank you page on success
                 window.location.href = 'thank-you.html';
             } catch (error) {
                 console.error('Form submission error:', error);
-                // Graceful error handling - still redirect for better UX
-                window.location.href = 'thank-you.html';
+                alert('Sorry, there was an error submitting your signup. Please try again or contact us directly.');
+                
+                // Reset button state
+                submitButton.disabled = false;
+                buttonText.style.display = 'block';
+                buttonLoader.style.display = 'none';
             }
         });
     </script>

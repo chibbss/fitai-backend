@@ -5104,3 +5104,17 @@ class RagasMetricsModel(Base):
     # Additional metadata
     meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[Optional[str]] = mapped_column(server_default=sql_text("now()"))
+
+
+class BetaSignupModel(Base):
+    """Store beta signup submissions from the website."""
+    __tablename__ = "beta_signups"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    device: Mapped[str] = mapped_column(String, nullable=False)  # "iOS" or "Android"
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")  # "pending", "sent", "active"
+    meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, index=True, server_default=sql_text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(nullable=False, server_default=sql_text("now()"))

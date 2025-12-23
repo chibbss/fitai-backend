@@ -278,24 +278,24 @@ const ChatScreen = () => {
             }
 
             // First check params
-            const initialMessage = params.initialMessage as string | undefined;
-            const prefillQuery = params.prefillQuery as string | undefined;
-
-            if (initialMessage && messages.length === 0) {
+        const initialMessage = params.initialMessage as string | undefined;
+        const prefillQuery = params.prefillQuery as string | undefined;
+        
+        if (initialMessage && messages.length === 0) {
                 console.log('[ChatScreen] Setting completion message from params:', initialMessage);
-                // Add bot message with completion message
+            // Add bot message with completion message
                 const botMsgTimestamp = Date.now();
                 const botMsgId = botMsgTimestamp.toString();
-                const botMsg: Message = {
-                    id: botMsgId,
-                    type: 'text',
-                    content: initialMessage,
-                    sender: 'bot',
+            const botMsg: Message = {
+                id: botMsgId,
+                type: 'text',
+                content: initialMessage,
+                sender: 'bot',
                     timestamp: botMsgTimestamp,
-                };
-                setMessages([botMsg]);
-                // Initialize displayed text as empty so typewriter effect works
-                setDisplayedTexts({ [botMsgId]: '' });
+            };
+            setMessages([botMsg]);
+            // Initialize displayed text as empty so typewriter effect works
+            setDisplayedTexts({ [botMsgId]: '' });
                 console.log('[ChatScreen] Completion message added to messages');
                 // Clear from AsyncStorage after using (if it was stored there)
                 await AsyncStorage.removeItem('onboarding_completion_message');
@@ -325,12 +325,12 @@ const ChatScreen = () => {
                 } catch (error) {
                     console.warn('[ChatScreen] Error reading AsyncStorage:', error);
                 }
-            }
-
-            // Handle pre-filled query from insights screen
-            if (prefillQuery && input === '') {
-                setInput(prefillQuery);
-            }
+        }
+        
+        // Handle pre-filled query from insights screen
+        if (prefillQuery && input === '') {
+            setInput(prefillQuery);
+        }
         };
 
         loadCompletionMessage();
@@ -354,7 +354,7 @@ const ChatScreen = () => {
                 setIsLoadingGreeting(false);
             }
         };
-
+        
         loadGreeting();
     }, []); // Only run once on mount
 
@@ -771,7 +771,7 @@ const ChatScreen = () => {
             if (msg.sender === 'bot' && msg.type === 'text') {
                 const displayedText = memoizedDisplayedTexts[msg.id] || '';
                 return {
-                    ...msg,
+            ...msg,
                     displayedContent: displayedText || msg.content,
                 };
             }
@@ -1363,7 +1363,7 @@ const ChatScreen = () => {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: themeColors.background }}
             edges={[]}>
-
+                
             <View style={styles.container}>
                 {/* SlidingPanel outside KeyboardAvoidingView - won't affect ChatScreen keyboard behavior */}
                 <SlidingPanel />
@@ -1439,8 +1439,8 @@ const ChatScreen = () => {
                                     data={flatListData}
                                     renderItem={renderItem}
                                     keyExtractor={keyExtractor}
-                                    showsVerticalScrollIndicator={false}
-                                    style={{ backgroundColor: 'transparent', zIndex: 1 }}
+                                showsVerticalScrollIndicator={false}
+                                style={{ backgroundColor: 'transparent', zIndex: 1 }}
                                     contentContainerStyle={{
                                         paddingTop: messages.length === 0 ? 0 : spacingY._50,
                                         paddingBottom: spacingY._20,
@@ -1564,7 +1564,7 @@ const ChatScreen = () => {
                                     isLoadingChatHistory ? (
                                         <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
                                             <ActivityIndicator size="large" color={colors.primary} />
-                                        </View>
+                                                        </View>
                                     ) : null
                                 }
                             />
@@ -1607,30 +1607,30 @@ const ChatScreen = () => {
                                             </Typo>
                                         </View>
                                     ) : (
-                                        <TextInput
-                                            placeholder="Ask anything..."
-                                            placeholderTextColor={colors.neutral400}
-                                            value={input}
-                                            onChangeText={setInput}
-                                            multiline
-                                            textAlignVertical={inputHeight > 56 ? 'top' : 'center'}
-                                            style={[
-                                                styles.textInput,
-                                                {
-                                                    height: inputHeight > 56 ? undefined : 56,
-                                                    maxHeight: 120,
+                                    <TextInput
+                                        placeholder="Ask anything..."
+                                        placeholderTextColor={colors.neutral400}
+                                        value={input}
+                                        onChangeText={setInput}
+                                        multiline
+                                        textAlignVertical={inputHeight > 56 ? 'top' : 'center'}
+                                        style={[
+                                            styles.textInput,
+                                            {
+                                                height: inputHeight > 56 ? undefined : 56,
+                                                maxHeight: 120,
                                                     ...(Platform.OS === 'ios' && inputHeight <= 56 && {
                                                         paddingTop: 18,
                                                         paddingBottom: 18,
                                                     }),
-                                                }
-                                            ]}
-                                            onContentSizeChange={(e) => {
-                                                const contentHeight = e.nativeEvent.contentSize.height;
-                                                const calculatedHeight = contentHeight < 56 ? 56 : Math.min(contentHeight, 120);
-                                                setInputHeight(calculatedHeight);
-                                            }}
-                                        />
+                                            }
+                                        ]}
+                                        onContentSizeChange={(e) => {
+                                            const contentHeight = e.nativeEvent.contentSize.height;
+                                            const calculatedHeight = contentHeight < 56 ? 56 : Math.min(contentHeight, 120);
+                                            setInputHeight(calculatedHeight);
+                                        }}
+                                    />
                                     )}
                                     {/* Send button with gradient */}
                                     {input.trim() ? (

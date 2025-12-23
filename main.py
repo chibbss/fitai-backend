@@ -408,6 +408,19 @@ class ReportBugResponse(BaseModel):
     message: str
 
 
+class BetaSignupRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    email: str = Field(..., min_length=1, max_length=200)
+    device: str = Field(..., description="Device type: 'iOS' or 'Android'")
+    agreement: bool = Field(..., description="User agreement checkbox")
+
+
+class BetaSignupResponse(BaseModel):
+    signup_id: str
+    status: str
+    message: str
+
+
 class AddDocsResponse(BaseModel):
     added_docs: int
     added_vectors: int
@@ -567,6 +580,145 @@ async def report_bug(
         raise HTTPException(
             status_code=500,
             detail=sanitize_error_message(exc, "Unable to submit bug report"),
+        )
+
+
+# -------------------------------------------------
+# Beta Signup Endpoint
+# -------------------------------------------------
+def _send_beta_signup_email(name: str, email: str, device: str) -> bool:
+    """
+    Send email notification for beta signup.
+    Uses SMTP (Gmail) or returns False if email is not configured.
+    """
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    notify_email = os.getenv("BETA_NOTIFY_EMAIL", smtp_user)  # Email to notify
+    
+    if not smtp_user or not smtp_password:
+        logger.warning("SMTP credentials not configured - skipping email notification")
+        return False
+    
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        
+        # Create message
+        msg = MIMEMultipart()
+        msg["From"] = smtp_user
+        msg["To"] = notify_email
+        msg["Subject"] = f"New Beta Signup: {name} ({device})"
+        
+        # Email body
+        body = f"""
+New Beta Signup Received!
+
+Name: {name}
+Email: {email}
+Device: {device}
+Timestamp: {datetime.now(timezone.utc).isoformat()}
+
+---
+This is an automated notification from fit.ai beta signup form.
+"""
+        msg.attach(MIMEText(body, "plain"))
+        
+        # Send email
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+        
+        logger.info("Beta signup email sent for %s", email)
+        return True
+    except Exception as e:
+        logger.warning("Failed to send beta signup email: %s", e, exc_info=True)
+        return False  # Don't fail the signup if email fails
+
+
+@app.post("/beta/signup", response_model=BetaSignupResponse, status_code=201)
+@limiter.limit(os.getenv("RATE_LIMIT_BETA_SIGNUP", "10/minute"))
+async def beta_signup(
+    request: Request,
+    payload: BetaSignupRequest = Body(...),
+) -> BetaSignupResponse:
+    """
+    Submit a beta signup from the website.
+    Stores signup in database and sends email notification.
+    """
+    try:
+        # Validate device
+        if payload.device not in ("iOS", "Android"):
+            raise HTTPException(status_code=400, detail="Device must be 'iOS' or 'Android'")
+        
+        # Validate email format
+        import re
+        email_pattern = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
+        if not re.match(email_pattern, payload.email):
+            raise HTTPException(status_code=400, detail="Invalid email address")
+        
+        # Check if email already exists
+        from rag import BetaSignupModel
+        with rag_service.SessionLocal() as session:
+            existing = session.execute(
+                sql_text("SELECT id FROM beta_signups WHERE email = :email LIMIT 1"),
+                {"email": payload.email}
+            ).fetchone()
+            
+            if existing:
+                logger.info("Duplicate beta signup attempt for %s", payload.email)
+                # Return success anyway (don't reveal if email exists)
+                return BetaSignupResponse(
+                    signup_id="duplicate",
+                    status="success",
+                    message="Thank you for signing up! You're on the list."
+                )
+        
+        # Generate signup ID
+        signup_id = str(uuid4())
+        
+        # Store in database
+        metadata_json = json.dumps({"device": payload.device, "agreement": payload.agreement})
+        with rag_service.engine.connect() as conn:
+            conn.execute(
+                sql_text(
+                    """
+                    INSERT INTO beta_signups (id, name, email, device, status, metadata, created_at, updated_at)
+                    VALUES (:id, :name, :email, :device, 'pending', CAST(:metadata AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """
+                ),
+                {
+                    "id": signup_id,
+                    "name": payload.name.strip(),
+                    "email": payload.email.strip().lower(),
+                    "device": payload.device,
+                    "metadata": metadata_json,
+                },
+            )
+            conn.commit()
+        
+        # Send email notification (non-blocking, don't fail if email fails)
+        try:
+            _send_beta_signup_email(payload.name, payload.email, payload.device)
+        except Exception as email_error:
+            logger.warning("Email notification failed (signup still saved): %s", email_error)
+        
+        logger.info("Beta signup %s recorded (email=%s, device=%s)", signup_id, payload.email, payload.device)
+        return BetaSignupResponse(
+            signup_id=signup_id,
+            status="success",
+            message="Thank you for signing up! We'll send your beta link via email."
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to process beta signup: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=sanitize_error_message(exc, "Unable to process signup"),
         )
 
 

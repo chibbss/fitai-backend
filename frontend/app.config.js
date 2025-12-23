@@ -1,8 +1,8 @@
 
 export default {
     expo: {
-        name: "FitAI",
-        slug: "fitAI",
+        name: "fit.ai",
+        slug: "fit.ai",
         version: "1.0.0",
         orientation: "portrait",
         icon: "./assets/images/icon.png",
