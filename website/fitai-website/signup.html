@@ -364,6 +364,7 @@
             position: relative;
             margin-top: 2px;
             pointer-events: none;
+            margin-right: 0;
         }
 
         .checkbox-label input[type="checkbox"]:checked + .checkmark {
@@ -388,7 +389,9 @@
             color: var(--text-secondary);
             line-height: 1.6;
             flex: 1;
+            margin-left: 0;
             padding-left: 0;
+            margin-top: 0;
         }
 
         .checkbox-label:hover .checkmark {
@@ -614,6 +617,9 @@
             buttonLoader.style.display = 'block';
 
             try {
+                console.log('Submitting form to:', `${API_BASE_URL}/beta/signup`);
+                console.log('Form data:', formData);
+                
                 // Submit to backend API with timeout
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -629,6 +635,7 @@
                     });
                     
                     clearTimeout(timeoutId);
+                    console.log('Response status:', response.status, response.statusText);
 
                     if (!response.ok) {
                         let errorMessage = `HTTP error! status: ${response.status}`;
@@ -660,8 +667,10 @@
                 console.error('Error details:', {
                     name: error.name,
                     message: error.message,
-                    stack: error.stack
+                    stack: error.stack,
+                    type: typeof error
                 });
+                console.error('API URL attempted:', `${API_BASE_URL}/beta/signup`);
                 
                 // Show more helpful error message
                 let errorMsg = 'Sorry, there was an error submitting your signup.';

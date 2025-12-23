@@ -40,16 +40,18 @@ rag_service = RAGService()
 _scheduler: Optional[BackgroundScheduler] = None
 limiter = Limiter(key_func=get_remote_address)
 
-# CORS configuration
+# CORS configuration - MUST be added FIRST (before other middleware)
 cors_origins_env = os.getenv("CORS_ORIGINS", "https://fitailive.com,https://www.fitailive.com")
 allowed_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+# Add CORS middleware as the FIRST middleware (critical for preflight requests)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=3600,  # Cache preflight for 1 hour
 )
 logger.info("CORS configured for origins: %s", allowed_origins)
 
@@ -84,6 +86,9 @@ def sanitize_error_message(error: Exception, default_message: str = "An error oc
 
 class BodySizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # Skip body size check for OPTIONS requests (CORS preflight)
+        if request.method == "OPTIONS":
+            return await call_next(request)
         cl = request.headers.get("content-length")
         if cl:
             try:
