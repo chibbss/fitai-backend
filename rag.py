@@ -2929,7 +2929,14 @@ Generate an analytical insight based on the data above. Include specific numbers
             
             current_date = current.occurred_at if current.occurred_at else datetime.now(timezone.utc)
             now = datetime.now(timezone.utc)
-            seven_days_ago = now - timedelta(days=7)
+            
+            # Calculate Monday-Sunday calendar week boundaries
+            days_since_monday = now.weekday()  # 0=Monday, 6=Sunday
+            week_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+            if week_start.tzinfo is None:
+                week_start = week_start.replace(tzinfo=timezone.utc)
+            week_end = week_start + timedelta(days=6, hours=23, minutes=59, seconds=59)
+            
             thirty_days_ago = now - timedelta(days=30)
             
             # Get all workouts for calculations with exercises eagerly loaded
@@ -2940,19 +2947,20 @@ Generate an analytical insight based on the data above. Include specific numbers
                 .order_by(WorkoutSessionModel.occurred_at.desc())
             ).unique().scalars().all()
             
-            workouts_7d = [w for w in all_workouts if w.occurred_at and w.occurred_at >= seven_days_ago and w.id != session_id]
+            # Filter workouts for this calendar week (Monday-Sunday)
+            workouts_this_week = [w for w in all_workouts if w.occurred_at and week_start <= w.occurred_at <= week_end and w.id != session_id]
             workouts_30d = [w for w in all_workouts if w.occurred_at and w.occurred_at >= thirty_days_ago and w.id != session_id]
             
-            # Include current session in counts
-            if current.occurred_at and current.occurred_at >= seven_days_ago:
-                workouts_7d.append(current)
+            # Include current session in counts if within week/month
+            if current.occurred_at and week_start <= current.occurred_at <= week_end:
+                workouts_this_week.append(current)
             if current.occurred_at and current.occurred_at >= thirty_days_ago:
                 workouts_30d.append(current)
             
             # ============================================
             # 1. CONSISTENCY METRICS
             # ============================================
-            sessions_this_week = len(workouts_7d)
+            sessions_this_week = len(workouts_this_week)
             sessions_this_month = len(workouts_30d)
             total_sessions = len(all_workouts)
             
@@ -2960,17 +2968,34 @@ Generate an analytical insight based on the data above. Include specific numbers
             weekly_frequency = round(sessions_this_month / 4.3, 1) if sessions_this_month > 0 else 0.0
             
             # Calculate current streak (consecutive days)
-            workout_dates = sorted([w.occurred_at.date() for w in all_workouts if w.occurred_at], reverse=True)
-            current_streak = 1
+            # Streak is based on consecutive days, not week boundaries
+            workout_dates_all = sorted([w.occurred_at.date() for w in all_workouts if w.occurred_at], reverse=True)
+            
+            # Current streak: consecutive days from most recent workout backwards
+            current_streak = 0
+            if workout_dates_all:
+                today_date = now.date()
+                # Check if most recent workout was today or yesterday (active streak)
+                most_recent_date = workout_dates_all[0]
+                days_since_last = (today_date - most_recent_date).days
+                
+                if days_since_last <= 1:  # Today or yesterday
+                    current_streak = 1
+                    for i in range(len(workout_dates_all) - 1):
+                        days_diff = (workout_dates_all[i] - workout_dates_all[i + 1]).days
+                        if days_diff == 1:
+                            current_streak += 1
+                        else:
+                            break
+                # else: streak is broken (days_since_last > 1), current_streak = 0
+            
+            # Best streak: all-time consecutive days
             best_streak = 1
             temp_streak = 1
-            
-            for i in range(len(workout_dates) - 1):
-                days_diff = (workout_dates[i] - workout_dates[i + 1]).days
+            for i in range(len(workout_dates_all) - 1):
+                days_diff = (workout_dates_all[i] - workout_dates_all[i + 1]).days
                 if days_diff == 1:
                     temp_streak += 1
-                    if i == 0:  # Current streak
-                        current_streak = temp_streak
                 else:
                     best_streak = max(best_streak, temp_streak)
                     temp_streak = 1
@@ -2992,15 +3017,16 @@ Generate an analytical insight based on the data above. Include specific numbers
             def get_session_volume(workout: WorkoutSessionModel) -> float:
                 return sum(calc_volume(e) for e in workout.exercises)
             
-            total_volume_week = sum(get_session_volume(w) for w in workouts_7d)
+            total_volume_week = sum(get_session_volume(w) for w in workouts_this_week)
             total_volume_month = sum(get_session_volume(w) for w in workouts_30d)
             avg_session_volume = round(total_volume_month / len(workouts_30d), 1) if workouts_30d else 0.0
             
-            # Volume trend (compare last 7 days to previous 7 days)
-            if len(workouts_7d) >= 2:
-                previous_7d_start = seven_days_ago - timedelta(days=7)
-                previous_7d_workouts = [w for w in all_workouts if w.occurred_at and previous_7d_start <= w.occurred_at < seven_days_ago]
-                previous_volume = sum(get_session_volume(w) for w in previous_7d_workouts)
+            # Volume trend (compare this week to previous calendar week)
+            if len(workouts_this_week) >= 1:
+                previous_week_start = week_start - timedelta(days=7)
+                previous_week_end = week_start - timedelta(seconds=1)
+                previous_week_workouts = [w for w in all_workouts if w.occurred_at and previous_week_start <= w.occurred_at <= previous_week_end]
+                previous_volume = sum(get_session_volume(w) for w in previous_week_workouts)
                 if previous_volume > 0:
                     volume_trend_pct = round(((total_volume_week - previous_volume) / previous_volume) * 100, 1)
                     volume_trend = f"{volume_trend_pct:+.1f}%"
@@ -3155,7 +3181,7 @@ Generate an analytical insight based on the data above. Include specific numbers
                 if curr_max == 0:
                     continue
                 
-                # Find previous max for this exercise
+                # Find previous max for this exercise and count total workouts
                 prev_exercises = session.execute(
                     select(ExerciseLogModel, WorkoutSessionModel)
                     .join(WorkoutSessionModel, ExerciseLogModel.session_id == WorkoutSessionModel.id)
@@ -3166,6 +3192,9 @@ Generate an analytical insight based on the data above. Include specific numbers
                     )
                     .order_by(WorkoutSessionModel.occurred_at.desc())
                 ).all()
+                
+                # Count total workouts for this exercise (including current)
+                total_workout_count = len(prev_exercises) + 1  # +1 for current session
                 
                 prev_max = 0.0
                 for prev_ex, prev_sess in prev_exercises:
@@ -3187,10 +3216,10 @@ Generate an analytical insight based on the data above. Include specific numbers
                     if prev_max > 0:
                         break
                 
-                # Check if PR
-                if curr_max > prev_max:
-                    # Check if PR is this week/month
-                    if current.occurred_at and current.occurred_at >= seven_days_ago:
+                # Check if PR - require minimum 3 workouts to avoid artificial PRs
+                if curr_max > prev_max and total_workout_count >= 3:
+                    # Check if PR is this calendar week/month
+                    if current.occurred_at and week_start <= current.occurred_at <= week_end:
                         prs_this_week += 1
                     if current.occurred_at and current.occurred_at >= thirty_days_ago:
                         prs_this_month += 1

@@ -32,6 +32,7 @@ import { perf } from '@/utils/performance';
 import { logger } from '@/utils/logger';
 import { useAuth } from '@/context/AuthContext';
 import { cacheUserData, getCachedUserData } from '@/utils/dataCache';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 

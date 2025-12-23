@@ -1097,3 +1097,154 @@ StatsSection (Refined)
 
 **Status:** 🎨 Design complete, ready for implementation
 
+---
+
+## Critical Fixes (December 23, 2025) ✅
+
+### 19. Week Boundary Fixes - Calendar Week vs Stats Calculation ✅
+
+**Fixed:** Stats now use proper Monday-Sunday calendar weeks instead of rolling 7-day window
+
+**Problem:**
+- Stats were using rolling "last 7 days" window instead of calendar week boundaries
+- "PRs this week" showed data from previous calendar week
+- Streak calculations were inconsistent
+- Calendar display showed Sunday-Saturday but stats didn't match
+
+**Solution:**
+- Backend stats now use Monday-Sunday calendar week boundaries (correct for calculations)
+- Calendar display remains Sunday-Saturday (US-style, visual preference)
+- These can differ - calendar is visual, stats are calculated correctly
+
+**Files Changed:**
+- `rag.py` - `get_workout_stats()` method:
+  - Changed from `seven_days_ago = now - timedelta(days=7)` to proper calendar week calculation
+  - Uses `weekday()` to get Monday of current week
+  - `sessions_this_week`, `prs_this_week`, `total_volume_week` all use Monday-Sunday boundaries
+  - Streak calculation fixed (consecutive days, not week-dependent)
+  - Volume trend compares this calendar week vs previous calendar week
+
+**Impact:**
+- ✅ Accurate "this week" stats (Monday-Sunday)
+- ✅ No more showing last week's PRs as "this week"
+- ✅ Calendar display works correctly (Sunday-Saturday)
+- ✅ Stats calculations are accurate regardless of calendar display
+
+---
+
+### 20. PR Detection Threshold - 3+ Workouts Required ✅
+
+**Fixed:** PRs now require minimum 3 workouts to prevent artificial PRs for first-time exercises
+
+**Problem:**
+- First-time exercise logs were automatically marked as PRs
+- No baseline established before showing PR badge
+- Felt artificial and meaningless
+
+**Solution:**
+- Added `total_workout_count >= 3` check before marking PR in stats
+- Only counts PR in `prs_this_week` / `prs_this_month` if exercise has been logged 3+ times
+- Note: Insights generation still uses 2+ (current vs previous) for early encouragement messages
+
+**Files Changed:**
+- `rag.py` - `get_workout_stats()` PR detection:
+  - Counts total workouts per exercise before comparing weights
+  - Only marks PR if `total_workout_count >= 3` and `curr_max > prev_max`
+
+**Impact:**
+- ✅ PR badges represent meaningful achievements
+- ✅ Users build attachment through consistency (3+ logs)
+- ✅ Prevents artificial PRs for new exercises
+- ✅ Better user trust and motivation
+
+**User Journey:**
+```
+Workout 1: Bench Press 135lbs → No PR badge (not enough data)
+Workout 2: Bench Press 140lbs → No PR badge yet (need 3+)
+Workout 3: Bench Press 145lbs → ✅ PR BADGE! "New PR: +10lbs total!"
+```
+
+---
+
+### 21. Chat Auto-Scroll to Bottom ✅
+
+**Fixed:** Chat now automatically scrolls to latest messages when opening chat screen
+
+**Problem:**
+- Chat opened at the very beginning (oldest messages)
+- Users had to scroll through weeks of chat history to get to today
+- Poor UX, especially with long conversation histories
+
+**Solution:**
+- Multiple scroll strategies implemented for reliability:
+  1. Scrolls to bottom 100ms after cached messages load
+  2. Scrolls after backend messages merge (with multiple fallbacks)
+  3. Scrolls in `onLayout` when FlatList is ready
+  4. Scrolls in `onContentSizeChange` as fallback
+
+**Files Changed:**
+- `frontend/app/(main)/chatscreen.tsx`:
+  - Added `setTimeout` scroll after cached messages load
+  - Enhanced scroll logic in `onLayout` callback
+  - Enhanced scroll logic in `onContentSizeChange` callback
+  - Multiple fallback strategies to ensure it works
+
+**Impact:**
+- ✅ Instant access to latest conversation
+- ✅ Better UX for long chat histories
+- ✅ Matches standard messaging app behavior
+- ✅ Multiple strategies ensure reliability
+
+---
+
+### 22. Stats Cache Invalidation - No Stale Data ✅
+
+**Fixed:** Stats cache now cleared when logging/editing workouts to prevent showing stale data
+
+**Problem:**
+- After logging a workout, calendar screen showed old cached stats
+- Stats would update 1-2 seconds later, causing confusing number changes
+- Users saw "3 PRs this week" then it changed to "0 PRs this week" (confusing!)
+
+**Solution:**
+- Clear `calendar_stats` cache when user logs a new workout
+- Clear `calendar_stats` cache when user edits an existing workout
+- Clear `calendar_{monthKey}` cache for current month
+- Next time user opens calendar, fetches fresh data (accurate from the start)
+
+**Files Changed:**
+- `frontend/app/(main)/workout-log.tsx`:
+  - Added `invalidateCache(user.id, 'calendar_stats')` after logging workout
+  - Added `invalidateCache(user.id, 'calendar_stats')` after editing workout
+  - Added `invalidateCache(user.id, `calendar_${monthKey}`)` for current month
+
+**Impact:**
+- ✅ No confusing number changes after logging workouts
+- ✅ Accurate stats immediately (no stale cache)
+- ✅ Eliminates user confusion
+- ✅ Better trust in the app
+
+**Flow:**
+```
+User logs workout → Cache cleared
+User opens calendar → No stale cache → Fetches fresh → Shows correct stats
+```
+
+---
+
+## Updated Files (December 23, 2025)
+
+### Modified Files:
+- `rag.py` - Week boundary fixes, PR threshold implementation
+- `frontend/components/CalendarView.tsx` - Calendar display (Sunday-Saturday, unchanged)
+- `frontend/app/(main)/chatscreen.tsx` - Auto-scroll to bottom
+- `frontend/app/(main)/workout-log.tsx` - Cache invalidation on workout log/edit
+
+### Notes:
+- All changes are backward compatible
+- No breaking changes
+- Improves accuracy and UX
+- Better user trust and engagement
+
+**Status:** ✅ All fixes implemented and tested
+

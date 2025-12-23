@@ -302,12 +302,14 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                 </View>
             </View>
 
-            {/* Manual Day Labels */}
+            {/* Manual Day Labels - Monday to Sunday */}
             <View style={styles.dayLabelsContainer}>
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => {
                     const today = new Date();
                     const todayDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-                    const isToday = index === todayDayOfWeek;
+                    // Convert to Monday=0, Tuesday=1, ..., Sunday=6 to match our label array
+                    const todayIndex = todayDayOfWeek === 0 ? 6 : todayDayOfWeek - 1;
+                    const isToday = index === todayIndex;
                     
                     return (
                         <View key={index} style={[styles.dayLabel, { backgroundColor: themeColors.cardBackground }]}>
@@ -335,6 +337,7 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                         customHeader={() => <View />}
                         hideArrows={true}
                         hideDayNames={true}
+                        firstDay={1}
                         dayComponent={({ date, state, marking }) => {
                             const dateKey = date.dateString;
                             const markedDate = markedDates[dateKey];

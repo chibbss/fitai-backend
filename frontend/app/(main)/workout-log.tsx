@@ -213,18 +213,35 @@ const WorkoutLogScreen = () => {
             if (isEditMode && sessionId) {
                 // Update existing workout
                 await workoutApi.updateWorkout(sessionId, apiData);
+                
+                // Invalidate caches after editing workout (stats/calendar might change)
+                if (user?.id) {
+                    await invalidateCache(user.id, 'calendar_stats');
+                    const today = new Date();
+                    const monthKey = `${today.getFullYear()}-${today.getMonth()}`;
+                    await invalidateCache(user.id, `calendar_${monthKey}`);
+                    await invalidateCache(user.id, 'weeklySummary_current');
+                }
+                
                 alert.success('Workout updated successfully');
                 router.back();
             } else {
                 // Create new workout
                 await workoutApi.logWorkout(apiData);
 
-                // Invalidate weekly summary cache to force fresh fetch
+                // Invalidate caches to force fresh fetch after logging workout
                 if (user?.id) {
-                    // Invalidate current week cache
-                    await invalidateCache(user.id, 'weeklySummary_current');
-                    // Invalidate specific week cache if needed
+                    // Invalidate calendar stats cache (stats will be stale after new workout)
+                    await invalidateCache(user.id, 'calendar_stats');
+                    
+                    // Invalidate current month calendar cache (new workout added)
                     const today = new Date();
+                    const monthKey = `${today.getFullYear()}-${today.getMonth()}`;
+                    await invalidateCache(user.id, `calendar_${monthKey}`);
+                    
+                    // Invalidate weekly summary cache
+                    await invalidateCache(user.id, 'weeklySummary_current');
+                    // Invalidate specific week cache
                     const day = today.getDay();
                     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
                     const monday = new Date(today);
