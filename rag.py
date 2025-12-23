@@ -2972,22 +2972,26 @@ Generate an analytical insight based on the data above. Include specific numbers
             workout_dates_all = sorted([w.occurred_at.date() for w in all_workouts if w.occurred_at], reverse=True)
             
             # Current streak: consecutive days from most recent workout backwards
+            # Streak only counts if the most recent workout was TODAY
+            # Any day without a workout breaks the streak immediately
             current_streak = 0
             if workout_dates_all:
                 today_date = now.date()
-                # Check if most recent workout was today or yesterday (active streak)
                 most_recent_date = workout_dates_all[0]
                 days_since_last = (today_date - most_recent_date).days
                 
-                if days_since_last <= 1:  # Today or yesterday
+                # Only count streak if most recent workout was TODAY
+                # If it was yesterday or earlier, streak is broken (days_since_last >= 1 means a day passed without workout)
+                if days_since_last == 0:  # Today
                     current_streak = 1
+                    # Count backwards for consecutive days
                     for i in range(len(workout_dates_all) - 1):
                         days_diff = (workout_dates_all[i] - workout_dates_all[i + 1]).days
                         if days_diff == 1:
                             current_streak += 1
                         else:
                             break
-                # else: streak is broken (days_since_last > 1), current_streak = 0
+                # else: streak is broken (days_since_last >= 1), current_streak = 0
             
             # Best streak: all-time consecutive days
             best_streak = 1
