@@ -714,7 +714,7 @@ async def beta_signup(
                     "name": payload.name.strip(),
                     "email": payload.email.strip().lower(),
                     "device": payload.device,
-                    "meta_data": metadata_json,
+                    "metadata": metadata_json,  # Fixed: matches :metadata in SQL
                 },
             )
             conn.commit()
