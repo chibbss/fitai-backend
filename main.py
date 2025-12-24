@@ -43,6 +43,9 @@ limiter = Limiter(key_func=get_remote_address)
 # CORS configuration - MUST be added FIRST (before other middleware)
 cors_origins_env = os.getenv("CORS_ORIGINS", "https://fitailive.com,https://www.fitailive.com")
 allowed_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+# Ensure localhost is allowed for local development/testing
+if "http://localhost:8000" not in allowed_origins:
+    allowed_origins.append("http://localhost:8000")
 # Add CORS middleware as the FIRST middleware (critical for preflight requests)
 app.add_middleware(
     CORSMiddleware,
