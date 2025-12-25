@@ -1,4 +1,4 @@
-import { scale, verticalScale} from "@/utils/styling";
+import { scale, verticalScale } from "@/utils/styling";
 
 export const colors = {
   primary: "#facc15",
@@ -49,11 +49,11 @@ export const brandPalette = {
     accentWarm: "#ff3366",
     accentGradient: ['#00ffc8', '#00e4ff'],
     shadowAccent: "rgba(0,255,200,0.25)",
-    panel: 'rgba(10.9, 10.9, 10.9)',
+    panel: 'rgba(24, 24, 24, 1)',
     cardBackground: "rgb(33,33,33)",
     cardBackground2: "rgba(14,165,233,0.25)"
   },
-  
+
   light: {
     background: "#f8fafc",
     surface: "#f1f5f9",
@@ -131,9 +131,9 @@ export const radius = {
 };
 
 export const images = [
-    require('../assets/images/botImages/yellow.png'),
-    require('../assets/images/botImages/blue.png'),
-    require('../assets/images/botImages/red.png'),
-    require('../assets/images/botImages/blue-2.png'),
-    require('../assets/images/botImages/gray.png'),
+  require('../assets/images/botImages/yellow.png'),
+  require('../assets/images/botImages/blue.png'),
+  require('../assets/images/botImages/red.png'),
+  require('../assets/images/botImages/blue-2.png'),
+  require('../assets/images/botImages/gray.png'),
 ];

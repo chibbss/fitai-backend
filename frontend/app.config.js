@@ -1,18 +1,33 @@
 
 export default {
     expo: {
-        name: "fit-chat",
-        slug: "fit-chat",
+        name: "FitAI",
+        slug: "fitAI",
         version: "1.0.0",
         orientation: "portrait",
         icon: "./assets/images/icon.png",
         scheme: "fitai",
         userInterfaceStyle: "automatic",
         newArchEnabled: true,
+
+        privacy: "public",
+        description: "Your AI-powered fitness coach",
+        githubUrl: "https://github.com/chibbss/fitai-backend",
+
         ios: {
             supportsTablet: true,
             bundleIdentifier: "com.eochi.fitai",
-            associatedDomains: ["applinks:fitai.app"]
+            associatedDomains: ["applinks:fitai.app"],
+
+            buildNumber: "1",
+            config: {
+                usesNonExemptEncryption: false
+            },
+            infoPlist: {
+
+                NSUserTrackingUsageDescription: "This allows us to provide personalized fitness recommendations.",
+
+            }
         },
         android: {
             adaptiveIcon: {
@@ -23,9 +38,15 @@ export default {
                 softwareKeyboardLayoutMode: "pan"
             },
             package: "com.eochi.fitai",
+            versionCode: 1,
             edgeToEdgeEnabled: true,
             predictiveBackGestureEnabled: false,
             usesCleartextTraffic: true,
+            permissions: [
+
+                "INTERNET",
+                "ACCESS_NETWORK_STATE"
+            ],
             intentFilters: [
                 {
                     action: "VIEW",
@@ -69,15 +90,20 @@ export default {
                 }
             ],
             "expo-video",
-            "expo-font"
+            "expo-font",
+            "expo-web-browser"
         ],
         experiments: {
             typedRoutes: true,
             reactCompiler: true
         },
         extra: {
-            // Render deployment URL - Update EXPO_PUBLIC_API_URL in .env if you need to override
-            apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://fitai-api.onrender.com',
+
+            apiUrl: 'https://fitai-api.onrender.com',
+            eas: {
+                "projectId": "0c3a646a-eb41-4432-bba8-9092fc7e2c3d"
+            }
+
         },
     },
 };

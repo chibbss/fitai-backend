@@ -13,6 +13,8 @@ import { logger } from '@/utils/logger';
 
 import logo from '@/assets/images/FitIcon.png';
 
+
+
 const SplashScreen = () => {
     const [fontsLoaded, fontError] = useFonts({
         Pacifico: require('../assets/fonts/Pacifico-Regular.ttf'),

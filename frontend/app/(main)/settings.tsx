@@ -134,7 +134,7 @@ const Settings = () => {
             id: 'general',
             label: 'General',
             icon: 'Gear',
-            onPress: () => router.push('/general' as any),
+            onPress: () => handleComingSoon('Feature'),
         },
         {
             id: 'notifications',
@@ -278,6 +278,7 @@ const Settings = () => {
     )
 }
 
+
 const SettingsComponent = Settings;
 
 export default function ProtectedSettings() {
@@ -315,6 +316,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingBottom: spacingY._30,
     },
+    
     profileCard: {
         alignItems: 'center',
         paddingVertical: spacingY._30,
