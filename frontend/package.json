@@ -2,6 +2,9 @@
   "name": "fit-chat",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=20.19.4"
+  },
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -22,6 +25,7 @@
     "@react-navigation/native": "^7.1.8",
     "@supabase/supabase-js": "^2.77.0",
     "axios": "^1.12.2",
+    "dotenv": "^17.2.3",
     "expo": "~54.0.30",
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.10",
@@ -66,5 +70,8 @@
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "react-native-safe-area-context": "~5.6.0"
+  }
 }

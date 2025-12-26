@@ -2,14 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { AppState, AppStateStatus } from 'react-native';
+import Constants from 'expo-constants';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || Constants.expoConfig?.extra?.supabaseUrl || Constants.expoConfig?.extra?.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || Constants.expoConfig?.extra?.supabaseAnonKey || Constants.expoConfig?.extra?.SUPABASE_ANON_KEY || '';
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn(
     '[supabase] Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY. ' +
-      'Auth calls will fail until these env vars are set.'
+    'Auth calls will fail until these env vars are set.'
   );
 }
 
@@ -59,17 +60,17 @@ export const setupAuthListener = () => {
 
     try {
       const { data, error } = await supabase.auth.getSession();
-      
+
       // Handle invalid refresh token
-      if (error && (error.message?.includes('Invalid Refresh Token') || 
-                    error.message?.includes('refresh_token_not_found'))) {
+      if (error && (error.message?.includes('Invalid Refresh Token') ||
+        error.message?.includes('refresh_token_not_found'))) {
         console.log('[supabase] Invalid refresh token, clearing session');
         await supabase.auth.signOut().catch(() => {
           // Ignore signOut errors
         });
         return;
       }
-      
+
       console.log(
         '[supabase] App foregrounded. Session',
         data.session ? 'present' : 'missing'

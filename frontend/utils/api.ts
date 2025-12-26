@@ -7,16 +7,16 @@ import { alert } from './alert';
 import { logger } from './logger';
 import { isNetworkError, getNetworkErrorMessage } from './network';
 import type {
-  WorkoutData,
-  LogWorkoutResponse,
-  CalendarResponse,
-  InsightsData,
-  WorkoutStats,
-  ApiError,
-  WeeklySummary,
-  UserProfile,
-  OnboardingStep,
-  OnboardingStepResponse,
+    WorkoutData,
+    LogWorkoutResponse,
+    CalendarResponse,
+    InsightsData,
+    WorkoutStats,
+    ApiError,
+    WeeklySummary,
+    UserProfile,
+    OnboardingStep,
+    OnboardingStepResponse,
 } from '@/types/api';
 
 /**
@@ -25,17 +25,17 @@ import type {
 const refreshSessionToken = async (): Promise<boolean> => {
     try {
         const { data: { session }, error } = await supabase.auth.refreshSession();
-        
+
         // Handle invalid refresh token
-        if (error && (error.message?.includes('Invalid Refresh Token') || 
-                      error.message?.includes('refresh_token_not_found'))) {
+        if (error && (error.message?.includes('Invalid Refresh Token') ||
+            error.message?.includes('refresh_token_not_found'))) {
             logger.log('[API] Invalid refresh token detected, clearing session');
             await supabase.auth.signOut().catch(() => {
                 // Ignore signOut errors
             });
             return false;
         }
-        
+
         if (error || !session) {
             logger.error('[API] Error refreshing session:', error);
             return false;
@@ -43,7 +43,7 @@ const refreshSessionToken = async (): Promise<boolean> => {
         return true;
     } catch (error: any) {
         // Check if it's an invalid refresh token error
-        if (error?.message?.includes('Invalid Refresh Token') || 
+        if (error?.message?.includes('Invalid Refresh Token') ||
             error?.message?.includes('refresh_token_not_found')) {
             logger.log('[API] Invalid refresh token in catch, clearing session');
             await supabase.auth.signOut().catch(() => {
@@ -115,7 +115,7 @@ const handle401Error = async <T>(
 ): Promise<T> => {
     try {
         const response = await fetchFn();
-        
+
         if (response.status === 401) {
             // Try to refresh token
             const refreshed = await refreshSessionToken();
@@ -145,13 +145,13 @@ const handle401Error = async <T>(
                 throw new Error('Unauthorized');
             }
         }
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
             const error = createApiError(errorData, `HTTP ${response.status}`);
             throw error;
         }
-        
+
         return await response.json();
     } catch (error: any) {
         // Re-throw if it's already an Error with proper message
@@ -355,7 +355,7 @@ export const workoutApi = {
         if (startDate) url += `&start_date=${startDate}`;
         if (endDate) url += `&end_date=${endDate}`;
 
-        const data = await handle401Error(() => 
+        const data = await handle401Error(() =>
             fetch(url, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -369,7 +369,7 @@ export const workoutApi = {
             const userId = session?.user?.id;
             const cacheKey = `calendar_${startDate || 'default'}_${endDate || 'default'}_${limit}`;
             if (userId && cacheKey) {
-                await cacheUserData(userId, cacheKey, data, 60 * 60 * 1000).catch(() => {}); // 1 hour cache
+                await cacheUserData(userId, cacheKey, data, 60 * 60 * 1000).catch(() => { }); // 1 hour cache
             }
         } catch (e) {
             // Cache failures shouldn't break the function
@@ -545,7 +545,7 @@ export const workoutApi = {
                 const userId = session?.user?.id;
                 const cacheKey = `stats_${sessionId}`;
                 if (userId && cacheKey) {
-                    await cacheUserData(userId, cacheKey, data, 5 * 60 * 1000).catch(() => {}); // 5 minute cache
+                    await cacheUserData(userId, cacheKey, data, 5 * 60 * 1000).catch(() => { }); // 5 minute cache
                 }
             } catch (e) {
                 // Cache failures shouldn't break the function
@@ -787,7 +787,7 @@ const retryWithBackoff = async <T>(
     baseDelay: number = 1000
 ): Promise<T> => {
     let lastError: Error;
-    
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
             return await fn();
@@ -795,7 +795,7 @@ const retryWithBackoff = async <T>(
             lastError = error instanceof Error ? error : new Error(String(error));
             const errorMsg = error?.message;
             const errorMsgStr = errorMsg && typeof errorMsg === 'string' ? errorMsg : '';
-            
+
             // Don't retry on auth errors or bad requests
             if (errorMsgStr.includes('401') || errorMsgStr.includes('Unauthorized')) {
                 throw lastError;
@@ -803,27 +803,27 @@ const retryWithBackoff = async <T>(
             if (errorMsgStr.includes('400') || errorMsgStr.includes('Bad Request')) {
                 throw lastError;
             }
-            
+
             // Only retry on server errors (502/503/504) or network issues
-            const isRetryable = 
+            const isRetryable =
                 errorMsgStr.includes('502') ||
                 errorMsgStr.includes('503') ||
                 errorMsgStr.includes('504') ||
                 errorMsgStr.includes('Network error') ||
                 errorMsgStr.includes('timeout') ||
                 errorMsgStr.includes('Streaming error');
-            
+
             if (!isRetryable || attempt === maxRetries - 1) {
                 throw lastError;
             }
-            
+
             // Exponential backoff: 1s, 2s, 4s
             const delay = baseDelay * Math.pow(2, attempt);
             logger.log(`[Retry] Attempt ${attempt + 1}/${maxRetries} after ${delay}ms (${errorMsgStr || 'Unknown error'})`);
             await sleep(delay);
         }
     }
-    
+
     throw lastError!;
 };
 
@@ -857,97 +857,111 @@ export const chatApi = {
         // Wrap chat stream in retry logic to handle Modal cold starts
         return retryWithBackoff(async () => {
             return new Promise<void>((resolve, reject) => {
-            let fullAnswer = '';
-            let isDone = false;
-            let abortStream: (() => void) | null = null;
+                let fullAnswer = '';
+                let isDone = false;
+                let abortStream: (() => void) | null = null;
 
-            const handleDone = (answer: string, totalTime?: number) => {
-                if (!isDone) {
-                    isDone = true;
-                    onDone(answer, totalTime);
-                    resolve();
-                }
-            };
+                const handleDone = (answer: string, totalTime?: number) => {
+                    if (!isDone) {
+                        isDone = true;
+                        onDone(answer, totalTime);
+                        resolve();
+                    }
+                };
 
-            const handleError = (error: Error) => {
-                if (!isDone) {
-                    isDone = true;
+                const handleError = (error: Error) => {
+                    if (!isDone) {
+                        isDone = true;
                         // Reject to trigger retry logic
-                    reject(error);
-                }
-            };
+                        reject(error);
+                    }
+                };
 
-            try {
-                abortStream = createReactNativeSSE(`${API_URL}/chat_stream`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        query,
-                        session_id: sessionId,
-                    }),
-                    onmessage(event) {
-                        try {
-                            if (event.event === 'token') {
-                                // Parse JSON-encoded token
-                                const token = JSON.parse(event.data);
-                                const tokenStr = typeof token === 'string' ? token : String(token);
-                                if (tokenStr) {
-                                    fullAnswer += tokenStr;
-                                    onToken(tokenStr);
-                                }
-                            } else if (event.event === 'metadata') {
-                                // Metadata: references and citations
-                                const metadata = JSON.parse(event.data);
-                                logger.log('Chat metadata:', metadata);
-                            } else if (event.event === 'done') {
-                                // Done event: final answer
-                                const doneData = JSON.parse(event.data);
-                                const answer = doneData.answer || fullAnswer;
-                                const totalTime = doneData.total_time_ms;
-                                handleDone(answer, totalTime);
-                            } else if (event.data) {
-                                // Fallback: treat as token if no event type
-                                try {
-                                    const data = JSON.parse(event.data);
-                                    const tokenStr = typeof data === 'string' ? data : String(data);
+                try {
+                    abortStream = createReactNativeSSE(`${API_URL}/chat_stream`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            query,
+                            session_id: sessionId,
+                        }),
+                        onmessage(event) {
+                            try {
+                                if (event.event === 'token') {
+                                    // Parse JSON-encoded token
+                                    const token = JSON.parse(event.data);
+                                    const tokenStr = typeof token === 'string' ? token : String(token);
                                     if (tokenStr) {
                                         fullAnswer += tokenStr;
                                         onToken(tokenStr);
                                     }
-                                } catch (e) {
-                                    // If parsing fails, use data as-is
-                                    if (event.data) {
-                                        fullAnswer += event.data;
-                                        onToken(event.data);
+                                } else if (event.event === 'metadata') {
+                                    // Metadata: references and citations
+                                    const metadata = JSON.parse(event.data);
+                                    logger.log('Chat metadata:', metadata);
+                                } else if (event.event === 'done') {
+                                    // Done event: final answer
+                                    const doneData = JSON.parse(event.data);
+                                    const answer = doneData.answer || fullAnswer;
+                                    const totalTime = doneData.total_time_ms;
+                                    handleDone(answer, totalTime);
+                                } else if (event.event === 'error') {
+                                    // Error event: stop streaming and notify
+                                    try {
+                                        const errorData = JSON.parse(event.data);
+                                        const errorMsg = typeof errorData === 'string'
+                                            ? errorData
+                                            : (errorData.content || errorData.message || 'Streaming error');
+                                        handleError(new Error(errorMsg));
+                                    } catch (e) {
+                                        handleError(new Error(event.data || 'Streaming error'));
+                                    }
+                                } else if (event.data && event.event === 'token' || !event.event || event.event === 'message') {
+                                    // Fallback: treat as token if explicitly a token, or no event type (default 'message')
+                                    try {
+                                        const data = JSON.parse(event.data);
+                                        const tokenStr = typeof data === 'string' ? data : String(data);
+                                        if (tokenStr && typeof data === 'string') { // Only append if it's actually a string token
+                                            fullAnswer += tokenStr;
+                                            onToken(tokenStr);
+                                        } else if (data && data.type === 'error') {
+                                            // Catch-all for JSON-encoded error objects that leaked through
+                                            handleError(new Error(data.content || 'Streaming error'));
+                                        }
+                                    } catch (e) {
+                                        // If parsing fails, use data as-is only if we're reasonably sure it's a token
+                                        if (event.data && (event.event === 'token' || !event.event)) {
+                                            fullAnswer += event.data;
+                                            onToken(event.data);
+                                        }
                                     }
                                 }
+                            } catch (e) {
+                                logger.warn('Failed to parse SSE message:', event, e);
                             }
-                        } catch (e) {
-                            logger.warn('Failed to parse SSE message:', event, e);
-                        }
-                    },
-                    onerror(err) {
-                        logger.error('SSE error:', err);
-                        handleError(new Error(err?.message || 'Streaming error occurred'));
-                    },
-                    onclose() {
-                        // If we exit without 'done' event, use accumulated answer
-                        if (!isDone) {
-                            if (fullAnswer) {
-                                handleDone(fullAnswer);
-                            } else {
-                                handleError(new Error('Stream closed without data'));
+                        },
+                        onerror(err) {
+                            logger.error('SSE error:', err);
+                            handleError(new Error(err?.message || 'Streaming error occurred'));
+                        },
+                        onclose() {
+                            // If we exit without 'done' event, use accumulated answer
+                            if (!isDone) {
+                                if (fullAnswer) {
+                                    handleDone(fullAnswer);
+                                } else {
+                                    handleError(new Error('Stream closed without data'));
+                                }
                             }
-                        }
-                    },
-                });
-            } catch (error: any) {
-                logger.error('Stream error:', error);
-                handleError(error instanceof Error ? error : new Error(String(error)));
-            }
+                        },
+                    });
+                } catch (error: any) {
+                    logger.error('Stream error:', error);
+                    handleError(error instanceof Error ? error : new Error(String(error)));
+                }
             });
         }, 3, 1000).catch((error) => {
             // After all retries failed, notify user

@@ -4854,13 +4854,23 @@ Generate an analytical insight based on the data above. Include specific numbers
                         self.logger.error("OpenAI streaming failed after %d attempts: %s", max_retries, e)
             
             if not stream_success:
-                if not self.config.remote_fallback_local:
+                # If we already yielded some tokens, don't fallback to local as it would create a disjointed response
+                # Only fallback if remote_fallback_local is True AND local model is actually initialized
+                can_fallback = (
+                    self.config.remote_fallback_local and 
+                    (not full_answer or len(full_answer) == 0) and
+                    self.generator_model is not None
+                )
+                
+                if not can_fallback:
                     error_msg = f"OpenAI API error: {str(last_error)}" if last_error else "OpenAI streaming failed"
                     yield {"type": "error", "content": error_msg}
                     return
         
-        # Local streaming generation
+        # Local streaming generation path
+        # If we reach here, either we are in local mode OR we fell back from OpenAI safely
         if self.generator_tokenizer is None or self.generator_model is None:
+            # This should generally only happen if GEN_BACKEND="local" but model failed to init
             yield {"type": "error", "content": "Generation model not initialized"}
             return
         

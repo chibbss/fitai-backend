@@ -38,7 +38,7 @@ class AppConfig(BaseModel):
 
     # Remote generation tuning
     gen_timeout_ms: int = 60000
-    remote_fallback_local: bool = True
+    remote_fallback_local: bool = False
 
     # Schema management: 'migrations' (preferred) or 'runtime'
     db_schema_management: str = "migrations"
@@ -97,7 +97,7 @@ def get_config() -> AppConfig:
         max_new_tokens=int(os.getenv("MAX_NEW_TOKENS", "256")),
         temperature=float(os.getenv("TEMPERATURE", "0.2")),
         gen_timeout_ms=int(os.getenv("GEN_TIMEOUT_MS", "60000")),
-        remote_fallback_local=os.getenv("REMOTE_FALLBACK_LOCAL", "1") in ("1", "true", "True", "yes"),
+        remote_fallback_local=os.getenv("REMOTE_FALLBACK_LOCAL", "0") in ("1", "true", "True", "yes"),
         db_schema_management=os.getenv("DB_SCHEMA_MANAGEMENT", "migrations"),
         max_query_chars=int(os.getenv("MAX_QUERY_CHARS", "2000")),
         max_context_chars=int(os.getenv("MAX_CONTEXT_CHARS", "16000")),
