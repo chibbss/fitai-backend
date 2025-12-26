@@ -152,4 +152,9 @@ module.exports = {
         supabaseAnonKey,
         "router": {}
     },
+    navigationBar: {
+        backgroundColor: "#00000000", // Makes the bar black
+        barStyle: "light-content"  // Makes the back/home icons white 
+
+    }
 };

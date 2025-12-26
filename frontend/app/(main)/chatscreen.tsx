@@ -278,24 +278,24 @@ const ChatScreen = () => {
             }
 
             // First check params
-        const initialMessage = params.initialMessage as string | undefined;
-        const prefillQuery = params.prefillQuery as string | undefined;
-        
-        if (initialMessage && messages.length === 0) {
+            const initialMessage = params.initialMessage as string | undefined;
+            const prefillQuery = params.prefillQuery as string | undefined;
+
+            if (initialMessage && messages.length === 0) {
                 console.log('[ChatScreen] Setting completion message from params:', initialMessage);
-            // Add bot message with completion message
+                // Add bot message with completion message
                 const botMsgTimestamp = Date.now();
                 const botMsgId = botMsgTimestamp.toString();
-            const botMsg: Message = {
-                id: botMsgId,
-                type: 'text',
-                content: initialMessage,
-                sender: 'bot',
+                const botMsg: Message = {
+                    id: botMsgId,
+                    type: 'text',
+                    content: initialMessage,
+                    sender: 'bot',
                     timestamp: botMsgTimestamp,
-            };
-            setMessages([botMsg]);
-            // Initialize displayed text as empty so typewriter effect works
-            setDisplayedTexts({ [botMsgId]: '' });
+                };
+                setMessages([botMsg]);
+                // Initialize displayed text as empty so typewriter effect works
+                setDisplayedTexts({ [botMsgId]: '' });
                 console.log('[ChatScreen] Completion message added to messages');
                 // Clear from AsyncStorage after using (if it was stored there)
                 await AsyncStorage.removeItem('onboarding_completion_message');
@@ -325,12 +325,12 @@ const ChatScreen = () => {
                 } catch (error) {
                     console.warn('[ChatScreen] Error reading AsyncStorage:', error);
                 }
-        }
-        
-        // Handle pre-filled query from insights screen
-        if (prefillQuery && input === '') {
-            setInput(prefillQuery);
-        }
+            }
+
+            // Handle pre-filled query from insights screen
+            if (prefillQuery && input === '') {
+                setInput(prefillQuery);
+            }
         };
 
         loadCompletionMessage();
@@ -354,7 +354,7 @@ const ChatScreen = () => {
                 setIsLoadingGreeting(false);
             }
         };
-        
+
         loadGreeting();
     }, []); // Only run once on mount
 
@@ -366,7 +366,7 @@ const ChatScreen = () => {
     const fadeAnim = useRef(new Animated.Value(0)).current; // 0 = mic visible, 1 = send visible
     const flatListRef = useRef<FlatList<ChatListItem>>(null);
     const isUserScrolling = useRef(false);
-    const scrollTimeoutRef = useRef<number | null>(null);
+    const scrollTimeoutRef = useRef<any>(null);
     const previousMessagesLengthRef = useRef<number>(0);
     const isMountedRef = useRef(true); // Track if component is mounted
     const isFlatListReadyRef = useRef(false); // Track if FlatList is mounted and ready
@@ -412,7 +412,7 @@ const ChatScreen = () => {
 
                     // Initialize previousMessagesLengthRef to prevent auto-scroll on initial load
                     previousMessagesLengthRef.current = cachedMessages.length;
-                    
+
                     // Force scroll to bottom after messages are set
                     // Use setTimeout to ensure FlatList has rendered
                     setTimeout(() => {
@@ -459,7 +459,7 @@ const ChatScreen = () => {
                             }).start();
                         }
                     });
-                    
+
                     // Hide loading immediately - cached data is shown
                     setIsLoadingChatHistory(false);
                 } else {
@@ -509,7 +509,7 @@ const ChatScreen = () => {
                             texts[msg.id] = msg.content || '';
                         });
                         setDisplayedTexts(texts);
-                        
+
                         // Force scroll to bottom after backend messages are merged
                         // Use multiple strategies to ensure it works
                         const scrollToBottom = () => {
@@ -532,7 +532,7 @@ const ChatScreen = () => {
                             }
                             return false;
                         };
-                        
+
                         // Strategy 1: Immediate scroll if FlatList is ready
                         if (isFlatListReadyRef.current && flatListRef.current) {
                             requestAnimationFrame(() => {
@@ -751,11 +751,11 @@ const ChatScreen = () => {
 
     // Inside the ChatScreen component, add a ref to accumulate tokens:
     const tokenBufferRef = useRef<string>('');
-    const tokenUpdateTimerRef = useRef<number | null>(null);
+    const tokenUpdateTimerRef = useRef<any>(null);
 
     // Typewriter effect state for each message
     const [displayedTexts, setDisplayedTexts] = useState<Record<string, string>>({});
-    const typewriterTimersRef = useRef<Record<string, number>>({});
+    const typewriterTimersRef = useRef<Record<string, any>>({});
 
     // Track restored messages (from cache) vs new messages
     const [restoredMessageIds, setRestoredMessageIds] = useState<Set<string>>(new Set());
@@ -771,7 +771,7 @@ const ChatScreen = () => {
             if (msg.sender === 'bot' && msg.type === 'text') {
                 const displayedText = memoizedDisplayedTexts[msg.id] || '';
                 return {
-            ...msg,
+                    ...msg,
                     displayedContent: displayedText || msg.content,
                 };
             }
@@ -904,7 +904,7 @@ const ChatScreen = () => {
                     // User message: with accent gradient
                     <View style={styles.userBubbleContainer}>
                         <LinearGradient
-                            colors={themeColors.accentGradient}
+                            colors={themeColors.accentGradient as [string, string]}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={[styles.bubble, styles.userBubble]}
@@ -1363,7 +1363,7 @@ const ChatScreen = () => {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: themeColors.background }}
             edges={[]}>
-                
+
             <View style={styles.container}>
                 {/* SlidingPanel outside KeyboardAvoidingView - won't affect ChatScreen keyboard behavior */}
                 <SlidingPanel />
@@ -1379,7 +1379,7 @@ const ChatScreen = () => {
                     >
                         {isLoadingGreeting ? (
                             <View style={styles.loadingGreeting}>
-                                <ActivityIndicator size="small" color={colors.primary} />
+                                {/* <ActivityIndicator size="small" color={colors.primary} /> */}
                             </View>
                         ) : personalizedGreeting ? (
                             <View style={styles.personalizedGreetingContainer}>
@@ -1429,7 +1429,7 @@ const ChatScreen = () => {
                             {/* Loading indicator for chat history */}
                             {isLoadingChatHistory && messages.length === 0 && (
                                 <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
-                                    <ActivityIndicator size="large" color={colors.primary} />
+                                    <ActivityIndicator size="large" color={colors.white} />
                                 </View>
                             )}
 
@@ -1439,8 +1439,8 @@ const ChatScreen = () => {
                                     data={flatListData}
                                     renderItem={renderItem}
                                     keyExtractor={keyExtractor}
-                                showsVerticalScrollIndicator={false}
-                                style={{ backgroundColor: 'transparent', zIndex: 1 }}
+                                    showsVerticalScrollIndicator={false}
+                                    style={{ backgroundColor: 'transparent', zIndex: 1 }}
                                     contentContainerStyle={{
                                         paddingTop: messages.length === 0 ? 0 : spacingY._50,
                                         paddingBottom: spacingY._20,
@@ -1454,7 +1454,7 @@ const ChatScreen = () => {
                                     onLayout={() => {
                                         // Mark FlatList as ready when it's laid out
                                         isFlatListReadyRef.current = true;
-                                        
+
                                         // If we have messages and haven't scrolled yet, scroll now
                                         if (messages.length > 0 && !hasInitialScrolledRef.current && flatListRef.current) {
                                             // Use requestAnimationFrame for reliable scrolling
@@ -1517,57 +1517,46 @@ const ChatScreen = () => {
                                                 }).start();
                                             }
                                         }
-                                                logger.log('[ChatScreen] Scrolled to bottom on content size change');
-                                            } catch (error) {
-                                                logger.warn('[ChatScreen] Error scrolling to bottom on content size change:', error);
-                                                setIsInitialScrollReady(true);
-                                                Animated.timing(flatListOpacity, {
-                                                    toValue: 1,
-                                                    duration: 150,
-                                                    useNativeDriver: true,
-                                                }).start();
-                                            }
+                                    }}
+                                    onScrollBeginDrag={() => {
+                                        // User started scrolling manually
+                                        isUserScrolling.current = true;
+                                        if (scrollTimeoutRef.current) {
+                                            clearTimeout(scrollTimeoutRef.current);
+                                            scrollTimeoutRef.current = null;
                                         }
                                     }}
-                                onScrollBeginDrag={() => {
-                                    // User started scrolling manually
-                                    isUserScrolling.current = true;
-                                    if (scrollTimeoutRef.current) {
-                                        clearTimeout(scrollTimeoutRef.current);
-                                        scrollTimeoutRef.current = null;
+                                    onScrollEndDrag={() => {
+                                        // Reset scrolling flag after a delay (iOS can trigger scroll events after drag ends)
+                                        if (scrollTimeoutRef.current) {
+                                            clearTimeout(scrollTimeoutRef.current);
+                                        }
+                                        scrollTimeoutRef.current = setTimeout(() => {
+                                            isUserScrolling.current = false;
+                                            scrollTimeoutRef.current = null;
+                                        }, 1000);
+                                    }}
+                                    onMomentumScrollEnd={() => {
+                                        // iOS momentum scrolling ended
+                                        if (scrollTimeoutRef.current) {
+                                            clearTimeout(scrollTimeoutRef.current);
+                                        }
+                                        scrollTimeoutRef.current = setTimeout(() => {
+                                            isUserScrolling.current = false;
+                                            scrollTimeoutRef.current = null;
+                                        }, 1000);
+                                    }}
+                                    maintainVisibleContentPosition={{
+                                        minIndexForVisible: 0,
+                                    }}
+                                    ListEmptyComponent={
+                                        isLoadingChatHistory ? (
+                                            <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
+                                                <ActivityIndicator size="large" color={colors.white} />
+                                            </View>
+                                        ) : null
                                     }
-                                }}
-                                onScrollEndDrag={() => {
-                                    // Reset scrolling flag after a delay (iOS can trigger scroll events after drag ends)
-                                    if (scrollTimeoutRef.current) {
-                                        clearTimeout(scrollTimeoutRef.current);
-                                    }
-                                    scrollTimeoutRef.current = setTimeout(() => {
-                                        isUserScrolling.current = false;
-                                        scrollTimeoutRef.current = null;
-                                    }, 1000);
-                                }}
-                                onMomentumScrollEnd={() => {
-                                    // iOS momentum scrolling ended
-                                    if (scrollTimeoutRef.current) {
-                                        clearTimeout(scrollTimeoutRef.current);
-                                    }
-                                    scrollTimeoutRef.current = setTimeout(() => {
-                                        isUserScrolling.current = false;
-                                        scrollTimeoutRef.current = null;
-                                    }, 1000);
-                                }}
-                                maintainVisibleContentPosition={{
-                                    minIndexForVisible: 0,
-                                }}
-                                ListEmptyComponent={
-                                    isLoadingChatHistory ? (
-                                        <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
-                                            <ActivityIndicator size="large" color={colors.primary} />
-                                                        </View>
-                                    ) : null
-                                }
-                            />
+                                />
                             </Animated.View>
                         </View>
 
@@ -1607,30 +1596,30 @@ const ChatScreen = () => {
                                             </Typo>
                                         </View>
                                     ) : (
-                                    <TextInput
-                                        placeholder="Ask anything..."
-                                        placeholderTextColor={colors.neutral400}
-                                        value={input}
-                                        onChangeText={setInput}
-                                        multiline
-                                        textAlignVertical={inputHeight > 56 ? 'top' : 'center'}
-                                        style={[
-                                            styles.textInput,
-                                            {
-                                                height: inputHeight > 56 ? undefined : 56,
-                                                maxHeight: 120,
+                                        <TextInput
+                                            placeholder="Ask anything..."
+                                            placeholderTextColor={colors.neutral400}
+                                            value={input}
+                                            onChangeText={setInput}
+                                            multiline
+                                            textAlignVertical={inputHeight > 56 ? 'top' : 'center'}
+                                            style={[
+                                                styles.textInput,
+                                                {
+                                                    height: inputHeight > 56 ? undefined : 56,
+                                                    maxHeight: 120,
                                                     ...(Platform.OS === 'ios' && inputHeight <= 56 && {
                                                         paddingTop: 18,
                                                         paddingBottom: 18,
                                                     }),
-                                            }
-                                        ]}
-                                        onContentSizeChange={(e) => {
-                                            const contentHeight = e.nativeEvent.contentSize.height;
-                                            const calculatedHeight = contentHeight < 56 ? 56 : Math.min(contentHeight, 120);
-                                            setInputHeight(calculatedHeight);
-                                        }}
-                                    />
+                                                }
+                                            ]}
+                                            onContentSizeChange={(e) => {
+                                                const contentHeight = e.nativeEvent.contentSize.height;
+                                                const calculatedHeight = contentHeight < 56 ? 56 : Math.min(contentHeight, 120);
+                                                setInputHeight(calculatedHeight);
+                                            }}
+                                        />
                                     )}
                                     {/* Send button with gradient */}
                                     {input.trim() ? (
@@ -1641,7 +1630,7 @@ const ChatScreen = () => {
                                                 style={styles.sendButtonTouchable}
                                             >
                                                 <LinearGradient
-                                                    colors={themeColors.accentGradient}
+                                                    colors={themeColors.accentGradient as [string, string]}
                                                     start={{ x: 0, y: 0 }}
                                                     end={{ x: 1, y: 1 }}
                                                     style={styles.sendButtonGradient}

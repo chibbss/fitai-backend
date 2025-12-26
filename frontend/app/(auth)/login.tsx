@@ -252,10 +252,11 @@ const Login = () => {
             // Small delay for better UX
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            setIsLoading(false);
+            // ❌ REMOVED: setIsLoading(false) 
+            // This prevents the login form from "flickering" back onto the screen
 
-            // 3. Navigate to main app (only if user exists in backend)
-            handleNavigateToChatscreen();
+            // 3. Navigate to main app immediately
+            navigateToChatscreen();
 
         }
 
@@ -342,7 +343,7 @@ const Login = () => {
     if (isLoading) {
         return (
             <ScreenWrapper showPattern={false}>
-                
+
 
                 <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
                     <Animated.View entering={FadeInDown.delay(150).springify()}>
@@ -421,7 +422,7 @@ const Login = () => {
                     <View style={styles.container}>
                         <View style={styles.header}>
                             <BackButton iconSize={38} />
-                            <Pressable 
+                            <Pressable
                                 onPress={handleForgotPassword}
                                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                             >

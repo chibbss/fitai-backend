@@ -37,7 +37,7 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
     const [selectedDate, setSelectedDate] = useState<string>('');
     const [displayMonth, setDisplayMonth] = useState<Date>(selectedMonth); // Track displayed month
     const { colors: themeColors } = useTheme();
-    
+
     // Update displayMonth only when not loading to prevent premature month name change
     useEffect(() => {
         if (!isLoading) {
@@ -110,7 +110,7 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                         height: 35,
                         width: 35,
                         alignItems: 'center',
-                        
+
                     },
                     text: {
                         color: textColor,
@@ -136,18 +136,18 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
             marked[today] = {
                 customStyles: {
                     container: {
-                        backgroundColor: themeColors.accentPrimary , // Add this line
+                        backgroundColor: themeColors.accentPrimary, // Add this line
                         borderWidth: 2,
                         borderColor: themeColors.accentPrimary || '#FF6B35',
                         borderRadius: 999,
                         height: 35,
                         width: 35,
-                        
+
                     },
                     text: {
                         fontWeight: '700',
                         color: themeColors.textPrimary,
-                        
+
                     },
                 },
             };
@@ -181,11 +181,11 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                     customStyles: {
                         container: {
                             backgroundColor: themeColors.accentPrimary || '#FF6B35',
-                        borderRadius: 999,
-                        borderWidth: 0,
-                        borderColor: themeColors.accentPrimary || '#FF6B35',
-                        width: 35,
-                        height: 35,
+                            borderRadius: 999,
+                            borderWidth: 0,
+                            borderColor: themeColors.accentPrimary || '#FF6B35',
+                            width: 35,
+                            height: 35,
                         },
                         text: {
                             color: themeColors.textPrimary,
@@ -310,12 +310,12 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                     // Convert to Monday=0, Tuesday=1, ..., Sunday=6 to match our label array
                     const todayIndex = todayDayOfWeek === 0 ? 6 : todayDayOfWeek - 1;
                     const isToday = index === todayIndex;
-                    
+
                     return (
                         <View key={index} style={[styles.dayLabel, { backgroundColor: themeColors.cardBackground }]}>
-                            <Typo 
-                                size={13} 
-                                color={isToday ? themeColors.accentPrimary : themeColors.textPrimary || '#FF6B35'} 
+                            <Typo
+                                size={13}
+                                color={isToday ? themeColors.accentPrimary : themeColors.textPrimary || '#FF6B35'}
                                 fontWeight="600"
                             >
                                 {day}
@@ -342,11 +342,11 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                             const dateKey = date.dateString;
                             const markedDate = markedDates[dateKey];
                             const customStyles = markedDate?.customStyles;
-                            
+
                             // Check for PR and streak from markedDates
                             const hasPR = markedDate?.dotColor === intensityColors.pr_day || markedDate?.dotColor === colors.green;
                             const hasStreak = markedDate?.dotColor === intensityColors.streak_day || markedDate?.dotColor === '#F59E0B';
-                            
+
                             return (
                                 <TouchableOpacity
                                     onPress={() => {
@@ -375,31 +375,31 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                                     >
                                         {date.day}
                                     </Typo>
-                                    
+
                                     {/* PR Icon */}
                                     {hasPR && (
                                         <View style={styles.iconContainer}>
                                             <Icons.Trophy size={10} weight="fill" color={intensityColors.pr_day || colors.green} />
                                         </View>
                                     )}
-                                    
-                                    {/* Streak Icon (only if no PR) */}
+
+                                    {/* Streak Icon (only if no PR) - TEMPORARILY DISABLED
                                     {hasStreak && !hasPR && (
                                         <View style={styles.iconContainer}>
                                             <Icons.Fire size={10} weight="fill" color={intensityColors.streak_day || '#F59E0B'} />
                                         </View>
-                                    )}
+                                    )} */}
                                 </TouchableOpacity>
                             );
                         }}
                         style={[
-                            styles.calendar, 
+                            styles.calendar,
                             isLoading && { opacity: 0.3 },
                             { backgroundColor: 'transparent' }
                         ]}
                         theme={{
-                            backgroundColor: 'transparent', 
-                            calendarBackground: 'transparent', 
+                            backgroundColor: 'transparent',
+                            calendarBackground: 'transparent',
                             textSectionTitleColor: colors.primary || '#FF6B35',
                             selectedDayBackgroundColor: themeColors.accentPrimary || '#FF6B35',
                             selectedDayTextColor: themeColors.background,
@@ -464,10 +464,11 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
                         <Icons.Trophy size={12} weight="fill" color={intensityColors.pr_day || colors.green} />
                         <Typo size={10} color={themeColors.textPrimary}>PR</Typo>
                     </View>
+                    {/* Streak Legend - TEMPORARILY DISABLED
                     <View style={styles.legendItem}>
                         <Icons.Fire size={12} weight="fill" color={intensityColors.streak_day || '#F59E0B'} />
                         <Typo size={10} color={themeColors.textPrimary}>Streak</Typo>
-                    </View>
+                    </View> */}
                 </View>
 
 
@@ -478,7 +479,7 @@ const RNCalendarsTest: React.FC<RNCalendarsTestProps> = ({
 
 const styles = StyleSheet.create({
     container: {
-       
+
         borderRadius: radius._20,
         padding: spacingX._15,
         width: '100%',
@@ -488,7 +489,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 4,
         borderWidth: 1,
-        
+
     },
     calendar: {
         borderRadius: radius._20,
@@ -555,7 +556,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: spacingY._5,
-        
+
         borderRadius: radius._10,
         marginHorizontal: spacingX._3,
     },
