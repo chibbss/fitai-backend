@@ -593,10 +593,47 @@ const ChatScreen = () => {
         return () => clearTimeout(timeoutId);
     }, [messages, user?.id]);
 
+    // Use a single animated value for opacity. No conditional mounting state needed for smoothness.
+    const scrollButtonOpacity = useRef(new Animated.Value(0)).current;
+
+    // State to toggle pointer events (interaction)
+    const [showScrollButtonState, setShowScrollButtonState] = useState(false);
+
+    // Track scroll position to show/hide scroll-to-bottom button
+    const handleScroll = (event: any) => {
+        const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+
+        // Calculate distance from bottom
+        const distancefromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+
+        // Show button if we are more than 300px from the bottom
+        // and there is enough content to scroll
+        const shouldShow = distancefromBottom > 300 && contentSize.height > layoutMeasurement.height;
+
+        // Update interaction state if changed
+        if (shouldShow !== showScrollButtonState) {
+            setShowScrollButtonState(shouldShow);
+        }
+
+        // Always animate opacity
+        Animated.timing(scrollButtonOpacity, {
+            toValue: shouldShow ? 1 : 0,
+            duration: 200,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const scrollToBottom = () => {
+        if (flatListRef.current) {
+            flatListRef.current.scrollToEnd({ animated: true });
+        }
+    };
+
     // ✅ Scroll to bottom only when a NEW message is added (not during typewriter effect)
     useEffect(() => {
         const currentLength = messages.length;
         const previousLength = previousMessagesLengthRef.current;
+
 
         // Only auto-scroll if a new message was added (length increased)
         if (currentLength > previousLength && flatListRef.current && !isUserScrolling.current && isMountedRef.current) {
@@ -1441,6 +1478,8 @@ const ChatScreen = () => {
                                     keyExtractor={keyExtractor}
                                     showsVerticalScrollIndicator={false}
                                     style={{ backgroundColor: 'transparent', zIndex: 1 }}
+                                    onScroll={handleScroll}
+                                    scrollEventThrottle={16}
                                     contentContainerStyle={{
                                         paddingTop: messages.length === 0 ? 0 : spacingY._50,
                                         paddingBottom: spacingY._20,
@@ -1568,6 +1607,34 @@ const ChatScreen = () => {
                                     borderTopColor: themeColors.textPrimary
                                 }
                             ]}>
+                                {/* Scroll to Bottom Button - Always rendered but faded in/out */}
+                                <Animated.View
+                                    pointerEvents={showScrollButtonState ? 'auto' : 'none'}
+                                    style={[
+                                        styles.scrollToBottomButton,
+                                        {
+                                            opacity: scrollButtonOpacity,
+                                            left: '50%',
+                                            marginLeft: -18, // Center horizontally (half of width 36)
+                                            backgroundColor: themeColors.cardBackground || colors.white,
+                                            shadowColor: colors.black,
+                                            borderColor: themeColors.accentPrimary || 'rgba(0,0,0,0.1)',
+                                            borderWidth: 1.5
+                                        }
+                                    ]}
+                                >
+                                    <TouchableOpacity
+                                        onPress={scrollToBottom}
+                                        activeOpacity={0.8}
+                                        style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
+                                    >
+                                        <Icons.ArrowDown
+                                            size={20}
+                                            color={themeColors.textPrimary || colors.neutral600}
+                                            weight="bold"
+                                        />
+                                    </TouchableOpacity>
+                                </Animated.View>
 
 
                                 {/* Paperclip hidden - not visible */}
@@ -1714,6 +1781,26 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         zIndex: 20, // Ensure input is above greeting when both are visible
         minHeight: 76, // Minimum height to accommodate buttons
+        position: 'relative', // Necessary for absolute positioning of children
+    },
+    scrollToBottomButton: {
+        position: 'absolute',
+        top: -50,
+        alignSelf: 'center',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 100,
+        elevation: 4,
+        borderWidth: 1,
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.15,
+        shadowRadius: 3.84,
     },
     doubleCheckContainer: {
         paddingBottom: spacingY._25,

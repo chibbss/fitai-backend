@@ -20,9 +20,35 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
  */
 const AUTH_CALLBACK_URL = Linking.createURL('/callback');
 
+// Custom storage adapter that handles environment issues (like 'window is not defined' during builds)
+const SafeStorage = {
+  getItem: async (key: string) => {
+    try {
+      return await AsyncStorage.getItem(key);
+    } catch (e) {
+      // Return null if storage unavailable (e.g. during build)
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string) => {
+    try {
+      await AsyncStorage.setItem(key, value);
+    } catch (e) {
+      // Ignore errors
+    }
+  },
+  removeItem: async (key: string) => {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (e) {
+      // Ignore errors
+    }
+  },
+};
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: AsyncStorage,
+    storage: SafeStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

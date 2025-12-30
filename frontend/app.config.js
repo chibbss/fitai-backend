@@ -34,16 +34,18 @@ const envPath = path.join(__dirname, '.env');
 const frontendEnv = config({ path: envPath, override: true });
 const rootEnv = config({ path: path.join(__dirname, '../.env'), override: true });
 
-// FALLBACK: Hardcode the values if they are still missing to unblock the build context
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
-    (frontendEnv.parsed && frontendEnv.parsed.EXPO_PUBLIC_SUPABASE_URL) ||
-    'https://ltxehjhphbncgsjyqhzk.supabase.co';
+    (frontendEnv.parsed && frontendEnv.parsed.EXPO_PUBLIC_SUPABASE_URL);
 
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_ANON_KEY ||
-    (frontendEnv.parsed && frontendEnv.parsed.EXPO_PUBLIC_SUPABASE_ANON_KEY) ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0eGVoamhwaGJuY2dzanlxaHprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA2OTU1MDAsImV4cCI6MjA3NjI3MTUwMH0.OG9XkGrWzHzcIkDQrY2ADzv_nAE36ysOZja8x-vZq6Y';
+    (frontendEnv.parsed && frontendEnv.parsed.EXPO_PUBLIC_SUPABASE_ANON_KEY);
+
+if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('\n⚠️  WARNING: Supabase credentials are missing!');
+    console.warn('Ensure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are set in your .env or EAS Secrets.\n');
+}
 
 module.exports = {
     name: "FitAI",
@@ -143,8 +145,7 @@ module.exports = {
         reactCompiler: true
     },
     extra: {
-
-        apiUrl: 'https://fitai-api.onrender.com',
+        apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://fitai-api.onrender.com',
         eas: {
             "projectId": "0c3a646a-eb41-4432-bba8-9092fc7e2c3d"
         },
@@ -153,8 +154,13 @@ module.exports = {
         "router": {}
     },
     navigationBar: {
-        backgroundColor: "#00000000", // Makes the bar black
-        barStyle: "light-content"  // Makes the back/home icons white 
-
+        backgroundColor: "#00000000",
+        barStyle: "light-content"
+    },
+    updates: {
+        "url": "https://u.expo.dev/0c3a646a-eb41-4432-bba8-9092fc7e2c3d"
+    },
+    runtimeVersion: {
+        "policy": "appVersion"
     }
 };
