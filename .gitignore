@@ -25,3 +25,33 @@ logs/
 
 # System files
 Thumbs.dbvenv/
+
+# ======================
+# React Native / Expo
+# ======================
+*.apk
+*.aab
+*.ipa
+
+# Expo / React Native build outputs
+frontend/build/
+frontend/build*
+frontend/dist/
+frontend/.expo/
+frontend/.expo-shared/
+
+# Android
+android/app/build/
+android/.gradle/
+android/local.properties
+
+# iOS
+ios/build/
+ios/Pods/
+ios/.xcode.env.local
+
+# Logs
+*.log
+
+# Temporary configs
+config_test.json
