@@ -400,25 +400,25 @@ const ChatScreen = () => {
                     const restoredIds = new Set<string>(cachedMessages.map(msg => msg.id));
                     setRestoredMessageIds(restoredIds);
 
-                    // Initialize opacity animations for fade-in
+                    // Initialize opacity to 1 (visible) immediately for all cached messages
+                    // NO staggered animation for history - this causes the 25s delay on iOS
                     cachedMessages.forEach(msg => {
                         if (!messageOpacityRefs.current[msg.id]) {
-                            messageOpacityRefs.current[msg.id] = new Animated.Value(0);
+                            messageOpacityRefs.current[msg.id] = new Animated.Value(1); // Start fully visible
                         }
                     });
 
-                    // Set messages - they will fade in
+                    // Set messages - they appear immediately
                     setMessages(cachedMessages);
 
                     // Initialize previousMessagesLengthRef to prevent auto-scroll on initial load
                     previousMessagesLengthRef.current = cachedMessages.length;
 
-                    // Force scroll to bottom after messages are set
-                    // Use setTimeout to ensure FlatList has rendered
+                    // Force scroll to bottom (offset 0 in inverted list) after messages are set
                     setTimeout(() => {
                         if (flatListRef.current && isFlatListReadyRef.current) {
                             try {
-                                flatListRef.current.scrollToEnd({ animated: false });
+                                flatListRef.current.scrollToOffset({ offset: 0, animated: false });
                                 hasInitialScrolledRef.current = true;
                                 setIsInitialScrollReady(true);
                                 Animated.timing(flatListOpacity, {
@@ -426,7 +426,7 @@ const ChatScreen = () => {
                                     duration: 150,
                                     useNativeDriver: true,
                                 }).start();
-                                logger.log('[ChatScreen] Scrolled to bottom after cache load');
+                                logger.log('[ChatScreen] Scrolled to bottom (inverted) after cache load');
                             } catch (error) {
                                 logger.warn('[ChatScreen] Error scrolling to bottom after cache load:', error);
                                 setIsInitialScrollReady(true);
@@ -439,26 +439,12 @@ const ChatScreen = () => {
                         }
                     }, 100);
 
-                    // Initialize displayed texts - for restored messages, show full content immediately (no typewriter)
+                    // Initialize displayed texts - for restored messages, show full content immediately
                     const texts: Record<string, string> = {};
                     cachedMessages.forEach(msg => {
-                        // For restored messages, show full content immediately (will fade in)
                         texts[msg.id] = msg.content || '';
                     });
                     setDisplayedTexts(texts);
-
-                    // Animate fade-in for all restored messages
-                    cachedMessages.forEach((msg, index) => {
-                        const opacityRef = messageOpacityRefs.current[msg.id];
-                        if (opacityRef) {
-                            Animated.timing(opacityRef, {
-                                toValue: 1,
-                                duration: 300,
-                                delay: index * 50, // Stagger the animations
-                                useNativeDriver: true,
-                            }).start();
-                        }
-                    });
 
                     // Hide loading immediately - cached data is shown
                     setIsLoadingChatHistory(false);
@@ -603,8 +589,8 @@ const ChatScreen = () => {
     const handleScroll = (event: any) => {
         const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
 
-        // Calculate distance from bottom
-        const distancefromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+        // Calculate distance from bottom (Inverted: offset 0 is bottom)
+        const distancefromBottom = contentOffset.y;
 
         // Show button if we are more than 300px from the bottom
         // and there is enough content to scroll
@@ -625,7 +611,7 @@ const ChatScreen = () => {
 
     const scrollToBottom = () => {
         if (flatListRef.current) {
-            flatListRef.current.scrollToEnd({ animated: true });
+            flatListRef.current.scrollToOffset({ offset: 0, animated: true });
         }
     };
 
@@ -663,8 +649,8 @@ const ChatScreen = () => {
                     if (isFlatListReadyRef.current && messages.length > 0) {
                         // Verify ref is still valid
                         const ref = flatListRef.current;
-                        if (ref && typeof ref.scrollToEnd === 'function') {
-                            ref.scrollToEnd({ animated: true });
+                        if (ref && typeof ref.scrollToOffset === 'function') {
+                            ref.scrollToOffset({ offset: 0, animated: true });
                         }
                     }
                 } catch (error) {
@@ -817,6 +803,7 @@ const ChatScreen = () => {
     }, [messages, memoizedDisplayedTexts]);
 
     // Create FlatList data structure with messages and date separators
+    // Create FlatList data structure with messages and date separators (INVERTED LIST SUPPORT)
     const flatListData = useMemo(() => {
         const items: ChatListItem[] = [];
 
@@ -825,29 +812,37 @@ const ChatScreen = () => {
             return items;
         }
 
-        memoizedMessages.forEach((msg, index) => {
+        // 1. Hard Cap: Take only the last 50 messages (newest 50)
+        // Since messages are sorted Oldest -> Newest, slice(-50) gives the end.
+        const recentMessages = memoizedMessages.slice(-50);
+
+        // 2. Reverse for Inverted List: Newest -> Oldest
+        const reversedMessages = [...recentMessages].reverse();
+
+        reversedMessages.forEach((msg, index) => {
             const currentTimestamp = getMessageTimestamp(msg);
             const currentDateKey = getDateKey(currentTimestamp);
 
-            // Get previous message date
-            const previousTimestamp = index > 0 ? getMessageTimestamp(memoizedMessages[index - 1]) : null;
-            const previousDateKey = previousTimestamp ? getDateKey(previousTimestamp) : null;
+            // For inverted list, "next" item in the array is OLDER
+            const nextOlderTimestamp = index < reversedMessages.length - 1 ? getMessageTimestamp(reversedMessages[index + 1]) : null;
+            const nextOlderDateKey = nextOlderTimestamp ? getDateKey(nextOlderTimestamp) : null;
 
-            // Add date separator if date changed
-            if (index === 0 || currentDateKey !== previousDateKey) {
+            // Add message first (bottom of this group)
+            items.push({
+                type: 'message',
+                message: msg,
+                index, // This index is purely for key generation or debugging, careful if used for logic
+            });
+
+            // Add date separator if date changes (it will appear ABOVE the message visually)
+            // Logic: If the next (older) message is from a different day, OR this is the last (oldest) message in the list
+            if (currentDateKey !== nextOlderDateKey) {
                 items.push({
                     type: 'dateSeparator',
                     date: formatChatDate(currentTimestamp),
                     timestamp: currentTimestamp,
                 });
             }
-
-            // Add message
-            items.push({
-                type: 'message',
-                message: msg,
-                index,
-            });
         });
 
         return items;
@@ -1472,6 +1467,7 @@ const ChatScreen = () => {
 
                             <Animated.View style={{ flex: 1, opacity: flatListOpacity }}>
                                 <FlatList
+                                    inverted={true}
                                     ref={flatListRef}
                                     data={flatListData}
                                     renderItem={renderItem}
@@ -1500,7 +1496,7 @@ const ChatScreen = () => {
                                             requestAnimationFrame(() => {
                                                 if (flatListRef.current && !hasInitialScrolledRef.current && messages.length > 0) {
                                                     try {
-                                                        flatListRef.current.scrollToEnd({ animated: false });
+                                                        flatListRef.current.scrollToOffset({ offset: 0, animated: false });
                                                         hasInitialScrolledRef.current = true;
                                                         setIsInitialScrollReady(true);
                                                         Animated.timing(flatListOpacity, {
@@ -1536,7 +1532,7 @@ const ChatScreen = () => {
                                         if (!hasInitialScrolledRef.current && messages.length > 0 && flatListRef.current && isFlatListReadyRef.current) {
                                             // Immediate synchronous scroll before rendering
                                             try {
-                                                flatListRef.current.scrollToEnd({ animated: false });
+                                                flatListRef.current.scrollToOffset({ offset: 0, animated: false });
                                                 hasInitialScrolledRef.current = true;
                                                 setIsInitialScrollReady(true);
                                                 // Smooth fade-in after scroll

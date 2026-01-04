@@ -1020,7 +1020,7 @@ export const chatApi = {
     },
 
     // Get chat history from backend
-    async getChatHistory(limit: number = 500, sessionId?: string): Promise<Array<{
+    async getChatHistory(limit: number = 50, sessionId?: string): Promise<Array<{
         id: string;
         type: 'text' | 'voice';
         content: string;
