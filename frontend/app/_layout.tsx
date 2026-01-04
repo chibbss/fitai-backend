@@ -24,36 +24,36 @@ export default function RootLayout() {
   useEffect(() => {
     // Setup deep link listener for auth
     // COMMENTED OUT FOR TESTING - Disable deep linking
-     const cleanup = setupAuthListener();
-     
-     // Cleanup cache on app start
-     const cleanupCache = async () => {
-       try {
-         const { supabase } = await import('@/utils/supabase');
-         const { data: { session }, error } = await supabase.auth.getSession();
-         
-         // Handle invalid refresh token
-         if (error && (error.message?.includes('Invalid Refresh Token') || 
-                       error.message?.includes('refresh_token_not_found'))) {
-           logger.log('[RootLayout] Invalid refresh token detected, clearing session');
-           await supabase.auth.signOut().catch(() => {
-             // Ignore signOut errors
-           });
-           return;
-         }
-         
-         if (session?.user?.id) {
-           const { checkAndCleanupStorage } = await import('@/utils/dataCache');
-           await checkAndCleanupStorage(session.user.id);
-         }
-       } catch (error) {
-         logger.error('[RootLayout] Cache cleanup error:', error);
-         // Continue even if cache cleanup fails
-       }
-     };
-     cleanupCache();
-     
-     return () => cleanup();
+    const cleanup = setupAuthListener();
+
+    // Cleanup cache on app start
+    const cleanupCache = async () => {
+      try {
+        const { supabase } = await import('@/utils/supabase');
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        // Handle invalid refresh token
+        if (error && (error.message?.includes('Invalid Refresh Token') ||
+          error.message?.includes('refresh_token_not_found'))) {
+          logger.log('[RootLayout] Invalid refresh token detected, clearing session');
+          await supabase.auth.signOut().catch(() => {
+            // Ignore signOut errors
+          });
+          return;
+        }
+
+        if (session?.user?.id) {
+          const { checkAndCleanupStorage } = await import('@/utils/dataCache');
+          await checkAndCleanupStorage(session.user.id);
+        }
+      } catch (error) {
+        logger.error('[RootLayout] Cache cleanup error:', error);
+        // Continue even if cache cleanup fails
+      }
+    };
+    cleanupCache();
+
+    return () => cleanup();
   }, []);
 
   if (!fontsLoaded && !fontError) {
@@ -67,12 +67,12 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <AuthProvider> {/* ADD THIS WRAPPER */}
+        <AuthProvider>
           <AlertProvider>
             <OfflineIndicator />
             <StackNavigatorWithBackground />
           </AlertProvider>
-        </AuthProvider> {/* CLOSE WRAPPER */}
+        </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
@@ -80,35 +80,35 @@ export default function RootLayout() {
 
 function StackNavigatorWithBackground() {
   const { colors: themeColors } = useTheme();
-  
+
   return (
     <View style={{ flex: 1, backgroundColor: themeColors.background }}>
-      <Stack 
-        screenOptions={{ 
+      <Stack
+        screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: themeColors.background },
         }}
       >
-        <Stack.Screen 
-          name="index" 
-          options={{ 
+        <Stack.Screen
+          name="index"
+          options={{
             headerShown: false,
             contentStyle: { backgroundColor: themeColors.background },
-          }} 
+          }}
         />
-        <Stack.Screen 
-          name="(auth)" 
-          options={{ 
+        <Stack.Screen
+          name="(auth)"
+          options={{
             headerShown: false,
             contentStyle: { backgroundColor: themeColors.background },
-          }} 
+          }}
         />
-        <Stack.Screen 
-          name="(main)" 
-          options={{ 
+        <Stack.Screen
+          name="(main)"
+          options={{
             headerShown: false,
             contentStyle: { backgroundColor: themeColors.background },
-          }} 
+          }}
         />
       </Stack>
     </View>

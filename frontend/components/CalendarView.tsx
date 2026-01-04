@@ -42,7 +42,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
         // First day of month
         const firstDay = new Date(year, month, 1);
-        const firstDayOfWeek = firstDay.getDay();
+        // getDay() returns 0=Sunday, 1=Monday, ..., 6=Saturday
+        // Use directly for Sunday-Saturday calendar display
+        const firstDayOfWeek = firstDay.getDay(); // 0=Sunday, 6=Saturday
 
         // Last day of month
         const lastDay = new Date(year, month + 1, 0);
@@ -50,7 +52,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
         const days: Array<{ date: Date; isCurrentMonth: boolean }> = [];
 
-        // Add days from previous month to fill first week
+        // Add days from previous month to fill first week (Sunday to Saturday)
         const prevMonthLastDay = new Date(year, month, 0).getDate();
         for (let i = firstDayOfWeek - 1; i >= 0; i--) {
             days.push({

@@ -32,6 +32,7 @@ import { perf } from '@/utils/performance';
 import { logger } from '@/utils/logger';
 import { useAuth } from '@/context/AuthContext';
 import { cacheUserData, getCachedUserData } from '@/utils/dataCache';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -156,8 +157,8 @@ const CalendarScreen = () => {
     useEffect(() => {
         // Check if month actually changed
         const monthChanged = previousMonthRef.current.getMonth() !== selectedMonth.getMonth() ||
-                            previousMonthRef.current.getFullYear() !== selectedMonth.getFullYear();
-        
+            previousMonthRef.current.getFullYear() !== selectedMonth.getFullYear();
+
         if (monthChanged && !isLoading) {
             // Month changed - set transition flag and loading state synchronously to prevent flash
             // Set both immediately before any async operations
@@ -166,7 +167,7 @@ const CalendarScreen = () => {
             lastNavigationTimeRef.current = Date.now(); // Track navigation time
             previousMonthRef.current = new Date(selectedMonth);
         }
-        
+
         if (isLoading) {
             // First load - use full loading screen
             fetchData();
@@ -178,19 +179,19 @@ const CalendarScreen = () => {
 
     const fetchData = async () => {
         const endPerf = perf.start('fetchData');
-        
+
         // Step 1: Check cache first - show immediately if exists
         if (user?.id) {
             const monthKey = `${selectedMonth.getFullYear()}-${selectedMonth.getMonth()}`;
             const cachedWorkouts = await getCachedUserData<CalendarItem[]>(user.id, `calendar_${monthKey}`);
             const cachedStats = await getCachedUserData<WorkoutStats>(user.id, 'calendar_stats');
-            
+
             if (cachedWorkouts && cachedWorkouts.length > 0) {
                 setWorkouts(cachedWorkouts);
                 hasEverLoadedRef.current = true;
                 logger.log(`[Calendar] Showing ${cachedWorkouts.length} cached workouts immediately`);
                 setIsLoading(false); // Show cached data immediately
-                
+
                 if (cachedStats) {
                     setStats(cachedStats);
                 }
@@ -200,7 +201,7 @@ const CalendarScreen = () => {
         } else {
             setIsLoading(true);
         }
-        
+
         // Step 2: Fetch from backend in background (non-blocking if cache was shown)
         try {
             // 1. Fetch calendar data for current month with enhanced fields
@@ -263,25 +264,25 @@ const CalendarScreen = () => {
 
     const fetchCalendarData = async () => {
         const endPerf = perf.start('fetchCalendarData');
-        
+
         // Step 1: Check cache first - show immediately if exists
         if (user?.id) {
             const monthKey = `${selectedMonth.getFullYear()}-${selectedMonth.getMonth()}`;
             const cachedWorkouts = await getCachedUserData<CalendarItem[]>(user.id, `calendar_${monthKey}`);
             const cachedStats = await getCachedUserData<WorkoutStats>(user.id, 'calendar_stats');
-            
+
             if (cachedWorkouts && cachedWorkouts.length > 0) {
                 setWorkouts(cachedWorkouts);
                 hasEverLoadedRef.current = true;
                 logger.log(`[Calendar] Showing ${cachedWorkouts.length} cached workouts immediately (month change)`);
                 setIsCalendarLoading(false); // Show cached data immediately
-                
+
                 if (cachedStats) {
                     setStats(cachedStats);
                 }
             }
         }
-        
+
         // Step 2: Fetch from backend in background (non-blocking if cache was shown)
         try {
             // 1. Fetch calendar data for current month
@@ -440,12 +441,12 @@ const CalendarScreen = () => {
     // This prevents empty state from showing when navigating to months with no workouts
     // Use ref for synchronous check to prevent flash during state updates
     const isTransitioning = isCalendarLoading || isTransitioningRef.current;
-    
+
     // Check if we're on the current month
     const currentMonth = new Date();
-    const isCurrentMonth = selectedMonth.getMonth() === currentMonth.getMonth() && 
-                           selectedMonth.getFullYear() === currentMonth.getFullYear();
-    
+    const isCurrentMonth = selectedMonth.getMonth() === currentMonth.getMonth() &&
+        selectedMonth.getFullYear() === currentMonth.getFullYear();
+
     // Only show empty state if:
     // - Initial load is complete (isLoading === false)
     // - We've never loaded data before (hasEverLoadedRef === false) - this means it's truly the first load
@@ -457,45 +458,45 @@ const CalendarScreen = () => {
     const hasJustNavigated = isTransitioningRef.current || isCalendarLoading;
     const recentlyNavigated = Date.now() - lastNavigationTimeRef.current < 1000; // Increased to 1 second
     const isFirstLoad = !hasEverLoadedRef.current;
-    
+
     // Only show empty state on the very first load completion, never during navigation
     if (!isLoading && isFirstLoad && !hasJustNavigated && !recentlyNavigated && workouts.length === 0 && isCurrentMonth) {
         // Show empty state only on the very first load when there's no data
         // Never show during month navigation (hasEverLoadedRef will be true after first load)
         return (
-                <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
-                    <ScreenWrapper showPattern={false}>
-                        {/* --- Header --- */}
-                        <View style={styles.header}>
-                            <TouchableOpacity
-                                onPress={() => router.back()}
-                                style={styles.backButton}
-                            >
-                                <Icons.CaretLeft size={26} color={themeColors.textPrimary} weight="bold" />
-                            </TouchableOpacity>
+            <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
+                <ScreenWrapper showPattern={false}>
+                    {/* --- Header --- */}
+                    <View style={styles.header}>
+                        <TouchableOpacity
+                            onPress={() => router.back()}
+                            style={styles.backButton}
+                        >
+                            <Icons.CaretLeft size={26} color={themeColors.textPrimary} weight="bold" />
+                        </TouchableOpacity>
 
-                            <Typo size={24} fontWeight="700" color={themeColors.textPrimary}>
-                                Calendar And Stats
-                            </Typo>
+                        <Typo size={24} fontWeight="700" color={themeColors.textPrimary}>
+                            Calendar And Stats
+                        </Typo>
 
-                            <TouchableOpacity
-                                onPress={() => router.push('/workout-log' as any)}
-                                style={styles.addButton}
-                            >
-                                <Icons.Plus size={26} color={themeColors.textPrimary} weight="bold" />
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity
+                            onPress={() => router.push('/workout-log' as any)}
+                            style={styles.addButton}
+                        >
+                            <Icons.Plus size={26} color={themeColors.textPrimary} weight="bold" />
+                        </TouchableOpacity>
+                    </View>
 
-                        {/* Empty State */}
-                        <EmptyCalendarState
-                            onLogWorkout={() => router.push('/workout-log' as any)}
-                            onChatWithAI={() => router.push('/chatscreen' as any)}
-                        />
-                    </ScreenWrapper>
-                </SafeAreaView>
-            );
-        }
-        // If navigating to a different month with no workouts, show calendar view (will be empty but navigable)
+                    {/* Empty State */}
+                    <EmptyCalendarState
+                        onLogWorkout={() => router.push('/workout-log' as any)}
+                        onChatWithAI={() => router.push('/chatscreen' as any)}
+                    />
+                </ScreenWrapper>
+            </SafeAreaView>
+        );
+    }
+    // If navigating to a different month with no workouts, show calendar view (will be empty but navigable)
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
@@ -600,11 +601,11 @@ const CalendarScreen = () => {
                                                 const pull = Math.round(stats.stats.volume.volume_by_group.pull);
                                                 const legs = Math.round(stats.stats.volume.volume_by_group.legs);
                                                 const total = push + pull + legs;
-                                                
+
                                                 const pushPct = total > 0 ? Math.round((push / total) * 100) : 0;
                                                 const pullPct = total > 0 ? Math.round((pull / total) * 100) : 0;
                                                 const legsPct = total > 0 ? Math.round((legs / total) * 100) : 0;
-                                                
+
                                                 return `Push: ${push.toLocaleString()} kg (${pushPct}%) | Pull: ${pull.toLocaleString()} kg (${pullPct}%) | Legs: ${legs.toLocaleString()} kg (${legsPct}%)`;
                                             })(),
                                         },
@@ -692,9 +693,7 @@ const CalendarScreen = () => {
                                 <Typo size={16} color={themeColors.textPrimary} style={styles.noStatsText}>
                                     Stats will appear here once you log more workouts
                                 </Typo>
-                                <Typo size={14} color={themeColors.textPrimary} style={styles.noStatsSubtext}>
-                                    The stats endpoint is being implemented
-                                </Typo>
+
                             </View>
                         )}
                     </ScrollView>

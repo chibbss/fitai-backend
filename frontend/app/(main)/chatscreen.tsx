@@ -366,7 +366,7 @@ const ChatScreen = () => {
     const fadeAnim = useRef(new Animated.Value(0)).current; // 0 = mic visible, 1 = send visible
     const flatListRef = useRef<FlatList<ChatListItem>>(null);
     const isUserScrolling = useRef(false);
-    const scrollTimeoutRef = useRef<number | null>(null);
+    const scrollTimeoutRef = useRef<any>(null);
     const previousMessagesLengthRef = useRef<number>(0);
     const isMountedRef = useRef(true); // Track if component is mounted
     const isFlatListReadyRef = useRef(false); // Track if FlatList is mounted and ready
@@ -412,9 +412,32 @@ const ChatScreen = () => {
 
                     // Initialize previousMessagesLengthRef to prevent auto-scroll on initial load
                     previousMessagesLengthRef.current = cachedMessages.length;
-                    
-                    // Don't scroll here - let onLayout handle it to prevent flash
-                    // The FlatList will be hidden until scrolled in onLayout
+
+                    // Force scroll to bottom after messages are set
+                    // Use setTimeout to ensure FlatList has rendered
+                    setTimeout(() => {
+                        if (flatListRef.current && isFlatListReadyRef.current) {
+                            try {
+                                flatListRef.current.scrollToEnd({ animated: false });
+                                hasInitialScrolledRef.current = true;
+                                setIsInitialScrollReady(true);
+                                Animated.timing(flatListOpacity, {
+                                    toValue: 1,
+                                    duration: 150,
+                                    useNativeDriver: true,
+                                }).start();
+                                logger.log('[ChatScreen] Scrolled to bottom after cache load');
+                            } catch (error) {
+                                logger.warn('[ChatScreen] Error scrolling to bottom after cache load:', error);
+                                setIsInitialScrollReady(true);
+                                Animated.timing(flatListOpacity, {
+                                    toValue: 1,
+                                    duration: 150,
+                                    useNativeDriver: true,
+                                }).start();
+                            }
+                        }
+                    }, 100);
 
                     // Initialize displayed texts - for restored messages, show full content immediately (no typewriter)
                     const texts: Record<string, string> = {};
@@ -436,7 +459,7 @@ const ChatScreen = () => {
                             }).start();
                         }
                     });
-                    
+
                     // Hide loading immediately - cached data is shown
                     setIsLoadingChatHistory(false);
                 } else {
@@ -486,33 +509,49 @@ const ChatScreen = () => {
                             texts[msg.id] = msg.content || '';
                         });
                         setDisplayedTexts(texts);
-                        
-                        // Don't scroll here - let onLayout handle it to prevent flash
-                        // If FlatList is already laid out, scroll immediately
-                        if (!hasInitialScrolledRef.current && isFlatListReadyRef.current && flatListRef.current) {
+
+                        // Force scroll to bottom after backend messages are merged
+                        // Use multiple strategies to ensure it works
+                        const scrollToBottom = () => {
+                            if (!hasInitialScrolledRef.current && flatListRef.current && isFlatListReadyRef.current && mergedMessages.length > 0) {
+                                try {
+                                    flatListRef.current.scrollToEnd({ animated: false });
+                                    hasInitialScrolledRef.current = true;
+                                    setIsInitialScrollReady(true);
+                                    Animated.timing(flatListOpacity, {
+                                        toValue: 1,
+                                        duration: 150,
+                                        useNativeDriver: true,
+                                    }).start();
+                                    logger.log('[ChatScreen] Scrolled to bottom after backend load');
+                                    return true;
+                                } catch (error) {
+                                    logger.warn('[ChatScreen] Error scrolling after backend load:', error);
+                                    return false;
+                                }
+                            }
+                            return false;
+                        };
+
+                        // Strategy 1: Immediate scroll if FlatList is ready
+                        if (isFlatListReadyRef.current && flatListRef.current) {
                             requestAnimationFrame(() => {
-                                if (flatListRef.current && !hasInitialScrolledRef.current) {
-                                    try {
-                                        flatListRef.current.scrollToEnd({ animated: false });
-                                        hasInitialScrolledRef.current = true;
-                                        setIsInitialScrollReady(true);
-                                        Animated.timing(flatListOpacity, {
-                                            toValue: 1,
-                                            duration: 150,
-                                            useNativeDriver: true,
-                                        }).start();
-                                        logger.log('[ChatScreen] Scrolled to bottom after backend load');
-                                    } catch (error) {
-                                        logger.warn('[ChatScreen] Error scrolling to bottom after backend load:', error);
-                                        setIsInitialScrollReady(true);
-                                        Animated.timing(flatListOpacity, {
-                                            toValue: 1,
-                                            duration: 150,
-                                            useNativeDriver: true,
-                                        }).start();
-                                    }
+                                if (!scrollToBottom()) {
+                                    // Strategy 2: Fallback with timeout
+                                    setTimeout(() => {
+                                        if (!hasInitialScrolledRef.current) {
+                                            scrollToBottom();
+                                        }
+                                    }, 300);
                                 }
                             });
+                        } else {
+                            // Strategy 3: Wait for FlatList to be ready, then scroll
+                            setTimeout(() => {
+                                if (!hasInitialScrolledRef.current) {
+                                    scrollToBottom();
+                                }
+                            }, 300);
                         }
                     }
                 } catch (backendError) {
@@ -554,10 +593,47 @@ const ChatScreen = () => {
         return () => clearTimeout(timeoutId);
     }, [messages, user?.id]);
 
+    // Use a single animated value for opacity. No conditional mounting state needed for smoothness.
+    const scrollButtonOpacity = useRef(new Animated.Value(0)).current;
+
+    // State to toggle pointer events (interaction)
+    const [showScrollButtonState, setShowScrollButtonState] = useState(false);
+
+    // Track scroll position to show/hide scroll-to-bottom button
+    const handleScroll = (event: any) => {
+        const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+
+        // Calculate distance from bottom
+        const distancefromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+
+        // Show button if we are more than 300px from the bottom
+        // and there is enough content to scroll
+        const shouldShow = distancefromBottom > 300 && contentSize.height > layoutMeasurement.height;
+
+        // Update interaction state if changed
+        if (shouldShow !== showScrollButtonState) {
+            setShowScrollButtonState(shouldShow);
+        }
+
+        // Always animate opacity
+        Animated.timing(scrollButtonOpacity, {
+            toValue: shouldShow ? 1 : 0,
+            duration: 200,
+            useNativeDriver: true,
+        }).start();
+    };
+
+    const scrollToBottom = () => {
+        if (flatListRef.current) {
+            flatListRef.current.scrollToEnd({ animated: true });
+        }
+    };
+
     // ✅ Scroll to bottom only when a NEW message is added (not during typewriter effect)
     useEffect(() => {
         const currentLength = messages.length;
         const previousLength = previousMessagesLengthRef.current;
+
 
         // Only auto-scroll if a new message was added (length increased)
         if (currentLength > previousLength && flatListRef.current && !isUserScrolling.current && isMountedRef.current) {
@@ -712,11 +788,11 @@ const ChatScreen = () => {
 
     // Inside the ChatScreen component, add a ref to accumulate tokens:
     const tokenBufferRef = useRef<string>('');
-    const tokenUpdateTimerRef = useRef<number | null>(null);
+    const tokenUpdateTimerRef = useRef<any>(null);
 
     // Typewriter effect state for each message
     const [displayedTexts, setDisplayedTexts] = useState<Record<string, string>>({});
-    const typewriterTimersRef = useRef<Record<string, number>>({});
+    const typewriterTimersRef = useRef<Record<string, any>>({});
 
     // Track restored messages (from cache) vs new messages
     const [restoredMessageIds, setRestoredMessageIds] = useState<Set<string>>(new Set());
@@ -865,7 +941,7 @@ const ChatScreen = () => {
                     // User message: with accent gradient
                     <View style={styles.userBubbleContainer}>
                         <LinearGradient
-                            colors={themeColors.accentGradient}
+                            colors={themeColors.accentGradient as [string, string]}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={[styles.bubble, styles.userBubble]}
@@ -1340,7 +1416,7 @@ const ChatScreen = () => {
                     >
                         {isLoadingGreeting ? (
                             <View style={styles.loadingGreeting}>
-                                <ActivityIndicator size="small" color={colors.primary} />
+                                {/* <ActivityIndicator size="small" color={colors.primary} /> */}
                             </View>
                         ) : personalizedGreeting ? (
                             <View style={styles.personalizedGreetingContainer}>
@@ -1390,7 +1466,7 @@ const ChatScreen = () => {
                             {/* Loading indicator for chat history */}
                             {isLoadingChatHistory && messages.length === 0 && (
                                 <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
-                                    <ActivityIndicator size="large" color={colors.primary} />
+                                    <ActivityIndicator size="large" color={colors.white} />
                                 </View>
                             )}
 
@@ -1402,6 +1478,8 @@ const ChatScreen = () => {
                                     keyExtractor={keyExtractor}
                                     showsVerticalScrollIndicator={false}
                                     style={{ backgroundColor: 'transparent', zIndex: 1 }}
+                                    onScroll={handleScroll}
+                                    scrollEventThrottle={16}
                                     contentContainerStyle={{
                                         paddingTop: messages.length === 0 ? 0 : spacingY._50,
                                         paddingBottom: spacingY._20,
@@ -1415,8 +1493,35 @@ const ChatScreen = () => {
                                     onLayout={() => {
                                         // Mark FlatList as ready when it's laid out
                                         isFlatListReadyRef.current = true;
-                                        // Show FlatList if no messages (empty state) or if already scrolled
-                                        if (messages.length === 0 || hasInitialScrolledRef.current) {
+
+                                        // If we have messages and haven't scrolled yet, scroll now
+                                        if (messages.length > 0 && !hasInitialScrolledRef.current && flatListRef.current) {
+                                            // Use requestAnimationFrame for reliable scrolling
+                                            requestAnimationFrame(() => {
+                                                if (flatListRef.current && !hasInitialScrolledRef.current && messages.length > 0) {
+                                                    try {
+                                                        flatListRef.current.scrollToEnd({ animated: false });
+                                                        hasInitialScrolledRef.current = true;
+                                                        setIsInitialScrollReady(true);
+                                                        Animated.timing(flatListOpacity, {
+                                                            toValue: 1,
+                                                            duration: 150,
+                                                            useNativeDriver: true,
+                                                        }).start();
+                                                        logger.log('[ChatScreen] Scrolled to bottom in onLayout');
+                                                    } catch (error) {
+                                                        logger.warn('[ChatScreen] Error scrolling in onLayout:', error);
+                                                        setIsInitialScrollReady(true);
+                                                        Animated.timing(flatListOpacity, {
+                                                            toValue: 1,
+                                                            duration: 150,
+                                                            useNativeDriver: true,
+                                                        }).start();
+                                                    }
+                                                }
+                                            });
+                                        } else if (messages.length === 0 || hasInitialScrolledRef.current) {
+                                            // Show FlatList if no messages (empty state) or if already scrolled
                                             setIsInitialScrollReady(true);
                                             Animated.timing(flatListOpacity, {
                                                 toValue: 1,
@@ -1427,6 +1532,7 @@ const ChatScreen = () => {
                                     }}
                                     onContentSizeChange={() => {
                                         // Scroll to bottom when content size changes (fires when content is measured)
+                                        // Always scroll if we haven't scrolled yet AND we have messages
                                         if (!hasInitialScrolledRef.current && messages.length > 0 && flatListRef.current && isFlatListReadyRef.current) {
                                             // Immediate synchronous scroll before rendering
                                             try {
@@ -1439,9 +1545,9 @@ const ChatScreen = () => {
                                                     duration: 150,
                                                     useNativeDriver: true,
                                                 }).start();
-                                                logger.log('[ChatScreen] Scrolled to bottom on content size change');
+                                                logger.log('[ChatScreen] Scrolled to bottom in onContentSizeChange');
                                             } catch (error) {
-                                                logger.warn('[ChatScreen] Error scrolling to bottom on content size change:', error);
+                                                logger.warn('[ChatScreen] Error scrolling in onContentSizeChange:', error);
                                                 setIsInitialScrollReady(true);
                                                 Animated.timing(flatListOpacity, {
                                                     toValue: 1,
@@ -1451,45 +1557,45 @@ const ChatScreen = () => {
                                             }
                                         }
                                     }}
-                                onScrollBeginDrag={() => {
-                                    // User started scrolling manually
-                                    isUserScrolling.current = true;
-                                    if (scrollTimeoutRef.current) {
-                                        clearTimeout(scrollTimeoutRef.current);
-                                        scrollTimeoutRef.current = null;
+                                    onScrollBeginDrag={() => {
+                                        // User started scrolling manually
+                                        isUserScrolling.current = true;
+                                        if (scrollTimeoutRef.current) {
+                                            clearTimeout(scrollTimeoutRef.current);
+                                            scrollTimeoutRef.current = null;
+                                        }
+                                    }}
+                                    onScrollEndDrag={() => {
+                                        // Reset scrolling flag after a delay (iOS can trigger scroll events after drag ends)
+                                        if (scrollTimeoutRef.current) {
+                                            clearTimeout(scrollTimeoutRef.current);
+                                        }
+                                        scrollTimeoutRef.current = setTimeout(() => {
+                                            isUserScrolling.current = false;
+                                            scrollTimeoutRef.current = null;
+                                        }, 1000);
+                                    }}
+                                    onMomentumScrollEnd={() => {
+                                        // iOS momentum scrolling ended
+                                        if (scrollTimeoutRef.current) {
+                                            clearTimeout(scrollTimeoutRef.current);
+                                        }
+                                        scrollTimeoutRef.current = setTimeout(() => {
+                                            isUserScrolling.current = false;
+                                            scrollTimeoutRef.current = null;
+                                        }, 1000);
+                                    }}
+                                    maintainVisibleContentPosition={{
+                                        minIndexForVisible: 0,
+                                    }}
+                                    ListEmptyComponent={
+                                        isLoadingChatHistory ? (
+                                            <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
+                                                <ActivityIndicator size="large" color={colors.white} />
+                                            </View>
+                                        ) : null
                                     }
-                                }}
-                                onScrollEndDrag={() => {
-                                    // Reset scrolling flag after a delay (iOS can trigger scroll events after drag ends)
-                                    if (scrollTimeoutRef.current) {
-                                        clearTimeout(scrollTimeoutRef.current);
-                                    }
-                                    scrollTimeoutRef.current = setTimeout(() => {
-                                        isUserScrolling.current = false;
-                                        scrollTimeoutRef.current = null;
-                                    }, 1000);
-                                }}
-                                onMomentumScrollEnd={() => {
-                                    // iOS momentum scrolling ended
-                                    if (scrollTimeoutRef.current) {
-                                        clearTimeout(scrollTimeoutRef.current);
-                                    }
-                                    scrollTimeoutRef.current = setTimeout(() => {
-                                        isUserScrolling.current = false;
-                                        scrollTimeoutRef.current = null;
-                                    }, 1000);
-                                }}
-                                maintainVisibleContentPosition={{
-                                    minIndexForVisible: 0,
-                                }}
-                                ListEmptyComponent={
-                                    isLoadingChatHistory ? (
-                                        <View style={{ paddingVertical: spacingY._40, alignItems: 'center' }}>
-                                            <ActivityIndicator size="large" color={colors.primary} />
-                                        </View>
-                                    ) : null
-                                }
-                            />
+                                />
                             </Animated.View>
                         </View>
 
@@ -1501,6 +1607,34 @@ const ChatScreen = () => {
                                     borderTopColor: themeColors.textPrimary
                                 }
                             ]}>
+                                {/* Scroll to Bottom Button - Always rendered but faded in/out */}
+                                <Animated.View
+                                    pointerEvents={showScrollButtonState ? 'auto' : 'none'}
+                                    style={[
+                                        styles.scrollToBottomButton,
+                                        {
+                                            opacity: scrollButtonOpacity,
+                                            left: '50%',
+                                            marginLeft: -18, // Center horizontally (half of width 36)
+                                            backgroundColor: themeColors.cardBackground || colors.white,
+                                            shadowColor: colors.black,
+                                            borderColor: themeColors.accentPrimary || 'rgba(0,0,0,0.1)',
+                                            borderWidth: 1.5
+                                        }
+                                    ]}
+                                >
+                                    <TouchableOpacity
+                                        onPress={scrollToBottom}
+                                        activeOpacity={0.8}
+                                        style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
+                                    >
+                                        <Icons.ArrowDown
+                                            size={20}
+                                            color={themeColors.textPrimary || colors.neutral600}
+                                            weight="bold"
+                                        />
+                                    </TouchableOpacity>
+                                </Animated.View>
 
 
                                 {/* Paperclip hidden - not visible */}
@@ -1563,7 +1697,7 @@ const ChatScreen = () => {
                                                 style={styles.sendButtonTouchable}
                                             >
                                                 <LinearGradient
-                                                    colors={themeColors.accentGradient}
+                                                    colors={themeColors.accentGradient as [string, string]}
                                                     start={{ x: 0, y: 0 }}
                                                     end={{ x: 1, y: 1 }}
                                                     style={styles.sendButtonGradient}
@@ -1647,6 +1781,26 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         zIndex: 20, // Ensure input is above greeting when both are visible
         minHeight: 76, // Minimum height to accommodate buttons
+        position: 'relative', // Necessary for absolute positioning of children
+    },
+    scrollToBottomButton: {
+        position: 'absolute',
+        top: -50,
+        alignSelf: 'center',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 100,
+        elevation: 4,
+        borderWidth: 1,
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.15,
+        shadowRadius: 3.84,
     },
     doubleCheckContainer: {
         paddingBottom: spacingY._25,
