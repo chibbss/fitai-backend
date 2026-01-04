@@ -55,7 +55,7 @@ module.exports = {
     icon: "./assets/images/icon.png",
     scheme: "fitai",
     userInterfaceStyle: "automatic",
-    newArchEnabled: true,
+    newArchEnabled: false,
 
     privacy: "public",
     description: "Your AI-powered fitness coach",
@@ -64,9 +64,9 @@ module.exports = {
     ios: {
         supportsTablet: true,
         bundleIdentifier: "com.eochi.fitai",
-        associatedDomains: ["applinks:fitai.app"],
+        // associatedDomains: ["applinks:fitai.app"],
 
-        buildNumber: "1",
+        buildNumber: "2",
         config: {
             usesNonExemptEncryption: false
         },
@@ -137,12 +137,11 @@ module.exports = {
             }
         ],
         "expo-video",
-        "expo-font",
-        "expo-web-browser"
+        "expo-font"
     ],
     experiments: {
         typedRoutes: true,
-        reactCompiler: true
+        reactCompiler: false
     },
     extra: {
         apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://fitai-api.onrender.com',

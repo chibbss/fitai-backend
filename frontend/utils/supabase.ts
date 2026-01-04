@@ -46,7 +46,13 @@ const SafeStorage = {
   },
 };
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+// Provide dummy values if missing to prevent createClient from throwing on boot. 
+// We also check if the URL is a valid format (starts with http) to avoid crashing on literal string names.
+const isValidUrl = SUPABASE_URL && SUPABASE_URL.startsWith('http');
+const finalUrl = isValidUrl ? SUPABASE_URL : 'https://placeholder.supabase.co';
+const finalKey = SUPABASE_ANON_KEY || 'placeholder';
+
+export const supabase = createClient(finalUrl, finalKey, {
   auth: {
     storage: SafeStorage,
     autoRefreshToken: true,
