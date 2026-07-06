@@ -1,7 +1,6 @@
-import { Dimensions, Platform, StatusBar, StyleSheet, View, Image } from 'react-native';
-import React, { useEffect } from 'react';
+import { Animated, Dimensions, Platform, StatusBar, StyleSheet, View, Image } from 'react-native';
+import React, { useEffect, useRef } from 'react';
 import { ScreenWrapperProps } from '@/types';
-import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import { useTheme } from '@/context/ThemeContext';
 
 const { height, width } = Dimensions.get('window');
@@ -17,19 +16,15 @@ const ScreenWrapper = ({
 }: ScreenWrapperProps) => {
   const { colors: themeColors, isDarkMode } = useTheme();
 
-  // ✅ Start at full opacity to prevent white flash
-  const opacity = useSharedValue(1);
+  const opacity = useRef(new Animated.Value(backgroundImage ? 0 : 1)).current;
 
   useEffect(() => {
-    // Only fade in background images, not the entire screen
     if (backgroundImage) {
-      opacity.value = withTiming(1, { duration: 300 });
+      Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }).start();
     }
   }, [backgroundImage]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
+  const animatedStyle = { opacity };
 
   let paddingTop = Platform.OS === 'ios' ? height * 0.06 : 40;
   let paddingBottom = 0;

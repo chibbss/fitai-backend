@@ -1522,7 +1522,7 @@ const ChatScreen = () => {
                 {/* KeyboardAvoidingView only wraps ChatScreen content */}
                 <KeyboardAvoidingView
                     style={{ flex: 1 }}
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior="padding"
                     keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
                 >
                     <View style={{ flex: 1 }}>

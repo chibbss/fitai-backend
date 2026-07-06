@@ -55,7 +55,7 @@ module.exports = {
     icon: "./assets/images/icon.png",
     scheme: "fitai",
     userInterfaceStyle: "automatic",
-    newArchEnabled: false,
+    newArchEnabled: true,
 
     privacy: "public",
     description: "Your AI-powered fitness coach",
@@ -77,12 +77,12 @@ module.exports = {
         }
     },
     android: {
+        softwareKeyboardLayoutMode: "resize",
         adaptiveIcon: {
             backgroundColor: "#E6F4FE",
             foregroundImage: "./assets/images/android-icon-foreground.png",
             backgroundImage: "./assets/images/android-icon-background.png",
             monochromeImage: "./assets/images/android-icon-monochrome.png",
-            softwareKeyboardLayoutMode: "pan"
         },
         package: "com.eochi.fitai",
         versionCode: 1,
@@ -137,7 +137,8 @@ module.exports = {
             }
         ],
         "expo-video",
-        "expo-font"
+        "expo-font",
+        "expo-web-browser"
     ],
     experiments: {
         typedRoutes: true,
