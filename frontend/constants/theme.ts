@@ -39,35 +39,101 @@ export const colors = {
 
 export const brandPalette = {
   dark: {
-    background: "#020202",
-    surface: "#111827",
-    border: "rgba(0,255,200,0.15)",
-    textPrimary: "#f8fafc",
-    textSecondary: "#e5e5e5",
-    accentPrimary: "#00ffc8",
-    accentSecondary: "#00e4ff",
-    accentWarm: "#ff3366",
-    accentGradient: ['#00ffc8', '#00e4ff'],
-    shadowAccent: "rgba(0,255,200,0.25)",
-    panel: 'rgba(24, 24, 24, 1)',
-    cardBackground: "rgb(33,33,33)",
-    cardBackground2: "rgba(14,165,233,0.25)"
+    // ---- Surfaces ----
+    background: "#000000",       // app background — true black, per mockups
+    surface: "#121214",          // elevated surfaces: headers, bottom sheets
+    card: "#1A1A1C",             // cards & list rows
+    cardElevated: "#222226",     // nested blocks: set rows, inputs sitting on a card
+    input: "#1C1C1E",            // text input fields
+    border: "rgba(255,255,255,0.07)",
+    borderStrong: "rgba(255,255,255,0.12)",
+    overlay: "rgba(0,0,0,0.6)",  // dim behind modals/sheets
+
+    // ---- Text ----
+    textPrimary: "#FFFFFF",
+    textSecondary: "#9BA1AC",    // subtitles ("Always here to help")
+    textMuted: "#6B7280",        // captions, hints
+    textOnAccent: "#04140F",     // dark text on teal buttons
+
+    // ---- Accent (teal) ----
+    accent: "#14B8A6",           // primary CTAs, active states
+    accentBright: "#2DD4BF",     // highlights, user bubble, the "+" button
+    accentDim: "rgba(20,184,166,0.15)", // faint teal fill for selected cards
+    accentGradient: ["#16C5B0", "#2DD4BF"],
+
+    // ---- Semantic ----
+    gold: "#FBBF24",   // PRs, trophies
+    streak: "#F97316", // streak flame
+    danger: "#EF4444", // critical / delete
+    info: "#3B82F6",   // blue accents
+    purple: "#8B5CF6", // purple accents
+
+    // ---- Chart palette ----
+    chart: {
+      teal: "#2DD4BF",
+      blue: "#3B82F6",
+      orange: "#F59E0B",
+      purple: "#8B5CF6",
+      grid: "rgba(255,255,255,0.08)",
+    },
+
+    // ---- Legacy aliases (kept so existing screens don't break) ----
+    accentPrimary: "#14B8A6",
+    accentSecondary: "#2DD4BF",
+    accentWarm: "#F97316",
+    shadowAccent: "rgba(20,184,166,0.25)",
+    panel: "#121214",
+    cardBackground: "#1A1A1C",
+    cardBackground2: "rgba(20,184,166,0.12)",
   },
 
   light: {
-    background: "#f8fafc",
-    surface: "#f1f5f9",
-    border: "rgba(15,118,110,0.18)",
-    textPrimary: "#020202",
+    // ---- Surfaces ----
+    background: "#F8FAFC",
+    surface: "#FFFFFF",
+    card: "#FFFFFF",
+    cardElevated: "#F1F5F9",
+    input: "#F1F5F9",
+    border: "rgba(15,23,42,0.08)",
+    borderStrong: "rgba(15,23,42,0.14)",
+    overlay: "rgba(0,0,0,0.4)",
+
+    // ---- Text ----
+    textPrimary: "#0F172A",
     textSecondary: "#475569",
-    accentPrimary: "#0ea5e9",
-    accentSecondary: "#00e4ff",
-    accentGradient: ['#00ffc8', '#00e4ff'],
-    accentWarm: "#f97316",
-    shadowAccent: "rgba(14,165,233,0.25)",
-    panel: "rgb(248, 248, 248)",
-    cardBackground: "#f1f5f9",
-    cardBackground2: "#f1f5f9"
+    textMuted: "#94A3B8",
+    textOnAccent: "#04140F",
+
+    // ---- Accent (teal) ----
+    accent: "#14B8A6",
+    accentBright: "#0D9488",
+    accentDim: "rgba(20,184,166,0.12)",
+    accentGradient: ["#14B8A6", "#2DD4BF"],
+
+    // ---- Semantic ----
+    gold: "#D97706",
+    streak: "#EA580C",
+    danger: "#DC2626",
+    info: "#2563EB",
+    purple: "#7C3AED",
+
+    // ---- Chart palette ----
+    chart: {
+      teal: "#14B8A6",
+      blue: "#2563EB",
+      orange: "#D97706",
+      purple: "#7C3AED",
+      grid: "rgba(15,23,42,0.08)",
+    },
+
+    // ---- Legacy aliases ----
+    accentPrimary: "#14B8A6",
+    accentSecondary: "#2DD4BF",
+    accentWarm: "#EA580C",
+    shadowAccent: "rgba(20,184,166,0.25)",
+    panel: "#FFFFFF",
+    cardBackground: "#FFFFFF",
+    cardBackground2: "rgba(20,184,166,0.10)",
   },
 };
 

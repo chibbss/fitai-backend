@@ -1,34 +1,27 @@
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Pressable, Alert, Image } from 'react-native'
-import React, { useRef, useState } from 'react'
-import ScreenWrapper from '@/components/ScreenWrapper'
-import Typo from '@/components/Typo'
-import { colors, radius, spacingX, spacingY } from '@/constants/theme'
-import BackButton from '@/components/BackButton'
 import Input from '@/components/Input'
-import * as Icons from 'phosphor-react-native'
-import { verticalScale } from '@/utils/styling'
-import { useRouter } from 'expo-router'
-import Button from '@/components/Button'
-import Loading from '@/components/Loading'
-import { supabase } from '@/utils/supabase'
-import { alert } from '@/utils/alert';
-import { API_URL, MOCK_MODE } from '@/utils/config';
-import { LinearGradient } from 'expo-linear-gradient'
-import MaskedView from '@react-native-masked-view/masked-view'
+import Typo from '@/components/Typo'
+import { Card, GradientButton } from '@/components/ui'
+import { radius, spacingX, spacingY } from '@/constants/theme'
 import { useTheme } from '@/context/ThemeContext'
-
-import Animated, {
-    SlideInDown,
-    SlideInUp,
-    SlideOutDown,
-    useSharedValue,
-    withTiming,
-    useAnimatedStyle,
-    runOnJS,
-    FadeInDown
-} from 'react-native-reanimated'
-import { useFocusEffect } from '@react-navigation/native'
-import PulseLogo from '@/components/PulseLogo'
+import { alert } from '@/utils/alert'
+import { API_URL, MOCK_MODE } from '@/utils/config'
+import { verticalScale } from '@/utils/styling'
+import { supabase } from '@/utils/supabase'
+import { useRouter } from 'expo-router'
+import { CaretLeft, Envelope, Lock } from 'phosphor-react-native'
+import React, { useRef, useState } from 'react'
+import {
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView, Platform,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    View
+} from 'react-native'
+import Animated, { FadeInDown } from 'react-native-reanimated'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 const Login = () => {
     const emailRef = useRef('');
@@ -37,23 +30,10 @@ const Login = () => {
     const [loadingMessage, setLoadingMessage] = useState('');
     const [hasError, setHasError] = useState(false);
     const router = useRouter();
-    const opacity = useSharedValue(1);
-    const translateY = useSharedValue(0);
     const { mode, colors: themeColors, setPreference } = useTheme();
+    const { colors } = useTheme()
 
 
-    useFocusEffect(
-        React.useCallback(() => {
-            try {
-                opacity.value = 1;
-                translateY.value = 0;
-                setHasError(false);
-            } catch (error) {
-                console.error('Error in useFocusEffect:', error);
-                setHasError(true);
-            }
-        }, [])
-    );
 
     const navigateToRegister = () => {
         try {
@@ -74,20 +54,9 @@ const Login = () => {
     };
 
     const handleNavigateToChatscreen = () => {
-        opacity.value = withTiming(0, { duration: 250 }, (finished) => {
-            if (finished) {
-                runOnJS(navigateToChatscreen)();
-            }
-        });
+        navigateToChatscreen();
     };
 
-    // Animated style for slide and fade
-    const animatedStyle = useAnimatedStyle(() => {
-        return {
-            opacity: opacity.value,
-            transform: [{ translateY: translateY.value }],
-        };
-    });
 
     const validateEmail = (email: string): boolean => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -252,8 +221,7 @@ const Login = () => {
             // Small delay for better UX
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // ❌ REMOVED: setIsLoading(false) 
-            // This prevents the login form from "flickering" back onto the screen
+            //  REMOVED: setIsLoading(false) 
 
             // 3. Navigate to main app immediately
             navigateToChatscreen();
@@ -302,6 +270,7 @@ const Login = () => {
     };
 
     const handleForgotPassword = async () => {
+
         if (!emailRef.current?.trim()) {
             alert.warning('Please enter your email address first', 'Reset Password');
             return;
@@ -342,285 +311,210 @@ const Login = () => {
     // Show full-screen loading while processing
     if (isLoading) {
         return (
-            <ScreenWrapper showPattern={false}>
-
-
-                <View style={[styles.loadingContainer, { backgroundColor: themeColors.background }]}>
-                    <Animated.View entering={FadeInDown.delay(150).springify()}>
-                        <PulseLogo size={verticalScale(230)} />
-                    </Animated.View>
-
-                    <Animated.View entering={FadeInDown.delay(300).springify()}>
-                        <Typo size={18} color={themeColors.textPrimary}
-                            style={{ textAlign: 'center', marginTop: -25, marginLeft: 25 }}>
-                            {loadingMessage}
-                        </Typo>
-                    </Animated.View>
-                </View>
-            </ScreenWrapper>
-        );
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+                <ActivityIndicator size="large" color={colors.accent} />
+                {!!loadingMessage && (
+                    <Typo size={14} color={colors.textSecondary} style={{ marginTop: 16, textAlign: 'center' }}>
+                        {loadingMessage}
+                    </Typo>
+                )}
+            </View>
+        )
     }
 
-    const GradientText = ({ text }: { text: string }) => {
-        // Fallback for iOS if MaskedView causes issues
-        if (Platform.OS === 'ios') {
-            return (
-                <Typo fontWeight={'bold'} size={20} color={themeColors.accentPrimary || colors.primary}>
-                    {text}
-                </Typo>
-            );
-        }
-        return (
-            <MaskedView
-                style={{ marginBottom: 2 }}
-                maskElement={
-                    <Typo fontWeight={'bold'} size={20}>{text}</Typo>
-                }>
-                <LinearGradient
-                    colors={themeColors.accentGradient}
-                    start={{ x: 0, y: 0.5 }}
-                    end={{ x: 1, y: 0.5 }}
-                >
-                    <Typo fontWeight={'bold'} size={20} style={{ opacity: 0 }}>
-                        {text}
-                    </Typo>
-                </LinearGradient>
-            </MaskedView>
-        );
-    };
 
-    // Error fallback UI
-    if (hasError) {
-        return (
-            <ScreenWrapper showPattern={false} bgOpacity={0.5}>
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                    <Typo size={18} color={themeColors.textPrimary} style={{ textAlign: 'center', marginBottom: 20 }}>
-                        Something went wrong. Please try again.
-                    </Typo>
-                    <Button onPress={() => {
-                        setHasError(false);
-                        router.replace('/welcome');
-                    }}>
-                        <Typo color={themeColors.background}>Go Back</Typo>
-                    </Button>
-                </View>
-            </ScreenWrapper>
-        );
-    }
+
+
 
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-            <ScreenWrapper showPattern={false} bgOpacity={0.5} /*backgroundImage={require('@/assets/images/fitness-app-assets/welcome.png')}*/>
-                <Animated.View
-                    entering={SlideInDown.delay(300).springify()}
-                    style={[{ flex: 1 }, animatedStyle]}
+            <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+                <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+
+                {/* Back */}
+                <Pressable onPress={() => router.back()} style={styles.backRow}>
+                    <CaretLeft size={18} color={colors.textPrimary} weight="bold" />
+                    <Typo size={15} color={colors.textPrimary}>Back</Typo>
+                </Pressable>
+
+                <ScrollView
+                    contentContainerStyle={styles.scroll}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+
                 >
-                    <View style={styles.container}>
-                        <View style={styles.header}>
-                            <BackButton iconSize={38} />
-                            <Pressable
-                                onPress={handleForgotPassword}
-                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            >
-                                <Typo size={17} color={colors.white}>Forgot your password?</Typo>
-                            </Pressable>
-                        </View>
+                    {/* Header */}
+                    <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.header}>
+                        <Typo size={32} fontWeight="800" color={colors.textPrimary}>Welcome Back</Typo>
+                        <Typo size={15} color={colors.accent} style={{ marginTop: 6, textAlign: 'center' }}>
+                            Continue your progress
+                        </Typo>
+                    </Animated.View>
 
-                        <View style={styles.content}>
-                            <ScrollView
-                                contentContainerStyle={styles.form}
-                                showsVerticalScrollIndicator={false}
-                                keyboardShouldPersistTaps="handled"
-                            >
-                                <View style={{ gap: spacingY._10, marginBottom: spacingY._15 }}>
-                                    <Typo size={28} fontWeight={'600'}>
-                                        Welcome back
-                                    </Typo>
+                    {/* Form */}
+                    <Animated.View entering={FadeInDown.delay(160).springify()}>
+                        <Card style={styles.formCard}>
+                            {/* Email */}
+                            <View style={styles.field}>
+                                <Typo size={13} fontWeight="600" color={colors.textSecondary}>Email</Typo>
+                                <Input
+                                    placeholder="your@email.com"
+                                    onChangeText={(v: string) => emailRef.current = v}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    icon={<Envelope size={20} color={colors.textMuted} />}
+                                />
+                            </View>
 
-                                    <Typo color={colors.neutral600}>
-                                        Happy to see you
-                                    </Typo>
+                            {/* Password */}
+                            <View style={styles.field}>
+                                <Typo size={13} fontWeight="600" color={colors.textSecondary}>Password</Typo>
+                                <Input
+                                    placeholder="••••••••"
+                                    secureTextEntry
+                                    onChangeText={(v: string) => passwordRef.current = v}
+                                    icon={<Lock size={20} color={colors.textMuted} />}
+                                />
+                            </View>
 
-                                    <Input
-                                        placeholder='Enter your Email'
-                                        onChangeText={(value: string) => emailRef.current = value}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
-                                        autoCorrect={false}
-                                        icon={
-                                            <Icons.EnvelopeIcon size={verticalScale(26)}
-                                                color={colors.neutral600}
-                                            />
-                                        }
-                                    />
+                            {/* Sign In button — inside the card */}
+                            <GradientButton
+                                title="Sign In"
+                                onPress={handleSubmit}
+                                loading={isLoading}
+                                style={{ marginTop: spacingY._10 }}
+                            />
 
-                                    <Input placeholder='Enter your Password'
-                                        secureTextEntry
-                                        onChangeText={(value: string) => passwordRef.current = value}
-                                        icon={
-                                            <Icons.LockIcon size={verticalScale(26)}
-                                                color={colors.neutral600}
-                                            />
-                                        }
-                                    />
 
-                                    <View style={{ marginTop: spacingY._25, gap: spacingY._15 }}>
-                                        <LinearGradient
-                                            colors={themeColors.accentGradient}
-                                            start={{ x: 0, y: 0.5 }}
-                                            end={{ x: 1, y: 0.5 }}
-                                            style={styles.buttonGradient}
-                                        >
-                                            <Button
-                                                loading={isLoading}
-                                                onPress={handleSubmit}
-                                                style={{ backgroundColor: 'transparent' }}
-                                            >
-                                                <Typo fontWeight={'bold'} color={themeColors.background} size={20}>Login</Typo>
-                                            </Button>
-                                        </LinearGradient>
+                            {/* Divider */}
+                            <View style={styles.divider}>
+                                <View style={[styles.line, { backgroundColor: colors.border }]} />
+                                <Typo size={12} color={colors.textMuted}>or continue with</Typo>
+                                <View style={[styles.line, { backgroundColor: colors.border }]} />
+                            </View>
 
-                                        <View style={styles.footer}>
-                                            <Typo>Don't have an account?</Typo>
-                                            <Pressable onPress={handleNavigateToRegister}>
-                                                <Typo fontWeight={'bold'} color={colors.primaryDark}>
-                                                    <GradientText text="Sign Up" />
-                                                </Typo>
-                                            </Pressable>
-                                        </View>
-
-                                    </View>
-                                </View>
-
-                                <View style={styles.dividerContainer}>
-                                    <View style={styles.line} />
-                                    <Typo color={colors.neutral500}>or</Typo>
-                                    <View style={styles.line} />
-                                </View>
-
-                                <Button style={styles.googleButton} onPress={handleGoogleSignIn}>
+                            {/* Social */}
+                            <View style={styles.social}>
+                                <Pressable
+                                    style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.borderStrong }]}
+                                    onPress={handleGoogleSignIn}
+                                >
                                     <Image
                                         source={require('../../assets/images/images/google.png')}
-                                        style={styles.googleIcon}
+                                        style={styles.socialIcon}
                                         resizeMode="contain"
-                                        onError={(e) => {
-                                            console.log('Google image load error:', e);
-                                        }}
                                     />
-                                    <Typo fontWeight={'bold'} color={colors.black}>
-                                        Continue with Google
-                                    </Typo>
-                                </Button>
+                                    <Typo size={15} fontWeight="800" color={colors.textPrimary}>Google</Typo>
+                                </Pressable>
 
-                                <Button style={styles.googleButton} onPress={handleAppleSignIn}>
+                                <Pressable
+                                    style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.borderStrong }]}
+                                    onPress={handleAppleSignIn}
+                                >
                                     <Image
                                         source={require('../../assets/images/images/apple.png')}
-                                        style={styles.googleIcon}
+                                        style={styles.socialIcon}
                                         resizeMode="contain"
-                                        onError={(e) => {
-                                            console.log('Apple image load error:', e);
-                                        }}
                                     />
-                                    <Typo fontWeight={'bold'} color={colors.black}>
-                                        Continue with Apple
-                                    </Typo>
-                                </Button>
-                            </ScrollView>
-                        </View>
+                                    <Typo size={15} fontWeight="800" color={colors.textPrimary}>Apple</Typo>
+                                </Pressable>
+                            </View>
+                        </Card>
+                    </Animated.View>
+
+
+
+
+
+                    {/* Footer */}
+                    <View style={styles.footer}>
+                        <Typo size={14} color={colors.textSecondary}>Don't have an account?</Typo>
+                        <Pressable onPress={handleNavigateToRegister}>
+                            <Typo size={14} fontWeight="700" color={colors.accent}> Sign Up</Typo>
+                        </Pressable>
                     </View>
-
-                </Animated.View>
-
-
-            </ScreenWrapper>
+                </ScrollView>
+            </SafeAreaView>
         </KeyboardAvoidingView>
-
     )
 }
 
 export default Login
 
 const styles = StyleSheet.create({
-    container: {
+    safe: {
         flex: 1,
-        //gap: spacingY._30,
-        // marginHorizontal: spacingX._20,
-        justifyContent: 'space-between',
     },
-
-    buttonGradient: {
-        borderRadius: radius.full,
-        overflow: 'hidden',
-    },
-
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: spacingY._60,
-    },
-    header: {
-        paddingHorizontal: spacingX._20,
-        paddingTop: spacingY._15,
-        paddingBottom: spacingY._25,
+    backRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: spacingX._20,
+        paddingTop: spacingY._10,
+        paddingBottom: 4,
+    },
+    scroll: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        paddingHorizontal: spacingX._20,
+        paddingBottom: spacingY._30,
+    },
+
+    header: {
+        marginTop: spacingY._25,
+        marginBottom: spacingY._25,
         alignItems: 'center'
     },
-
-    content: {
-        flex: 1,
-        backgroundColor: colors.white,
-        borderTopLeftRadius: radius._50,
-        borderTopRightRadius: radius._50,
-        borderCurve: 'continuous',
-        paddingHorizontal: spacingX._20,
-        paddingTop: spacingY._20
-    },
-
     form: {
         gap: spacingY._15,
-        marginTop: spacingY._20
     },
-
+    field: {
+        gap: 6,
+    },
+    forgot: {
+        alignSelf: 'flex-end',
+        marginTop: 4,
+    },
+    divider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacingX._10,
+        marginVertical: spacingY._20,
+    },
+    line: {
+        flex: 1,
+        height: StyleSheet.hairlineWidth,
+    },
+    social: {
+        flexDirection: 'row',
+        gap: spacingX._12,
+    },
+    socialBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: verticalScale(52),
+        borderRadius: radius._20,
+        borderWidth: 1,
+        gap: spacingX._10,
+    },
+    socialIcon: {
+        width: 20,
+        height: 20,
+    },
     footer: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 5,
+        marginTop: spacingY._25,
     },
-    dividerContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginVertical: spacingY._15,
-        gap: 10,
+    formCard: {
+        gap: spacingY._25,
+        paddingVertical: spacingY._20,
     },
-    line: {
-        flex: 1,
-        height: 1,
-        backgroundColor: colors.neutral300,
-    },
-    googleButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: colors.neutral300,
-        paddingVertical: spacingY._12,
-        borderRadius: radius.full,
-        borderCurve: 'continuous',
-        height: verticalScale(56),
-        gap: 10,
-        backgroundColor: colors.white,
-
-    },
-    googleIcon: {
-        width: 22,
-        height: 22,
-    },
-});
+})

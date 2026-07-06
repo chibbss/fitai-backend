@@ -2,9 +2,9 @@ import { Dimensions, StyleSheet, Text, TouchableOpacity, View, ScrollView, Keybo
 import React, { useMemo, useState, useEffect } from 'react'
 // @ts-ignore
 import Hamburger from 'react-native-animated-hamburger';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming, withSpring, FadeInLeft } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, radius, spacingX, spacingY } from '@/constants/theme';
+import { colors, radius, spacingX, spacingY, brandPalette } from '@/constants/theme';
 import * as Icons from 'phosphor-react-native';
 import Typo from './Typo';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { supabase } from "@/utils/supabase";
 import { getAccentColor, getGradientColors } from '@/utils/settings';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/context/ThemeContext';
+import { MOCK_MODE } from '@/utils/config';
 import BugReportModal from './BugReportModal';
 
 
@@ -78,6 +79,11 @@ const SlidingPanel = () => {
     // Add useEffect to fetch user data (after state declarations):
     useEffect(() => {
         const fetchUserData = async () => {
+            if (MOCK_MODE) {
+                setUserName('Guest Athlete');
+                setUserEmail('guest@fitai.com');
+                return;
+            }
             try {
                 const { data: { user }, error } = await supabase.auth.getUser();
                 if (user && !error) {
@@ -102,13 +108,22 @@ const SlidingPanel = () => {
             Keyboard.dismiss();
         }
 
-        translateX.value = withTiming(newState ? 0 : -width * 0.8, { duration: 300 });
+        //translateX.value = withTiming(newState ? 0 : -width * 0.8, { duration: 300 });
+        translateX.value = withSpring(newState ? 0 : -width * 0.8, {
+            damping: 20,
+            stiffness: 90,
+        });
         overlayOpacity.value = withTiming(newState ? 0.5 : 0, { duration: 300 });
     };
 
     const closePanel = () => {
         setIsOpen(false);
-        translateX.value = withTiming(-width * 0.8, { duration: 300 }); // Fix: Match panel width
+        //translateX.value = withTiming(-width * 0.8, { duration: 300 }); // Fix: Match panel width
+        translateX.value = withSpring(-width * 0.8, {
+            damping: 20,
+            stiffness: 90,
+        });
+
         overlayOpacity.value = withTiming(0, { duration: 300 });
         setSearchQuery('');
     };
@@ -220,30 +235,46 @@ const SlidingPanel = () => {
                         {/* Main Menu Items */}
                         <View style={styles.contentContainer}>
                             <View style={styles.mainMenuSection}>
-                                {MAIN_MENU_ITEMS.map((item) => {
+                                {isOpen && MAIN_MENU_ITEMS.map((item, index) => {
                                     const IconComponent = Icons[item.icon] as React.ComponentType<any>;
+                                    const isActive = (item.id === 'home' && (pathname === '/chatscreen' || pathname === '/')) ||
+                                        (item.id !== 'home' && pathname.includes(item.id));
+
                                     return (
-                                        <TouchableOpacity
+                                        <Animated.View
                                             key={item.id}
-                                            style={styles.menuItem}
-                                            onPress={() => handleMenuPress(item.id)}
-                                            activeOpacity={0.7}
+                                            entering={FadeInLeft.delay(index * 100).springify().damping(12)}
                                         >
-                                            <View style={styles.menuIconContainer}>
-                                                <IconComponent
-                                                    size={22}
-                                                    color={colors.white}
-                                                    weight='regular'
-                                                />
-                                            </View>
-                                            <Typo
-                                                size={16}
-                                                color={colors.white}
-                                                fontWeight='500'
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.menuItem,
+                                                    isActive && {
+                                                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                                        borderLeftColor: themeColors.accentPrimary
+                                                    }
+                                                ]}
+                                                onPress={() => handleMenuPress(item.id)}
+                                                activeOpacity={0.7}
                                             >
-                                                {item.label}
-                                            </Typo>
-                                        </TouchableOpacity>
+                                                <View style={[
+                                                    styles.menuIconContainer,
+                                                    isActive && { backgroundColor: themeColors.accentPrimary, borderRadius: radius._10 }
+                                                ]}>
+                                                    <IconComponent
+                                                        size={22}
+                                                        color={isActive ? colors.white : colors.neutral400}
+                                                        weight={isActive ? 'fill' : 'regular'}
+                                                    />
+                                                </View>
+                                                <Typo
+                                                    size={16}
+                                                    color={isActive ? themeColors.textPrimary : colors.neutral400}
+                                                    fontWeight={isActive ? '600' : '500'}
+                                                >
+                                                    {item.label}
+                                                </Typo>
+                                            </TouchableOpacity>
+                                        </Animated.View>
                                     );
                                 })}
                             </View>
@@ -330,11 +361,11 @@ const SlidingPanel = () => {
                     <View style={[
                         styles.bottomSection,
                         {
-                            paddingBottom: insets.bottom + spacingY._15,
-                            backgroundColor: themeColors.panel, // Add this
+                            paddingBottom: Math.max(insets.bottom, spacingY._25) + verticalScale(45),
+                            backgroundColor: themeColors.panel || brandPalette.dark.panel,
                         }
                     ]}>
-                        <View style={styles.divider} />
+                        <View style={[styles.divider, { marginBottom: spacingY._10 }]} />
                         {/*Bug Report*/}
                         <TouchableOpacity
                             style={styles.bugReportButton}
@@ -391,12 +422,14 @@ const SlidingPanel = () => {
 
                 </View>
 
+            </Animated.View>
+
+            {showBugReport && (
                 <BugReportModal
                     visible={showBugReport}
                     onClose={() => setShowBugReport(false)}
                 />
-            </Animated.View>
-
+            )}
         </>
     )
 }
@@ -470,6 +503,9 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         overflow: 'hidden',
+        backgroundColor: 'rgba(18, 18, 18, 0.95)', // Semi-transparent
+        borderRightWidth: 1,
+        borderRightColor: 'rgba(255, 255, 255, 0.05)',
     },
     panelContent: {
         flex: 1,
@@ -490,7 +526,7 @@ const styles = StyleSheet.create({
     },
     mainMenuSection: {
         paddingHorizontal: spacingX._20,
-        paddingTop: spacingY._60, // Increased to account for hamburger button and safe area
+        paddingTop: verticalScale(85), // Increased to account for hamburger button and safe area
         gap: spacingY._10, // Increased gap for better spacing between items
     },
     menuItem: {
@@ -500,6 +536,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacingX._15,
         borderRadius: radius._10,
         gap: spacingX._15,
+        borderLeftWidth: 3,
+        borderLeftColor: 'transparent',
     },
     menuIconContainer: {
         width: 32,

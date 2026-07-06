@@ -1,10 +1,11 @@
-import React, { useRef, useState, useEffect, use, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 import {
     ActivityIndicator,
     Animated,
+    FlatList,
     KeyboardAvoidingView,
     Platform,
-    FlatList,
     StyleSheet,
     Text,
     TextInput,
@@ -12,39 +13,46 @@ import {
     View,
 } from 'react-native';
 
-import ScreenWrapper from '@/components/ScreenWrapper';
-import SlidingPanel from '@/components/SlidingPanel';
-import { colors, radius, spacingX, spacingY } from '@/constants/theme';
-import { verticalScale } from '@/utils/styling';
-import Input from '@/components/Input';
-import * as Icons from 'phosphor-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import MicButton from '@/components/MicButton';
-import { Audio } from 'expo-av';
-import Greeting from '@/components/Greeting';
-import Typo from '@/components/Typo';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import recordingAnimation from "@/assets/images/animations/Recording.json"
-import { supabase } from '@/utils/supabase';
-import { useRouter } from 'expo-router';
-import ScreenWrapperChat from '@/components/ScreenWrapperChat';
-import { chatApi } from '@/utils/api';
-import { userApi } from '@/utils/api';
-import { useLocalSearchParams } from 'expo-router';
-import { discoverFromChat } from '@/utils/chatDiscovery';
-import Constants from 'expo-constants';
-import { API_URL, MOCK_MODE } from '@/utils/config';
-import { getAccentColor, getGradientColors } from '@/utils/settings';
-import { useFocusEffect } from '@react-navigation/native';
-import { useTheme } from '@/context/ThemeContext';
-import TypingIndicator from '@/components/TypingIndicator';
-import { generatePersonalizedGreeting, GreetingData } from '@/utils/greetingUtils';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { alert } from '@/utils/alert';
-import { logger } from '@/utils/logger';
+import * as Haptics from 'expo-haptics';
+import ReAnimated, {
+    LinearTransition,
+    useAnimatedStyle,
+    withRepeat,
+    withTiming,
+    ZoomIn,
+    ZoomOut
+} from 'react-native-reanimated';
+
+import recordingAnimation from "@/assets/images/animations/Recording.json";
 import { AuthGuard } from '@/components/AuthGuard';
+import Greeting from '@/components/Greeting';
+import MicButton from '@/components/MicButton';
+
+
+import TypingIndicator from '@/components/TypingIndicator';
+import Typo from '@/components/Typo';
+import { colors, radius, spacingX, spacingY } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import { alert } from '@/utils/alert';
+import { chatApi } from '@/utils/api';
+import { discoverFromChat } from '@/utils/chatDiscovery';
+import { API_URL, MOCK_MODE } from '@/utils/config';
 import { cacheUserData, getCachedUserData } from '@/utils/dataCache';
+import { generatePersonalizedGreeting, GreetingData } from '@/utils/greetingUtils';
+import { logger } from '@/utils/logger';
+import { getAccentColor, getGradientColors } from '@/utils/settings';
+import { verticalScale } from '@/utils/styling';
+import { supabase } from '@/utils/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import { Audio } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Icons from 'phosphor-react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import BugReportModal from '@/components/BugReportModal';
 
 interface Message {
     id: string;
@@ -147,6 +155,26 @@ const BlinkingCursor = () => {
     );
 };
 
+// Pulsing dot component to avoid hook violations
+const PulsingNotificationDot = ({ color }: { color: string }) => {
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: withRepeat(withTiming(1.2, { duration: 600 }), -1, true) }],
+        opacity: withRepeat(withTiming(0.6, { duration: 600 }), -1, true)
+    }));
+
+    return (
+        <ReAnimated.View
+            entering={ZoomIn}
+            exiting={ZoomOut}
+            style={[
+                styles.pulsingDot,
+                { backgroundColor: color },
+                animatedStyle
+            ]}
+        />
+    );
+};
+
 // Helper function to format date for chat separators (WhatsApp style)
 const formatChatDate = (timestamp: number): string => {
     const messageDate = new Date(timestamp);
@@ -222,6 +250,8 @@ const ChatScreen = () => {
     // Animation for send button fade-in
     const sendButtonOpacity = useRef(new Animated.Value(0)).current;
 
+    const [bugModalVisible, setBugModalVisible] = useState(false);
+
     // Load accent color when screen comes into focus
     useFocusEffect(
         React.useCallback(() => {
@@ -236,6 +266,9 @@ const ChatScreen = () => {
 
     // ✅ Session check - redirect to login if no valid session
     useEffect(() => {
+        // 🚨 MOCK MODE: Bypass session check
+        if (MOCK_MODE) return;
+
         const checkSession = async () => {
             try {
                 const { data: { session }, error } = await supabase.auth.getSession();
@@ -477,6 +510,41 @@ const ChatScreen = () => {
                     logger.log('[ChatScreen] Cached', mergedMessages.length, 'messages');
 
                     // Step 5: Update UI if we got new messages
+                    // Fix for race condition: If server history is empty, check for onboarding completion message
+                    // This ensures the welcome message isn't overwritten by an empty history fetch
+                    if (mergedMessages.length === 0) {
+                        const initialMessage = params.initialMessage as string | undefined;
+                        let welcomeMessage = initialMessage;
+
+                        // If no params, check AsyncStorage (backup)
+                        if (!welcomeMessage && messages.length === 0) {
+                            try {
+                                const stored = await AsyncStorage.getItem('onboarding_completion_message');
+                                if (stored) {
+                                    welcomeMessage = stored;
+                                    // Clean up
+                                    await AsyncStorage.removeItem('onboarding_completion_message');
+                                }
+                            } catch (e) {
+                                logger.warn('Error checking AsyncStorage for welcome message:', e);
+                            }
+                        }
+
+                        if (welcomeMessage) {
+                            logger.log('[ChatScreen] Injecting welcome message into empty history');
+                            const botMsgTimestamp = Date.now();
+                            const botMsgId = "welcome_" + botMsgTimestamp.toString();
+                            const botMsg: Message = {
+                                id: botMsgId,
+                                type: 'text',
+                                content: welcomeMessage,
+                                sender: 'bot',
+                                timestamp: botMsgTimestamp,
+                            };
+                            mergedMessages.push(botMsg);
+                        }
+                    }
+
                     if (mergedMessages.length !== cachedMessages?.length ||
                         !cachedMessages ||
                         mergedMessages.length > 0) {
@@ -492,7 +560,15 @@ const ChatScreen = () => {
                         // Update displayed texts
                         const texts: Record<string, string> = {};
                         mergedMessages.forEach(msg => {
-                            texts[msg.id] = msg.content || '';
+                            // Check if this is a fresh welcome message (typewriter effect)
+                            // We identify it if it's the only message and created very recently (within last 2s)
+                            const isFresh = msg.timestamp && (Date.now() - msg.timestamp < 2000);
+
+                            if (mergedMessages.length === 1 && msg.sender === 'bot' && isFresh) {
+                                texts[msg.id] = ''; // Start empty for typewriter
+                            } else {
+                                texts[msg.id] = msg.content || '';
+                            }
                         });
                         setDisplayedTexts(texts);
 
@@ -584,6 +660,7 @@ const ChatScreen = () => {
 
     // State to toggle pointer events (interaction)
     const [showScrollButtonState, setShowScrollButtonState] = useState(false);
+    const [hasNewMessage, setHasNewMessage] = useState(false);
 
     // Track scroll position to show/hide scroll-to-bottom button
     const handleScroll = (event: any) => {
@@ -599,6 +676,19 @@ const ChatScreen = () => {
         // Update interaction state if changed
         if (shouldShow !== showScrollButtonState) {
             setShowScrollButtonState(shouldShow);
+            if (shouldShow) {
+                triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+            }
+        }
+
+        // Clear new message indicator and haptic when reaching bottom
+        if (distancefromBottom < 5) {
+            if (isUserScrolling.current) {
+                triggerHaptic(Haptics.ImpactFeedbackStyle.Light);
+            }
+            if (hasNewMessage) {
+                setHasNewMessage(false);
+            }
         }
 
         // Always animate opacity
@@ -611,68 +701,42 @@ const ChatScreen = () => {
 
     const scrollToBottom = () => {
         if (flatListRef.current) {
+            triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
             flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+            setHasNewMessage(false);
         }
     };
 
-    // ✅ Scroll to bottom only when a NEW message is added (not during typewriter effect)
+    // ✅ Scroll to bottom or show notification when a NEW message is added
     useEffect(() => {
         const currentLength = messages.length;
         const previousLength = previousMessagesLengthRef.current;
 
+        if (currentLength > previousLength) {
+            if (flatListRef.current && !isUserScrolling.current && isMountedRef.current) {
+                // Reset user scrolling flag when new message arrives (if not already scrolling)
+                isUserScrolling.current = false;
 
-        // Only auto-scroll if a new message was added (length increased)
-        if (currentLength > previousLength && flatListRef.current && !isUserScrolling.current && isMountedRef.current) {
-            // Reset user scrolling flag when new message arrives (user likely wants to see it)
-            isUserScrolling.current = false;
-
-            // Clear any existing timeout
-            if (scrollTimeoutRef.current) {
-                clearTimeout(scrollTimeoutRef.current);
-                scrollTimeoutRef.current = null;
-            }
-
-            // Longer delay for initial load, shorter for subsequent messages
-            const delay = previousLength === 0 ? 300 : 150; // More time for initial mount on Android
-
-            // Small delay to ensure FlatList has rendered the new item
-            scrollTimeoutRef.current = setTimeout(() => {
-                // Check if component is still mounted and FlatList is ready
-                if (!isMountedRef.current || !flatListRef.current) {
-                    return;
-                }
-
-                try {
-                    // Additional checks before scrolling
-                    // Check if FlatList has content, is mounted, and is ready
-                    // Use messages.length instead of flatListData.length to avoid dependency issues
-                    if (isFlatListReadyRef.current && messages.length > 0) {
-                        // Verify ref is still valid
-                        const ref = flatListRef.current;
-                        if (ref && typeof ref.scrollToOffset === 'function') {
-                            ref.scrollToOffset({ offset: 0, animated: true });
-                        }
-                    }
-                } catch (error) {
-                    // Silently handle scroll errors (component might be unmounting or not ready)
-                    logger.warn('[ChatScreen] Error scrolling to end:', error);
-                } finally {
-                    scrollTimeoutRef.current = null;
-                }
-            }, delay);
-
-            // Cleanup timeout if component unmounts or messages change
-            return () => {
+                // Clear any existing timeout
                 if (scrollTimeoutRef.current) {
                     clearTimeout(scrollTimeoutRef.current);
-                    scrollTimeoutRef.current = null;
                 }
-            };
+
+                const delay = previousLength === 0 ? 300 : 150;
+                scrollTimeoutRef.current = setTimeout(() => {
+                    if (flatListRef.current && isMountedRef.current) {
+                        flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+                    }
+                    scrollTimeoutRef.current = null;
+                }, delay);
+            } else if (showScrollButtonState || isUserScrolling.current) {
+                // User is scrolled up or manually scrolling, show pulsing notification
+                setHasNewMessage(true);
+            }
         }
 
-        // Update previous length
         previousMessagesLengthRef.current = currentLength;
-    }, [messages.length]); // Only depend on messages.length - flatListData is derived from it
+    }, [messages.length, showScrollButtonState]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -680,7 +744,6 @@ const ChatScreen = () => {
             isMountedRef.current = false;
             if (scrollTimeoutRef.current) {
                 clearTimeout(scrollTimeoutRef.current);
-                scrollTimeoutRef.current = null;
             }
         };
     }, []);
@@ -852,16 +915,17 @@ const ChatScreen = () => {
     const renderItem = useCallback(({ item }: { item: ChatListItem }) => {
         if (item.type === 'dateSeparator') {
             return (
-                <View style={styles.dateSeparator}>
-                    <View style={[styles.dateSeparatorLine, { backgroundColor: themeColors.border || colors.neutral200 }]} />
-                    <Typo
-                        size={12}
-                        color={themeColors.textSecondary}
-                        style={styles.dateSeparatorText}
-                    >
-                        {item.date}
-                    </Typo>
-                    <View style={[styles.dateSeparatorLine, { backgroundColor: themeColors.border || colors.neutral200 }]} />
+                <View style={styles.dateSeparatorPillContainer}>
+                    <View style={[styles.dateSeparatorPill, { backgroundColor: themeColors.cardBackground }]}>
+                        <Typo
+                            size={12}
+                            fontWeight="600"
+                            color={themeColors.textSecondary}
+                            style={styles.dateSeparatorText}
+                        >
+                            {item.date}
+                        </Typo>
+                    </View>
                 </View>
             );
         }
@@ -879,77 +943,41 @@ const ChatScreen = () => {
                 style={{ opacity: isRestored ? opacityRef : 1 }}
             >
                 {msg.sender === 'bot' ? (
-                    // Bot message: no bubble, white text on black background
-                    <View style={styles.botMessageContainer}>
-                        {msg.type === 'text' ? (
-                            msg.content == '' && (isLoading || isTranscribing) ? (
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <TypingIndicator
-                                        showWordmark={false}
-                                        caption="Thinking"
-                                    />
-                                </View>
-                            ) : (
-                                <>
-                                    <Text style={[styles.botMessageText, { color: themeColors.textPrimary }]}>
-                                        {isRestored
-                                            ? (msg.content || '')
-                                            : (displayedTexts[msg.id] !== undefined ? displayedTexts[msg.id] : (msg.content || ''))
-                                        }
-                                        {!isRestored && msg.content && displayedTexts[msg.id] !== undefined && displayedTexts[msg.id].length < msg.content.length && (
-                                            <BlinkingCursor />
-                                        )}
-                                    </Text>
-                                    {msg.content && !isLoading && !isTranscribing && (
-                                        isRestored ? (
-                                            <BotMessageActions messageId={msg.id} />
-                                        ) : (
-                                            displayedTexts[msg.id] === msg.content && (
-                                                <BotMessageActions messageId={msg.id} />
-                                            )
-                                        )
-                                    )}
-                                </>
-                            )
-                        ) : (
-                            <TouchableOpacity
-                                style={styles.voiceBubble}
-                                onPress={() => playVoice(msg.content)}
-                            >
-                                <Icons.Play
-                                    size={22}
-                                    color={colors.primary}
-                                    weight="bold"
-                                />
-                                <Text
-                                    style={[
-                                        styles.bubbleText,
-                                        { marginLeft: 6, color: colors.primary },
-                                    ]}
-                                >
-                                    Voice message
-                                </Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                ) : (
-                    // User message: with accent gradient
-                    <View style={styles.userBubbleContainer}>
-                        <LinearGradient
-                            colors={themeColors.accentGradient as [string, string]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={[styles.bubble, styles.userBubble]}
-                        >
+                    <View style={styles.botBubbleWrapper}>
+                        <View style={[styles.botBubble, { backgroundColor: themeColors.card }]}>
+                            {/* WhatsApp-style trail at top left 
+                            <View style={[styles.botTail, { borderRightColor: themeColors.cardBackground }]} />*/}
+
                             {msg.type === 'text' ? (
-                                <Text
-                                    style={[
-                                        styles.bubbleText,
-                                        { color: colors.white },
-                                    ]}
-                                >
-                                    {msg.content}
-                                </Text>
+                                msg.content == '' && (isLoading || isTranscribing) ? (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', height: 24 }}>
+                                        <TypingIndicator
+                                            showWordmark={false}
+                                            caption=""
+                                        />
+                                    </View>
+                                ) : (
+                                    <>
+                                        <Text style={[styles.botMessageText, { color: themeColors.textPrimary }]}>
+                                            {isRestored
+                                                ? (msg.content || '')
+                                                : (displayedTexts[msg.id] !== undefined ? displayedTexts[msg.id] : (msg.content || ''))
+                                            }
+                                            {!isRestored && msg.content && displayedTexts[msg.id] !== undefined && displayedTexts[msg.id].length < msg.content.length && (
+                                                <BlinkingCursor />
+                                            )}
+                                        </Text>
+                                        {msg.content && !isLoading && !isTranscribing && (
+                                            isRestored ? (
+                                                <BotMessageActions messageId={msg.id} />
+                                            ) : (
+                                                displayedTexts[msg.id] === msg.content && (
+                                                    <BotMessageActions messageId={msg.id} />
+                                                )
+                                            )
+                                        )}
+                                    </>
+                                )
                             ) : (
                                 <TouchableOpacity
                                     style={styles.voiceBubble}
@@ -957,20 +985,38 @@ const ChatScreen = () => {
                                 >
                                     <Icons.Play
                                         size={22}
-                                        color={colors.white}
+                                        color={colors.primary}
                                         weight="bold"
                                     />
-                                    <Text
-                                        style={[
-                                            styles.bubbleText,
-                                            { marginLeft: 6, color: colors.white },
-                                        ]}
-                                    >
+                                    <View style={{ marginLeft: 6 }}>
+                                        <Text style={[styles.bubbleText, { color: colors.primary }]}>
+                                            Voice message
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </View>
+                ) : (
+                    // User message: with accent gradient
+                    <View
+
+                        style={styles.userBubbleContainer}
+                    >
+                        <View style={[styles.bubble, styles.userBubble, { backgroundColor: themeColors.accent }]}>
+                            {msg.type === 'text' ? (
+                                <Text style={[styles.bubbleText, { color: themeColors.textOnAccent }]}>
+                                    {msg.content}
+                                </Text>
+                            ) : (
+                                <TouchableOpacity style={styles.voiceBubble} onPress={() => playVoice(msg.content)}>
+                                    <Icons.Play size={22} color={themeColors.textOnAccent} weight="bold" />
+                                    <Text style={[styles.bubbleText, { marginLeft: 6, color: themeColors.textOnAccent }]}>
                                         Voice message
                                     </Text>
                                 </TouchableOpacity>
                             )}
-                        </LinearGradient>
+                        </View>
                     </View>
                 )}
             </Animated.View>
@@ -1005,10 +1051,19 @@ const ChatScreen = () => {
         }
     }, [router]);
 
+    // Helper for haptic feedback
+    const triggerHaptic = (style = Haptics.ImpactFeedbackStyle.Light) => {
+        if (Platform.OS !== 'web') {
+            Haptics.impactAsync(style);
+        }
+    };
+
     // Send text message to backend
     const sendText = async () => {
         const text = input.trim();
         if (!text || isLoading || isTranscribing) return; // Also check isTranscribing
+
+        triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
 
         // Clear token buffer
         tokenBufferRef.current = '';
@@ -1170,76 +1225,78 @@ const ChatScreen = () => {
 
         /*try {
             const token = await getAuthToken();
-            if (!token) {
-                setIsLoading(false);
+                if (!token) {
+                    setIsLoading(false);
                 return;
             }
-
-            //Call /chat endpoint
-            const response = await fetch(`${API_URL}/chat`, {
-                method: 'POST',
+    
+                //Call /chat endpoint
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
+                'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
                     query: text,
-                    session_id: sessionId,
+                session_id: sessionId,
                 }),
             });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-
+    
+                if (!response.ok) {
+                const errorData = await response.json().catch(() => ({detail: 'Unknown error' }));
+    
                 if (response.status === 401) {
                     alert.alert(
                         'Session Expired',
                         'Please log in again to continue.',
                         [{ text: 'OK', onPress: () => router.replace('/login') }]
                     );
-                    return;
+                return;
                 }
                 throw new Error(errorData.detail || `HTTP ${response.status}`);
             }
-
-            const data = await response.json();
-
-            // Add bot response to UI
-            const botMsgTimestamp = Date.now() + 1;
-            const botMsg: Message = {
-                id: botMsgTimestamp.toString(),
+    
+                const data = await response.json();
+    
+                // Add bot response to UI
+                const botMsgTimestamp = Date.now() + 1;
+                const botMsg: Message = {
+                    id: botMsgTimestamp.toString(),
                 type: 'text',
                 content: data.answer || 'Sorry, I couldn\'t generate a response.',
                 sender: 'bot',
                 timestamp: botMsgTimestamp,
             };
             setMessages((prev) => [...prev, botMsg]);
-
+    
         } catch (error: any) {
-            console.error('Chat error:', error);
-
-            //Show error to user
-            const errorMsgTimestamp = Date.now() + 1;
-            const errorMsg: Message = {
-                id: errorMsgTimestamp.toString(),
+                    console.error('Chat error:', error);
+    
+                //Show error to user
+                const errorMsgTimestamp = Date.now() + 1;
+                const errorMsg: Message = {
+                    id: errorMsgTimestamp.toString(),
                 type: 'text',
                 content: error.message || 'Sorry an error occurred. Please try again.',
                 sender: 'bot',
                 timestamp: errorMsgTimestamp,
             }
-
-            alert.error(
+    
+                alert.error(
                 error.message || 'Failed to send message. Please check your connection.',
                 'Error'
-            );
+                );
         } finally {
-            setIsLoading(false);
+                    setIsLoading(false);
         }*/
     };
 
     // Send voice message - transcribe then chat with streaming
     const sendVoice = async (uri: string) => {
         if (isLoading || isTranscribing) return;
+
+        triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
 
         // Don't add voice message to chat - just show transcription popup
         setIsTranscribing(true);
@@ -1395,10 +1452,22 @@ const ChatScreen = () => {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: themeColors.background }}
             edges={[]}>
-
             <View style={styles.container}>
-                {/* SlidingPanel outside KeyboardAvoidingView - won't affect ChatScreen keyboard behavior */}
-                <SlidingPanel />
+                {/* Glassmorphic Header Bar - moved SlidingPanel to end of container for correct layering */}
+                <View style={[styles.headerBar, { paddingTop: insets.top, backgroundColor: themeColors.surface, borderBottomColor: themeColors.border }]}>
+                    <View style={styles.headerContent}>
+                        <View style={[styles.coachAvatarCircle, { backgroundColor: themeColors.accent }]}>
+                            <Icons.Sparkle size={20} color="#fff" weight="fill" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Typo size={15} fontWeight="700" color={themeColors.textPrimary}>FitAI Coach</Typo>
+                            <Typo size={12} color={themeColors.textSecondary}>Always here to help</Typo>
+                        </View>
+                        <TouchableOpacity activeOpacity={0.7} onPress={() => setBugModalVisible(true)}>
+                            <Icons.BugBeetleIcon size={22} color={themeColors.textMuted} weight="regular" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
 
                 {/* Greeting - positioned absolutely outside KeyboardAvoidingView to prevent keyboard movement */}
                 {messages.length === 0 && (
@@ -1456,7 +1525,7 @@ const ChatScreen = () => {
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
                 >
-                    <ScreenWrapperChat showPattern={false} style={{ paddingTop: 40, paddingBottom: 0 }}>
+                    <View style={{ flex: 1 }}>
                         <View style={styles.content}>
                             {/* Loading indicator for chat history */}
                             {isLoadingChatHistory && messages.length === 0 && (
@@ -1600,37 +1669,41 @@ const ChatScreen = () => {
                                 styles.inputContainer,
                                 {
                                     backgroundColor: themeColors.background,
-                                    borderTopColor: themeColors.textPrimary
+                                    borderTopColor: themeColors.border
                                 }
                             ]}>
-                                {/* Scroll to Bottom Button - Always rendered but faded in/out */}
-                                <Animated.View
-                                    pointerEvents={showScrollButtonState ? 'auto' : 'none'}
-                                    style={[
-                                        styles.scrollToBottomButton,
-                                        {
-                                            opacity: scrollButtonOpacity,
-                                            left: '50%',
-                                            marginLeft: -18, // Center horizontally (half of width 36)
-                                            backgroundColor: themeColors.cardBackground || colors.white,
-                                            shadowColor: colors.black,
-                                            borderColor: themeColors.accentPrimary || 'rgba(0,0,0,0.1)',
-                                            borderWidth: 1.5
-                                        }
-                                    ]}
-                                >
-                                    <TouchableOpacity
-                                        onPress={scrollToBottom}
-                                        activeOpacity={0.8}
-                                        style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
+                                {showScrollButtonState && (
+                                    <ReAnimated.View
+                                        entering={ZoomIn.duration(200)}
+                                        exiting={ZoomOut.duration(200)}
+                                        style={[
+                                            styles.scrollToBottomButton,
+                                            {
+                                                left: '50%',
+                                                marginLeft: -18, // Center horizontally (half of width 36)
+                                                backgroundColor: themeColors.cardBackground || colors.white,
+                                                shadowColor: colors.black,
+                                                borderColor: themeColors.accentPrimary || 'rgba(0,0,0,0.1)',
+                                                borderWidth: 1.5
+                                            }
+                                        ]}
                                     >
-                                        <Icons.ArrowDown
-                                            size={20}
-                                            color={themeColors.textPrimary || colors.neutral600}
-                                            weight="bold"
-                                        />
-                                    </TouchableOpacity>
-                                </Animated.View>
+                                        <TouchableOpacity
+                                            onPress={scrollToBottom}
+                                            activeOpacity={0.8}
+                                            style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
+                                        >
+                                            <Icons.ArrowDown
+                                                size={20}
+                                                color={themeColors.textPrimary || colors.neutral600}
+                                                weight="bold"
+                                            />
+                                            {hasNewMessage && (
+                                                <PulsingNotificationDot color={themeColors.accentPrimary} />
+                                            )}
+                                        </TouchableOpacity>
+                                    </ReAnimated.View>
+                                )}
 
 
                                 {/* Paperclip hidden - not visible */}
@@ -1645,10 +1718,10 @@ const ChatScreen = () => {
                                     />
                                 </TouchableOpacity> */}
 
-                                <View style={styles.inputWrapper}>
+                                <ReAnimated.View layout={LinearTransition} style={styles.inputWrapper}>
                                     {/* Transcription popup overlay */}
                                     {isTranscribing ? (
-                                        <View style={[styles.transcriptionPopup, { backgroundColor: themeColors.cardBackground || colors.white }]}>
+                                        <View style={[styles.transcriptionPopup, { backgroundColor: 'transparent' }]}>
                                             <ActivityIndicator
                                                 size="small"
                                                 color={themeColors.accentPrimary || colors.primary}
@@ -1660,7 +1733,7 @@ const ChatScreen = () => {
                                         </View>
                                     ) : (
                                         <TextInput
-                                            placeholder="Ask anything..."
+                                            placeholder="Ask me anything..."
                                             placeholderTextColor={colors.neutral400}
                                             value={input}
                                             onChangeText={setInput}
@@ -1671,6 +1744,7 @@ const ChatScreen = () => {
                                                 {
                                                     height: inputHeight > 56 ? undefined : 56,
                                                     maxHeight: 120,
+                                                    color: themeColors.textPrimary,
                                                     ...(Platform.OS === 'ios' && inputHeight <= 56 && {
                                                         paddingTop: 18,
                                                         paddingBottom: 18,
@@ -1686,7 +1760,12 @@ const ChatScreen = () => {
                                     )}
                                     {/* Send button with gradient */}
                                     {input.trim() ? (
-                                        <View style={styles.sendButtonContainer}>
+                                        <ReAnimated.View
+                                            key="send-button"
+                                            entering={ZoomIn.duration(200)}
+                                            exiting={ZoomOut.duration(200)}
+                                            style={styles.sendButtonContainer}
+                                        >
                                             <TouchableOpacity
                                                 onPress={sendText}
                                                 activeOpacity={0.7}
@@ -1705,36 +1784,29 @@ const ChatScreen = () => {
                                                     />
                                                 </LinearGradient>
                                             </TouchableOpacity>
-                                        </View>
+                                        </ReAnimated.View>
                                     ) : (
-                                        <View style={styles.micButtonWrapper}>
-                                            <MicButton onRecordingDone={sendVoice} recordingAnimation={recordingAnimation} />
-                                        </View>
+                                        <ReAnimated.View
+                                            key="mic-button"
+                                            entering={ZoomIn.duration(200)}
+                                            exiting={ZoomOut.duration(200)}
+                                            style={styles.micButtonWrapper}
+                                        >
+                                            <MicButton
+                                                onRecordingDone={sendVoice}
+                                                recordingAnimation={recordingAnimation}
+                                                onPressIn={() => triggerHaptic(Haptics.ImpactFeedbackStyle.Light)}
+                                            />
+                                        </ReAnimated.View>
                                     )}
-                                </View>
-
-
-                            </View>
-
-                            <View
-                                style={[
-                                    styles.doubleCheckContainer,
-                                    {
-                                        backgroundColor: themeColors.background,
-                                    }
-                                ]}
-                            >
-                                <Typo
-                                    color={themeColors.textPrimary}
-                                    size={13}
-                                    style={{ textAlign: 'center', flexWrap: 'wrap' }}
-                                >
-                                    Please double check responses
-                                </Typo>
+                                </ReAnimated.View>
                             </View>
                         </View>
-                    </ScreenWrapperChat>
+                    </View>
+
+
                 </KeyboardAvoidingView>
+                <BugReportModal visible={bugModalVisible} onClose={() => setBugModalVisible(false)} />
             </View>
         </SafeAreaView>
     );
@@ -1751,6 +1823,14 @@ export default function ProtectedChatScreen() {
 }
 
 const styles = StyleSheet.create({
+    headerBar: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 900,
+        borderBottomWidth: 1,
+    },
     container: {
         flex: 1,
         position: 'relative',
@@ -1771,13 +1851,15 @@ const styles = StyleSheet.create({
     inputContainer: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        paddingTop: verticalScale(8),
-        paddingBottom: 0,
+        paddingTop: verticalScale(12),
+        paddingBottom: verticalScale(8),
         paddingHorizontal: spacingX._15,
         borderTopWidth: 1,
+        borderTopColor: 'rgba(255, 255, 255, 0.05)',
         zIndex: 20, // Ensure input is above greeting when both are visible
-        minHeight: 76, // Minimum height to accommodate buttons
+        minHeight: 80, // Minimum height to accommodate buttons
         position: 'relative', // Necessary for absolute positioning of children
+        backgroundColor: 'rgba(0,0,0,0.02)', // Very subtle background
     },
     scrollToBottomButton: {
         position: 'absolute',
@@ -1805,16 +1887,23 @@ const styles = StyleSheet.create({
     },
     inputWrapper: {
         flex: 1,
-        backgroundColor: colors.neutral50,
+        backgroundColor: 'rgba(255, 255, 255, 0.08)', // Frosted glass effect
         borderRadius: radius.full,
-        paddingLeft: spacingX._10,
-        paddingRight: spacingX._10,
-        paddingVertical: 0,
+        paddingLeft: spacingX._15,
+        paddingRight: spacingX._5,
+        paddingVertical: 4,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-start',
         minHeight: 56,
         maxHeight: 144, // Max height for multiline (120px content + 24px padding)
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)', // Subtle border for high-tech look
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
     },
     transcriptionPopup: {
         flex: 1,
@@ -1895,11 +1984,6 @@ const styles = StyleSheet.create({
     userBubble: {
         borderBottomRightRadius: 0,
     },
-    botBubble: {
-        alignSelf: 'flex-start',
-        backgroundColor: colors.primary,
-        borderBottomLeftRadius: 0,
-    },
     bubbleText: { fontSize: 16 },
     voiceBubble: { flexDirection: 'row', alignItems: 'center' },
     greetingWrapper: {
@@ -1915,15 +1999,38 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacingX._20,
         paddingTop: 40, // Match ScreenWrapperChat paddingTop
     },
-    botMessageContainer: {
+    botBubbleWrapper: {
         alignSelf: 'flex-start',
-        marginVertical: 8,
+        marginVertical: 6,
         maxWidth: '85%',
+        paddingLeft: 12, // Space for the tail
+        flexDirection: 'row',
+    },
+    botBubble: {
+        padding: 12,
+        borderRadius: radius._15,
+        position: 'relative',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+    },
+    botTail: {
+        position: 'absolute',
+        top: 0,
+        left: -10,
+        width: 0,
+        height: 0,
+        borderStyle: 'solid',
+        borderRightWidth: 12,
+        borderBottomWidth: 12,
+        borderBottomColor: 'transparent',
     },
     botMessageText: {
         fontSize: 16,
-        color: colors.black,
         lineHeight: 24,
+        textAlign: 'justify',
     },
     botMessageActions: {
         flexDirection: 'row',
@@ -1943,20 +2050,38 @@ const styles = StyleSheet.create({
         marginVertical: 4,
         elevation: 3,
     },
-    dateSeparator: {
+    dateSeparatorPillContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         marginVertical: spacingY._15,
         paddingHorizontal: spacingX._20,
     },
-    dateSeparatorLine: {
-        flex: 1,
-        height: 1,
+    dateSeparatorPill: {
+        paddingVertical: 6,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 1,
     },
     dateSeparatorText: {
-        paddingHorizontal: spacingX._12,
-        opacity: 0.7,
+        opacity: 0.8,
+        letterSpacing: 0.5,
+    },
+    pulsingDot: {
+        position: 'absolute',
+        top: 2,
+        right: 2,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        borderWidth: 2,
+        borderColor: colors.white,
     },
     loadingGreeting: {
         padding: spacingY._20,
@@ -1983,5 +2108,50 @@ const styles = StyleSheet.create({
         borderRadius: radius._10,
         borderWidth: 1,
         borderColor: colors.primary,
+    },
+    chatRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        width: '100%',
+        marginVertical: 6,
+    },
+    coachIconContainer: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 2,
+    },
+    bubbleColumn: {
+        flex: 1,
+        marginLeft: 12,
+        alignItems: 'flex-start',
+    },
+    tail: {
+        position: 'absolute',
+        top: 0,
+        left: -8,
+        width: 0,
+        height: 0,
+        borderStyle: 'solid',
+        borderRightWidth: 10,
+        borderBottomWidth: 10,
+        borderBottomColor: 'transparent',
+    },
+
+    headerContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+    },
+    coachAvatarCircle: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });

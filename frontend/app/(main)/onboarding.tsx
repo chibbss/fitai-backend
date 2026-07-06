@@ -1,28 +1,33 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ScrollView, Platform, KeyboardAvoidingView, TextInput } from 'react-native';
-import { useRouter } from 'expo-router';
-import Typo from '@/components/Typo';
-import ScreenWrapper from '@/components/ScreenWrapper';
-import { colors, radius, spacingX, spacingY } from '@/constants/theme';
-import Button from '@/components/Button';
-import Animated, { FadeIn, FadeInDown, FadeInLeft, FadeInUp, SlideInDown, SlideInLeft, SlideInRight, SlideInUp } from 'react-native-reanimated'
-import { verticalScale } from '@/utils/styling';
-import { supabase } from '@/utils/supabase';
-import MultiStepProgressBar from '@/components/MultiStepProgressBar';
-import LottieView from 'lottie-react-native';
 import successAnimation from '@/assets/images/animations/Success.json';
-import botChatAnimation from '@/assets/images/animations/Bot_chat.json';
+import { AuthGuard } from '@/components/AuthGuard';
+import MultiStepProgressBar from '@/components/MultiStepProgressBar';
+import OptionCard from '@/components/OptionCard';
+import Typo from '@/components/Typo';
+import { radius, spacingX, spacingY } from '@/constants/theme';
+import { useTheme } from '@/context/ThemeContext';
+import { alert } from '@/utils/alert';
 import { userApi } from '@/utils/api';
 import { API_URL, MOCK_MODE } from '@/utils/config';
-import { useTheme } from '@/context/ThemeContext';
-import { LinearGradient } from 'expo-linear-gradient';
-import PulseLogo from '@/components/PulseLogo';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { alert } from '@/utils/alert';
-import { AuthGuard } from '@/components/AuthGuard';
-import * as Icons from 'phosphor-react-native';
-import MaskedView from '@react-native-masked-view/masked-view';
 import { checkOnboardingStatus } from '@/utils/onboarding';
+import { verticalScale } from '@/utils/styling';
+import { supabase } from '@/utils/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import LottieView from 'lottie-react-native';
+import * as Icons from 'phosphor-react-native';
+import { useEffect, useRef, useState } from 'react';
+import Animated, { FadeInDown, FadeInLeft, FadeInRight, FadeOutLeft } from 'react-native-reanimated';
+
+import { GradientButton } from '@/components/ui';
+import {
+  CalendarBlank,
+  ChartLineUp,
+  ChatCircleDots,
+  NotePencil,
+  Target
+} from 'phosphor-react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type OnboardingStep = 'intro' | 'goal' | 'experience' | 'preference' | 'details' | 'success';
 
@@ -108,6 +113,11 @@ const PREFERENCE_OPTIONS: PreferenceOption[] = [
   { label: 'Mix of everything', value: 'mix of everything' },
 ];
 
+const DETAIL_CHIPS = [
+  'Previous Injury', 'Busy Schedule', 'Home Workouts',
+  'Nutrition Goals', 'Recovery Issues', 'Sports Training',
+];
+
 const Onboarding = () => {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -115,9 +125,9 @@ const Onboarding = () => {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-  //theme hooks
-  const { mode, colors: themeColors } = useTheme();
-  const isDarkMode = mode === 'dark';
+  console.log('[Onboarding] Rendering - MOCK_MODE:', MOCK_MODE);
+
+  const { colors: themeColors } = useTheme();
 
   const [goal, setGoal] = useState<GoalOption | null>(null);
   const [experience, setExperience] = useState<ExperienceOption | null>(null);
@@ -141,6 +151,14 @@ const Onboarding = () => {
     let isMounted = true;
 
     const loadSession = async () => {
+      // 🚨 MOCK MODE: Set dummy session
+      if (MOCK_MODE) {
+        console.log('🤖 MOCK MODE: Using dummy session for onboarding (loadSession)');
+        setUserId('mock-user-id');
+        setAuthToken('mock-auth-token');
+        return;
+      }
+
       try {
         const { data } = await supabase.auth.getSession();
         if (!isMounted) return;
@@ -179,11 +197,17 @@ const Onboarding = () => {
   // Load existing user data to resume onboarding if partially completed
   useEffect(() => {
     const loadExistingData = async () => {
+      // 🚨 MOCK MODE: Skip status check
+      if (MOCK_MODE) {
+        console.log('🤖 MOCK MODE: Skipping onboarding status check');
+        return;
+      }
+
       if (!userId || !authToken) return;
 
       try {
         const { userData } = await checkOnboardingStatus(userId);
-        
+
         if (!userData) return;
 
         // Pre-fill goal if exists
@@ -251,12 +275,6 @@ const Onboarding = () => {
   }, [userId, authToken]);
 
   const step = STEP_CONFIG[currentIndex];
-  const progress = useMemo(() => {
-    return {
-      current: currentIndex + 1,
-      total: STEP_CONFIG.length,
-    };
-  }, [currentIndex]);
   const requiresSession = step.id !== 'intro' && step.id !== 'success';
   const continueDisabled = isSubmitting || (requiresSession && (!authToken || !userId));
 
@@ -489,6 +507,11 @@ const Onboarding = () => {
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   };
 
+  const handleResponseContinue = () => {
+    setShowResponse(false);
+    setCurrentIndex(prev => Math.min(prev + 1, STEP_CONFIG.length - 1));
+  };
+
   // NEW: Navigate to chat screen with completion message
   const navigateToChat = () => {
     if (hasNavigatedToChat.current) {
@@ -508,344 +531,286 @@ const Onboarding = () => {
     }
   };
 
+  const getStepIcon = () => {
+    const map: Record<string, React.ReactNode> = {
+      intro: <ChatCircleDots size={28} color={themeColors.accent} weight="fill" />,
+      goal: <Target size={28} color={themeColors.accent} weight="fill" />,
+      experience: <ChartLineUp size={28} color={themeColors.accent} weight="fill" />,
+      preference: <CalendarBlank size={28} color={themeColors.accent} weight="fill" />,
+      details: <NotePencil size={28} color={themeColors.accent} weight="fill" />,
+    };
+    const icon = map[step.id];
+    if (!icon) return null;
+    return (
+      <View style={[styles.stepIconBox, {
+        backgroundColor: themeColors.card,
+        borderColor: themeColors.border,
+      }]}>
+        {icon}
+      </View>
+    );
+  };
+
   const renderOptions = () => {
-    const { colors: themeColors } = useTheme();
-
-    switch (step.id) {
-      case 'intro':
-        return (
-          <View style={styles.introContent}>
-            {/* Hero Icon Section */}
-            <Animated.View
-              entering={FadeInUp.duration(600).springify().damping(15).stiffness(100)}
-              style={styles.heroIconContainer}
-            >
-              <View style={[styles.heroIconCircle, { backgroundColor: themeColors.cardBackground }]}>
-                <Icons.ChatCircleDots size={64} color={themeColors.accentPrimary} weight="fill" />
-              </View>
-            </Animated.View>
-
-            {/* Gradient Headline */}
-            <Animated.View
-              entering={FadeInUp.delay(150).duration(600).springify().damping(15).stiffness(100)}
-              style={styles.gradientHeadlineContainer}
-            >
-              <MaskedView
-                style={styles.maskedView}
-                maskElement={
-                  <Typo size={40} fontWeight="800" style={styles.gradientHeadline}>
-                    Meet your personal AI fitness coach.
-                  </Typo>
-                }
-              >
-                <LinearGradient
-                  colors={[themeColors.accentGradient[0], themeColors.accentGradient[1]] as readonly [string, string]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.gradientTextGradient}
-                >
-                  <Typo
-                    size={40}
-                    fontWeight="800"
-                    style={StyleSheet.flatten([styles.gradientHeadline, { opacity: 0 }])}
-                    color={themeColors.background}
-                  >
-                    Meet your personal AI fitness coach.
-                  </Typo>
-                </LinearGradient>
-              </MaskedView>
-            </Animated.View>
-
-            {/* Improved Subtext */}
-            <Animated.View
-              entering={FadeInUp.delay(250).duration(600).springify().damping(15).stiffness(100)}
-            >
-              <Typo size={18} color={colors.neutral600} style={styles.introSubtext}>
+    const content = (() => {
+      switch (step.id) {
+        case 'intro':
+          return (
+            <Animated.View entering={FadeInDown.delay(100).springify()} style={{ alignItems: 'center', gap: spacingY._20, paddingTop: spacingY._20 }}>
+              <Typo size={32} fontWeight="800" color={themeColors.textPrimary} style={{ textAlign: 'center' }}>
+                Meet your personal AI fitness coach.
+              </Typo>
+              <Typo size={16} color={themeColors.textSecondary} style={{ textAlign: 'center', lineHeight: 24 }}>
                 Get personalized workouts, real-time coaching, and insights tailored just for you.
               </Typo>
             </Animated.View>
-
-            {/* Feature Highlights */}
-            <Animated.View
-              entering={FadeInDown.delay(400).duration(600).springify().damping(15).stiffness(100)}
-              style={styles.featuresContainer}
-            >
-              <View style={styles.featureItem}>
-                <View style={[styles.featureIconContainer, { backgroundColor: themeColors.cardBackground }]}>
-                  <Icons.Barbell size={26} color={themeColors.accentPrimary} weight="fill" />
-                </View>
-                <Typo size={14} fontWeight="600" color={themeColors.background} style={styles.featureText}>
-                  Personalized Plans
-                </Typo>
-              </View>
-
-              <View style={styles.featureItem}>
-                <View style={[styles.featureIconContainer, { backgroundColor: themeColors.cardBackground }]}>
-                  <Icons.ChatCircle size={26} color={themeColors.accentPrimary} weight="fill" />
-                </View>
-                <Typo size={14} fontWeight="600" color={themeColors.background} style={styles.featureText}>
-                  24/7 Coaching
-                </Typo>
-              </View>
-
-              <View style={styles.featureItem}>
-                <View style={[styles.featureIconContainer, { backgroundColor: themeColors.cardBackground }]}>
-                  <Icons.ChartLineUp size={26} color={themeColors.accentPrimary} weight="fill" />
-                </View>
-                <Typo size={14} fontWeight="600" color={themeColors.background} style={styles.featureText}>
-                  Track Progress
-                </Typo>
-              </View>
-            </Animated.View>
-          </View>
-        );
-
-      case 'goal':
-        return GOAL_OPTIONS.map((option, index) => {
-          const getIcon = () => {
-            switch (option.value) {
-              case 'build muscle':
-                return <Icons.Barbell size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
-              case 'lose fat':
-                return <Icons.Flame size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentWarm} weight="fill" />;
-              case 'get consistent':
-                return <Icons.Heart size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
-              case 'feel healthier':
-                return <Icons.Heart size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
-              case 'train for performance':
-                return <Icons.Lightning size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
-              case 'just exploring':
-                return <Icons.Eye size={20} color={goal?.value === option.value ? themeColors.background : themeColors.textSecondary} weight="fill" />;
-              default:
-                return null;
-            }
-          };
-
-          return (
-            <Animated.View
-              key={option.value}
-              entering={FadeInLeft.delay(index * 200).duration(700).springify().damping(50).stiffness(0)}
-            >
-              <Button
-                key={option.value}
-                onPress={() => setGoal(option)}
-                style={[
-                  styles.optionButton,
-                  goal?.value === option.value && {
-                    backgroundColor: themeColors.accentPrimary,
-                    borderColor: themeColors.accentPrimary,
-                  },
-                ]}
-              >
-                <View style={styles.optionContent}>
-                  {getIcon()}
-                  <Typo
-                    size={18}
-                    fontWeight={goal?.value === option.value ? '700' : '500'}
-                    color={goal?.value === option.value ? themeColors.background : colors.neutral700}
-                    style={{ textAlign: 'center', marginLeft: spacingX._7 }}
-                  >
-                    {option.label}
-                  </Typo>
-                </View>
-              </Button>
-            </Animated.View>
           );
-        });
 
-      case 'experience':
-        return EXPERIENCE_OPTIONS.map((option, index) => (
-          <Animated.View
-            key={option.value}
-            entering={FadeInLeft.delay(index * 200).duration(700).springify().damping(50).stiffness(0)}
+        case 'goal':
+          return (
+            <View style={{ gap: spacingY._15 }}>
+              {GOAL_OPTIONS.map((option, index) => {
+                const getIcon = () => {
+                  switch (option.value) {
+                    case 'build muscle':
+                      return <Icons.Barbell size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'lose fat':
+                      return <Icons.Flame size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentWarm} weight="fill" />;
+                    case 'get consistent':
+                      return <Icons.Heart size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'feel healthier':
+                      return <Icons.Heart size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'train for performance':
+                      return <Icons.Lightning size={20} color={goal?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'just exploring':
+                      return <Icons.Eye size={20} color={goal?.value === option.value ? themeColors.background : themeColors.textSecondary} weight="fill" />;
+                    default:
+                      return null;
+                  }
+                };
 
-          >
-            <Button
-              key={option.value}
-              onPress={() => setExperience(option)}
-              style={[
-                styles.optionButton,
-                experience?.value === option.value && {
-                  backgroundColor: themeColors.accentPrimary,
-                  borderColor: themeColors.accentPrimary,
-                },
-              ]}
-            >
-              <Typo
-                size={18}
-                fontWeight={experience?.value === option.value ? '700' : '500'}
-                color={experience?.value === option.value ? themeColors.background : colors.neutral700}
-                style={{ textAlign: 'center' }}
-              >
-                {option.label}
+                return (
+                  <Animated.View
+                    key={option.value}
+                    entering={FadeInLeft.delay(index * 150).duration(500).springify().damping(20)}
+                  >
+                    <OptionCard
+                      label={option.label}
+                      icon={getIcon()}
+                      isSelected={goal?.value === option.value}
+                      onPress={() => setGoal(option)}
+                    />
+                  </Animated.View>
+                );
+              })}
+            </View>
+          );
+
+        case 'experience':
+          return (
+            <View style={{ gap: spacingY._15 }}>
+              {EXPERIENCE_OPTIONS.map((option, index) => {
+                const getIcon = () => {
+                  switch (option.value) {
+                    case 'beginner':
+                      return <Icons.Leaf size={20} color={experience?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'intermediate':
+                      return <Icons.ChartLineUp size={20} color={experience?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'advanced':
+                      return <Icons.Lightning size={20} color={experience?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    default:
+                      return null;
+                  }
+                };
+
+                return (
+                  <Animated.View
+                    key={option.value}
+                    entering={FadeInLeft.delay(index * 150).duration(500).springify().damping(20)}
+                  >
+                    <OptionCard
+                      label={option.label}
+                      icon={getIcon()}
+                      isSelected={experience?.value === option.value}
+                      onPress={() => setExperience(option)}
+                    />
+                  </Animated.View>
+                );
+              })}
+            </View>
+          );
+
+        case 'preference':
+          return (
+            <View style={{ gap: spacingY._15 }}>
+              {PREFERENCE_OPTIONS.map((option, index) => {
+                const getIcon = () => {
+                  switch (option.value) {
+                    case 'strength training':
+                      return <Icons.Barbell size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'cardio':
+                      return <Icons.Heartbeat size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'home workouts':
+                      return <Icons.House size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'sports & performance':
+                      return <Icons.Trophy size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    case 'mix of everything':
+                      return <Icons.ArrowsClockwise size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
+                    default:
+                      return null;
+                  }
+                };
+
+                return (
+                  <Animated.View
+                    key={option.value}
+                    entering={FadeInLeft.delay(index * 150).duration(500).springify().damping(20)}
+                  >
+                    <OptionCard
+                      label={option.label}
+                      icon={getIcon()}
+                      isSelected={preference?.value === option.value}
+                      onPress={() => setPreference(option)}
+                    />
+                  </Animated.View>
+                );
+              })}
+            </View>
+          );
+
+        case 'details':
+          return (
+            <View style={styles.detailsContainer}>
+
+              {/* Suggestion chips */}
+              <Typo size={12} fontWeight="600" color={themeColors.textMuted} style={{ letterSpacing: 0.5 }}>
+                Common things to share
               </Typo>
-            </Button>
-          </Animated.View>
-
-        ));
-
-      case 'preference':
-        return PREFERENCE_OPTIONS.map((option, index) => {
-          const getIcon = () => {
-            switch (option.value) {
-              case 'strength training':
-                return <Icons.Barbell size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
-              case 'cardio':
-                return <Icons.Heartbeat size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
-              case 'home workouts':
-                return <Icons.House size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
-              case 'sports & performance':
-                return <Icons.Trophy size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
-              case 'mix of everything':
-                return <Icons.ArrowsClockwise size={20} color={preference?.value === option.value ? themeColors.background : themeColors.accentPrimary} weight="fill" />;
-              default:
-                return null;
-            }
-          };
-
-          return (
-            <Animated.View
-              key={option.value}
-              entering={FadeInLeft.delay(index * 200).duration(700).springify().damping(50).stiffness(0)}
-            >
-              <Button
-                key={option.value}
-                onPress={() => setPreference(option)}
-                style={[
-                  styles.optionButton,
-                  preference?.value === option.value && {
-                    backgroundColor: themeColors.accentPrimary,
-                    borderColor: themeColors.accentPrimary,
-                  },
-                ]}
-              >
-                <View style={styles.optionContent}>
-                  {getIcon()}
-                  <Typo
-                    size={18}
-                    fontWeight={preference?.value === option.value ? '700' : '500'}
-                    color={preference?.value === option.value ? themeColors.background : colors.neutral700}
-                    style={{ textAlign: 'center', marginLeft: spacingX._7 }}
+              <View style={styles.chipsRow}>
+                {DETAIL_CHIPS.map((chip) => (
+                  <Pressable
+                    key={chip}
+                    onPress={() => setDetailsNote(prev => prev ? `${prev}, ${chip.toLowerCase()}` : chip.toLowerCase())}
+                    style={[styles.chip, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
                   >
-                    {option.label}
-                  </Typo>
-                </View>
-              </Button>
-            </Animated.View>
-          );
-        });
+                    <Typo size={13} color={themeColors.textPrimary}>{chip}</Typo>
+                  </Pressable>
+                ))}
+              </View>
 
-      case 'details':
-        return (
-          <View style={styles.detailsContainer}>
-            <Animated.View
-              entering={FadeInLeft.delay(0 * 200).duration(700).springify().damping(50).stiffness(0)}
-            >
-              <View style={styles.detailsCard}>
-
+              {/* Input */}
+              <View style={[styles.detailsCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
                 <TextInput
                   placeholder="Shoulder injury, gym 3×/week…"
-                  placeholderTextColor={colors.neutral400}
+                  style={[styles.detailsInput, { color: themeColors.textPrimary }]}
+                  placeholderTextColor={themeColors.textMuted}
                   multiline
                   value={detailsNote}
                   onChangeText={setDetailsNote}
-                  style={styles.detailsInput}
                   textAlignVertical="top"
                   maxLength={280}
                 />
               </View>
-            </Animated.View>
 
-            <Animated.View
-              entering={FadeInLeft.delay(1 * 200).duration(700).springify().damping(50).stiffness(0)}
-            >
-              <Typo size={14} color={colors.neutral500} style={{ textAlign: 'center' }}>
+              <Typo size={13} color={themeColors.textMuted}>
                 Add anything you want me to remember. You can always share more in chat later.
               </Typo>
-            </Animated.View>
 
-            <Animated.View
-              entering={FadeInLeft.delay(2 * 200).duration(700).springify().damping(50).stiffness(0)}
-            >
-              <Button
-                style={styles.skipButton}
-                onPress={() => handleContinue()}
-                disabled={continueDisabled}
-              >
-                <Typo fontWeight="700" color={colors.black}>
-                  Skip for now
-                </Typo>
-              </Button>
-            </Animated.View>
-          </View>
-        );
+              {/* What I'll Remember summary */}
+              <View style={[styles.rememberCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+                <View style={styles.rememberTitle}>
+                  <Icons.BookBookmark size={16} color={themeColors.accent} weight="fill" />
+                  <Typo size={13} fontWeight="700" color={themeColors.textPrimary}>What I'll Remember</Typo>
+                </View>
+                {goal && (
+                  <View style={styles.learnedRow}>
+                    <Typo size={13} color={themeColors.textSecondary}>Goal</Typo>
+                    <View style={styles.learnedValue}>
+                      <Icons.Check size={13} color={themeColors.accent} weight="bold" />
+                      <Typo size={13} fontWeight="700" color={themeColors.textPrimary}>{goal.label}</Typo>
+                    </View>
+                  </View>
+                )}
+                {experience && (
+                  <View style={styles.learnedRow}>
+                    <Typo size={13} color={themeColors.textSecondary}>Level</Typo>
+                    <View style={styles.learnedValue}>
+                      <Icons.Check size={13} color={themeColors.accent} weight="bold" />
+                      <Typo size={13} fontWeight="700" color={themeColors.textPrimary}>{experience.label}</Typo>
+                    </View>
+                  </View>
+                )}
+                {preference && (
+                  <View style={styles.learnedRow}>
+                    <Typo size={13} color={themeColors.textSecondary}>Preference</Typo>
+                    <View style={styles.learnedValue}>
+                      <Icons.Check size={13} color={themeColors.accent} weight="bold" />
+                      <Typo size={13} fontWeight="700" color={themeColors.textPrimary}>{preference.label}</Typo>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
+          );
 
-      case 'success':
-        return (
-          <View style={styles.successContent}>
-            <LottieView
-              ref={successAnimationRef}
-              source={successAnimation}
-              autoPlay
-              loop={false}
-              style={styles.successAnimation}
-              onAnimationFinish={() => {
-                // Wait for completion message or navigate after timeout
-                if (completionMessage) {
-                  // Message is ready, navigate immediately
-                  navigateToChat();
-                } else if (!isLoadingCompletion) {
-                  // Loading finished but no message, navigate anyway
-                  navigateToChat();
-                } else {
-                  // Still loading, wait up to 3 seconds for completion message
-                  let attempts = 0;
-                  const checkInterval = setInterval(() => {
-                    attempts++;
-                    if (completionMessage || !isLoadingCompletion || attempts >= 15) {
-                      clearInterval(checkInterval);
-                      navigateToChat();
-                    }
-                  }, 200); // Check every 200ms, max 3 seconds (15 * 200ms)
+        case 'success':
+          return (
+            <View style={styles.successContent}>
+              <LottieView
+                ref={successAnimationRef}
+                source={successAnimation}
+                autoPlay
+                loop={false}
+                style={styles.successAnimation}
+                onAnimationFinish={() => {
+                  if (completionMessage) {
+                    navigateToChat();
+                  } else if (!isLoadingCompletion) {
+                    navigateToChat();
+                  } else {
+                    let attempts = 0;
+                    const checkInterval = setInterval(() => {
+                      attempts++;
+                      if (completionMessage || !isLoadingCompletion || attempts >= 15) {
+                        clearInterval(checkInterval);
+                        navigateToChat();
+                      }
+                    }, 200);
+                  }
+                }}
+              />
+
+              <Typo size={30} fontWeight="700" color={themeColors.textPrimary} style={{ textAlign: 'center' }}>
+                You're all set!
+              </Typo>
+
+              <Typo size={16} color={themeColors.textSecondary} style={styles.successSubtext}>
+                {isLoadingCompletion
+                  ? 'Preparing your personalized welcome...'
+                  : completionMessage
+                    ? 'Ready to chat!'
+                    : 'Stitched together your personalized fitness journey. Jumping into chat…'
                 }
-              }}
-            />
+              </Typo>
+            </View>
+          );
 
-            <Typo size={30} fontWeight="700" color={themeColors.background} style={{ textAlign: 'center' }}>
-              You're all set!
-            </Typo>
+        default:
+          return null;
+      }
+    })();
 
-            <Typo size={16} color={colors.neutral600} style={styles.successSubtext}>
-              {isLoadingCompletion
-                ? 'Preparing your personalized welcome...'
-                : completionMessage
-                  ? 'Ready to chat!'
-                  : 'Stitched together your personalized fitness journey. Jumping into chat…'
-              }
-            </Typo>
-          </View>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  //render response screen
-  const renderResponseScreen = () => {
     return (
-      <View style={styles.responseContent}>
-        <Animated.View
-          entering={FadeInDown.duration(500).springify().damping(15).stiffness(80)}
-          style={styles.responseContainer}
-        >
-          <Typo size={24} fontWeight="700" color={colors.black} style={styles.responseMessage}>
-            {responseMessage}
-          </Typo>
-        </Animated.View>
-      </View>
-    )
-  }
+      <Animated.View
+        key={step.id}
+        entering={FadeInRight.springify().damping(18)}
+        exiting={FadeOutLeft.duration(300)}
+        style={{ flex: 1 }}
+      >
+        {content}
+      </Animated.View>
+    );
+  };
 
   // Fetch completion message when success step is reached
   useEffect(() => {
@@ -922,7 +887,7 @@ const Onboarding = () => {
           // Move to next step
           setCurrentIndex((prev) => Math.min(prev + 1, STEP_CONFIG.length - 1));
         }
-      }, 1500); // Show for 1.5 seconds
+      }, 60000); // Show for 1.5 seconds
 
       return () => clearTimeout(timer);
     }
@@ -934,92 +899,146 @@ const Onboarding = () => {
       style={{ flex: 1 }}
       behavior={Platform.select({ ios: 'padding', android: undefined })}
     >
-      <ScreenWrapper showPattern={false}>
-        <Animated.View
-          entering={SlideInDown.delay(300).springify()}
-          style={styles.container}
-        >
-          <View style={styles.progressContainer}>
-            <MultiStepProgressBar
-              steps={STEP_CONFIG.map((cfg) => cfg.title)}
-              currentStep={currentIndex}
-            />
+      <SafeAreaView style={[styles.safe, { backgroundColor: themeColors.background }]}>
+        <StatusBar barStyle="light-content" backgroundColor={themeColors.background} />
 
-          </View>
+        <MultiStepProgressBar
+          steps={STEP_CONFIG.map((cfg) =>
+            cfg.title)}
+          currentStep={currentIndex}
+        />
 
-          <View style={styles.contentCard}>
-            {showResponse ? (
-              <View style={{ flex: 1 }}>
-                <View style={[styles.scrollContent, { flex: 1, justifyContent: 'center' }]}>
-                  <Typo size={28} fontWeight="700" style={{ marginBottom: spacingY._10 }}>
-                    {step.title}
-                  </Typo>
-                  {renderResponseScreen()}
-                </View>
+        {showResponse ? (
+          <View style={{ flex: 1, paddingHorizontal: spacingX._20 }}>
+
+            {/* Header row */}
+            <View style={styles.responseHeader}>
+              <View style={[styles.profileBadge, { backgroundColor: themeColors.accentDim, borderColor: themeColors.accent }]}>
+                <Icons.Info size={14} color={themeColors.accent} weight="fill" />
+                <Typo size={13} fontWeight="600" color={themeColors.accent}>Building Your Profile</Typo>
               </View>
+              <Typo size={13} color={themeColors.textMuted}>
+                {[goal, experience, preference].filter(Boolean).length}/3 answered
+              </Typo>
+            </View>
 
-            ) : (
-              <>
-
-                <ScrollView
-                  keyboardShouldPersistTaps="handled"
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={[
-                    styles.scrollContent,
-                    step.id === 'success' && styles.successScrollContent,
-                  ]}
-                >
-
-                  <Typo size={28} fontWeight="700" style={{ marginBottom: spacingY._10 }}>
-                    {step.title}
-                  </Typo>
-                  {step.subtitle ? (
-                    <Typo size={16} color={colors.neutral600} style={{ marginBottom: spacingY._20 }}>
-                      {step.subtitle}
-                    </Typo>
-                  ) : null}
-
-                  <View style={{ gap: spacingY._15 }}>{renderOptions()}</View>
-                </ScrollView>
-
-                {step.id !== 'success' && (
-                  <View style={styles.actions}>
-                    <Button
-                      onPress={handleBack}
-                      style={[styles.navButton, styles.backButton]}
-                      disabled={isSubmitting}
-                    >
-                      <Typo fontWeight="500" color={themeColors.background}>
-                        {currentIndex === 0 ? 'Back to welcome' : 'Back'}
-                      </Typo>
-                    </Button>
-                    <LinearGradient
-                      colors={[themeColors.accentGradient[0], themeColors.accentGradient[1]] as readonly [string, string]}
-                      start={{ x: 0, y: 0.5 }}
-                      end={{ x: 1, y: 0.5 }}
-                      style={styles.buttonGradient}
-                    >
-                      <Button
-                        onPress={handleContinue}
-                        loading={isSubmitting}
-                        loadingColor={themeColors.textPrimary}
-                        style={[styles.navButton, { backgroundColor: 'transparent' }]}
-                        disabled={continueDisabled}
-                      >
-                        <Typo fontWeight="700" color={themeColors.background}>
-                          {step.id === 'details' ? "Let's go!" : 'Continue'}
-                        </Typo>
-                      </Button>
-                    </LinearGradient>
+            {/* Learned So Far card */}
+            <View style={[styles.learnedCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+              <Typo size={11} fontWeight="700" color={themeColors.textMuted} style={{ letterSpacing: 1, marginBottom: 4 }}>
+                LEARNED SO FAR
+              </Typo>
+              {goal && (
+                <View style={styles.learnedRow}>
+                  <Typo size={14} color={themeColors.textSecondary}>Your Goal</Typo>
+                  <View style={styles.learnedValue}>
+                    {step.id === 'goal'
+                      ? <View style={[styles.checkCircle, { backgroundColor: themeColors.accent }]}><Icons.Check size={10} color="#fff" weight="bold" /></View>
+                      : <Icons.Check size={14} color={themeColors.accent} weight="bold" />}
+                    <Typo size={14} fontWeight="700" color={step.id === 'goal' ? themeColors.accent : themeColors.textPrimary}>{goal.label}</Typo>
                   </View>
-                )}
-              </>
-            )}
+                </View>
+              )}
+              {experience && (
+                <View style={styles.learnedRow}>
+                  <Typo size={14} color={themeColors.textSecondary}>Experience</Typo>
+                  <View style={styles.learnedValue}>
+                    {step.id === 'experience'
+                      ? <View style={[styles.checkCircle, { backgroundColor: themeColors.accent }]}><Icons.Check size={10} color="#fff" weight="bold" /></View>
+                      : <Icons.Check size={14} color={themeColors.accent} weight="bold" />}
+                    <Typo size={14} fontWeight="700" color={step.id === 'experience' ? themeColors.accent : themeColors.textPrimary}>{experience.label}</Typo>
+                  </View>
+                </View>
+              )}
+              {preference && (
+                <View style={styles.learnedRow}>
+                  <Typo size={14} color={themeColors.textSecondary}>Preference</Typo>
+                  <View style={styles.learnedValue}>
+                    {step.id === 'preference'
+                      ? <View style={[styles.checkCircle, { backgroundColor: themeColors.accent }]}><Icons.Check size={10} color="#fff" weight="bold" /></View>
+                      : <Icons.Check size={14} color={themeColors.accent} weight="bold" />}
+                    <Typo size={14} fontWeight="700" color={step.id === 'preference' ? themeColors.accent : themeColors.textPrimary}>{preference.label}</Typo>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Coach bubble */}
+            <View style={styles.coachRow}>
+              <View style={[styles.coachAvatar, { backgroundColor: themeColors.accent }]}>
+                <Icons.Sparkle size={18} color="#fff" weight="fill" />
+              </View>
+              <View style={[styles.coachBubble, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+                <Typo size={17} fontWeight="700" color={themeColors.textPrimary} style={{ lineHeight: 25 }}>
+                  {responseMessage}
+                </Typo>
+                <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: themeColors.border }} />
+                <Typo size={13} color={themeColors.accent}>• FitAI will remember this</Typo>
+              </View>
+            </View>
+
+            <View style={{ flex: 1 }} />
+
+            {/* CTA */}
+            <View style={styles.actions}>
+              <GradientButton
+                title={[goal, experience, preference].filter(Boolean).length >= 3 ? 'Almost Done' : 'Next Question'}
+                onPress={handleResponseContinue}
+                style={{ width: '100%' }}
+              />
+            </View>
           </View>
+        ) : (
+          <>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scroll}
+            >
+              {getStepIcon()}
+              <Typo size={28} fontWeight="800" color={themeColors.textPrimary}>
+                {step.title}
+              </Typo>
 
+              {step.subtitle ? (
+                <Typo size={15} color={themeColors.textSecondary} style={styles.subtitle}>
+                  {step.subtitle}
+                </Typo>
+              ) : null}
 
-        </Animated.View>
-      </ScreenWrapper>
+              <View style={styles.options}>
+                {renderOptions()}
+              </View>
+            </ScrollView>
+
+            {step.id !== 'success' && (
+              <View style={styles.actions}>
+                <GradientButton
+                  title={step.id === 'details' ? 'Get Started' : 'Continue'}
+                  onPress={handleContinue}
+                  loading={isSubmitting}
+                  disabled={continueDisabled}
+                  style={{ width: '100%' }}
+                />
+                {step.id === 'details' ? (
+                  <GradientButton
+                    title="Skip for now"
+                    variant="outline"
+                    onPress={handleContinue}
+                    style={{ width: '100%' }}
+                  />
+                ) : (
+                  <Pressable onPress={handleBack} style={styles.backLink}>
+                    <Typo size={15} color={themeColors.textSecondary}>
+                      {currentIndex === 0 ? 'Back to welcome' : 'Back'}
+                    </Typo>
+                  </Pressable>
+                )}
+              </View>
+            )}
+          </>
+        )}
+      </SafeAreaView>
+
     </KeyboardAvoidingView>
   )
 }
@@ -1037,167 +1056,58 @@ export default function ProtectedOnboarding() {
 
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    //gap: spacingY._30,
-    // marginHorizontal: spacingX._20,
-    //justifyContent: 'space-between',
+  safe: { flex: 1 },
+  scroll: {
     paddingHorizontal: spacingX._20,
-    paddingTop: spacingY._20,
-
+    paddingBottom: spacingY._20,
   },
-
-  progressContainer: {
-
-    marginBottom: spacingY._20,
-    maxWidth: '100%',
-  },
-  stepIndicator: {
+  stepIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacingY._15,
     marginTop: spacingY._10,
   },
-
-  contentCard: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderTopLeftRadius: radius._40,
-    borderTopRightRadius: radius._40,
-    padding: spacingY._20,
-    borderCurve: 'continuous',
-    elevation: 4,
+  subtitle: {
+    marginTop: 8,
+    marginBottom: spacingY._20,
   },
-
-  optionButton: {
-    backgroundColor: '#F4F7FB',
-    borderRadius: radius._20,
-    paddingVertical: spacingY._12,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
+  options: {
+    gap: spacingY._10,
   },
   actions: {
-    flexDirection: 'row',
-    gap: spacingX._12,
-    marginTop: spacingY._20,
+    paddingHorizontal: spacingX._20,
+    paddingBottom: spacingY._25,
+    paddingTop: spacingY._10,
+    gap: spacingY._10,
+    alignItems: 'center',
   },
-
-  navButton: {
+  backLink: {
+    paddingVertical: 6,
+  },
+  responseWrap: {
     flex: 1,
-    paddingVertical: spacingY._12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacingX._20,
   },
-
-  buttonGradient: {
-    flex: 1,
-    borderRadius: radius.full,
-    overflow: 'hidden',
-    minHeight: verticalScale(56),
-  },
-
-  backButton: {
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.neutral500,
-  },
-  skipButton: {
-    backgroundColor: '#EEF1F6',
-  },
-
+  // Keep for details/success steps
   detailsContainer: {
     gap: spacingY._15,
-    alignItems: 'stretch',
   },
   detailsCard: {
-    backgroundColor: '#F4F7FB',
     borderRadius: radius._20,
     borderWidth: 1,
-    borderColor: colors.neutral200,
     padding: spacingY._15,
   },
   detailsInput: {
     minHeight: verticalScale(140),
-    color: colors.neutral800,
     fontSize: 16,
     lineHeight: 22,
   },
-
-  scrollContent: {
-    paddingBottom: spacingY._10,
-  },
-  successScrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-
-  introContent: {
-    marginTop: -35,
-    gap: spacingY._20,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingHorizontal: spacingX._10,
-  },
-  heroIconContainer: {
-    marginBottom: spacingY._10,
-  },
-  heroIconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  gradientHeadlineContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacingX._10,
-  },
-  maskedView: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  gradientTextGradient: {
-    flex: 1,
-  },
-  gradientHeadline: {
-    textAlign: 'center',
-    lineHeight: 48,
-  },
-  introSubtext: {
-    textAlign: 'center',
-    lineHeight: 26,
-    paddingHorizontal: spacingX._15,
-    marginTop: spacingY._5,
-  },
-  featuresContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacingX._20,
-    marginTop: spacingY._10,
-    paddingHorizontal: spacingX._10,
-    flexWrap: 'wrap',
-  },
-  featureItem: {
-    alignItems: 'center',
-    gap: spacingY._7,
-    minWidth: 100,
-  },
-  featureIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  featureText: {
-    textAlign: 'center',
-  },
-
-
   successContent: {
     alignItems: 'center',
     gap: spacingY._15,
@@ -1213,49 +1123,87 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
-
-  header: {
-    paddingHorizontal: spacingX._20,
-    paddingTop: spacingY._15,
-    paddingBottom: spacingY._25,
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-
-  content: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderTopLeftRadius: radius._50,
-    borderTopRightRadius: radius._50,
-    borderCurve: 'continuous',
-    paddingHorizontal: spacingX._20,
-    paddingTop: spacingY._20
-  },
-
-  form: {
-    gap: spacingY._15,
-    marginTop: spacingY._20
-  },
-
-  // Add these styles at the end of the StyleSheet.create
-  responseContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: spacingY._30,
-  },
-  responseContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  responseMessage: {
-    textAlign: 'center',
-    paddingHorizontal: spacingX._20,
-    lineHeight: 32,
-  },
-  optionContent: {
+  responseHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacingY._10,
+    marginBottom: spacingY._15,
+  },
+  profileBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  learnedCard: {
+    borderRadius: radius._20,
+    borderWidth: 1,
+    padding: spacingX._15,
+    marginBottom: spacingY._15,
+    gap: spacingY._10,
+  },
+  learnedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  learnedValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  checkCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  coachRow: {
+    flexDirection: 'row',
+    gap: spacingX._12,
+    alignItems: 'flex-start',
+  },
+  coachAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  coachBubble: {
+    flex: 1,
+    borderRadius: radius._20,
+    borderWidth: 1,
+    padding: spacingX._15,
+    gap: spacingY._10,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  rememberCard: {
+    borderRadius: radius._20,
+    borderWidth: 1,
+    padding: spacingX._15,
+    gap: spacingY._10,
+  },
+  rememberTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
   },
 })

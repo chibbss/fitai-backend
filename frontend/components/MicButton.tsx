@@ -11,9 +11,10 @@ import { alert } from '@/utils/alert';
 type MicButtonProps = {
   onRecordingDone: (uri: string) => void;
   recordingAnimation?: any; // e.g. require('path/to/recording.json')
+  onPressIn?: () => void;
 };
 
-const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
+const MicButton = ({ onRecordingDone, recordingAnimation, onPressIn }: MicButtonProps) => {
   const { colors: themeColors } = useTheme();
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -47,7 +48,7 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
   const startRecording = async () => {
     try {
       setLoading(true);
-      
+
       // Clean up any existing recording first
       if (recording) {
         try {
@@ -76,7 +77,7 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
       });
 
       const newRecording = new Audio.Recording();
-      
+
       // Prepare recording with error handling
       try {
         await newRecording.prepareToRecordAsync(recordingOptions);
@@ -110,17 +111,17 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
 
     try {
       setLoading(true);
-      
+
       // Get URI before stopping
       const uri = recording.getURI();
-      
+
       // Stop and unload recording
       await recording.stopAndUnloadAsync();
-      
+
       console.log('✅ Recording stopped. File:', uri);
       setRecording(null);
       setIsRecording(false);
-      
+
       if (uri) {
         onRecordingDone(uri);
       } else {
@@ -152,6 +153,7 @@ const MicButton = ({ onRecordingDone, recordingAnimation }: MicButtonProps) => {
   return (
     <TouchableOpacity
       onPress={handleToggle}
+      onPressIn={onPressIn}
       style={styles.micButtonContainer}
       activeOpacity={0.8}
     >

@@ -14,6 +14,8 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import { useTheme } from '@/context/ThemeContext';
 
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Pacifico: require('../assets/fonts/Pacifico-Regular.ttf'),
@@ -65,16 +67,18 @@ export default function RootLayout() {
   }
 
   return (
-    <ErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
-          <AlertProvider>
-            <OfflineIndicator />
-            <StackNavigatorWithBackground />
-          </AlertProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <AuthProvider>
+            <AlertProvider>
+              <OfflineIndicator />
+              <StackNavigatorWithBackground />
+            </AlertProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
 

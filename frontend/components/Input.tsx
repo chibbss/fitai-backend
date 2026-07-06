@@ -1,17 +1,17 @@
-import { StyleSheet, Text, TextInput, View, Platform } from 'react-native'
-import React, { useState } from 'react'
-import { InputProps } from '@/types'
 import { colors, radius, spacingX } from '@/constants/theme'
-import { verticalScale } from '@/utils/styling'
 import { useTheme } from '@/context/ThemeContext'
+import { InputProps } from '@/types'
+import { verticalScale } from '@/utils/styling'
 import { LinearGradient } from 'expo-linear-gradient'
+import React, { useState } from 'react'
+import { StyleSheet, TextInput, View } from 'react-native'
 
 const Input = (props: InputProps) => {
     const { mode, colors: themeColors, setPreference } = useTheme();
     const [isFocused, setIsFocused] = useState(false)
     const [inputHeight, setInputHeight] = useState(verticalScale(56))
     const isMultiline = props.multiline || false
-    
+
     return (
         <View style={styles.wrapper}>
             {isFocused && (
@@ -24,8 +24,12 @@ const Input = (props: InputProps) => {
                 />
             )}
             <View style={[
-                styles.container, 
-                isFocused && styles.containerInner,
+                styles.container,
+                {
+                    backgroundColor: themeColors.input,
+                    borderColor: isFocused ? 'transparent' : themeColors.border,
+                },
+
                 isMultiline && {
                     height: Math.max(verticalScale(56), Math.min(inputHeight, 200)),
                     alignItems: 'flex-start',
@@ -36,14 +40,15 @@ const Input = (props: InputProps) => {
                 {props.icon && props.icon}
                 <TextInput
                     style={[
-                        styles.input, 
+                        styles.input,
+                        { color: themeColors.textPrimary },
                         props.inputStyle,
                         isMultiline && {
                             textAlignVertical: 'top',
                             minHeight: verticalScale(56) - (spacingX._10 * 2),
                         }
                     ]}
-                    placeholderTextColor={colors.neutral400}
+                    placeholderTextColor={themeColors.textMuted}
                     ref={props.inputRef && props.inputRef}
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}
@@ -81,7 +86,7 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         height: verticalScale(56),
-        alignItems:'center',
+        alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
         borderColor: colors.neutral200,
@@ -97,11 +102,7 @@ const styles = StyleSheet.create({
         padding: 1.5,
         zIndex: 0,
     },
-    containerInner: {
-        borderWidth: 0,
-        backgroundColor: colors.neutral100,
-        margin: 1.5,
-    },
+
     input: {
         flex: 1,
         color: colors.text,

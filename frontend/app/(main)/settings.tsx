@@ -1,391 +1,248 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '@/utils/supabase';
-import Typo from '@/components/Typo';
-import { colors, radius, spacingX, spacingY } from '@/constants/theme';
-import { verticalScale } from '@/utils/styling';
-import * as Icons from 'phosphor-react-native';
-import ScreenWrapper from '@/components/ScreenWrapper';
-import { useTheme } from '@/context/ThemeContext';
-import { Platform, Dimensions } from 'react-native';
-import { alert } from '@/utils/alert';
 import { AuthGuard } from '@/components/AuthGuard';
+import Typo from '@/components/Typo';
+import { radius, spacingX, spacingY } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { logger } from '@/utils/logger';
-import { workoutApi } from '@/utils/api';
+import { useTheme } from '@/context/ThemeContext';
+import { useRouter } from 'expo-router';
+import * as Icons from 'phosphor-react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-interface SettingsItem {
-    id: string;
-    label: string;
-    icon: keyof typeof Icons;
-    subtitle?: string;
-    onPress?: () => void;
-}
+// ── Reusable row sub-components ───────────────────────────────────────────────
 
-const Settings = () => {
-    const router = useRouter();
-    const { colors: themeColors } = useTheme();
-    const { signOut, user } = useAuth();
-    const [userName, setUserName] = useState<string>('');
-    const [userEmail, setUserEmail] = useState<string>('');
-    const [phoneNumber, setPhoneNumber] = useState<string>('');
-    const [totalWorkouts, setTotalWorkouts] = useState<number>(0);
+const SectionLabel = ({ label, colors }: { label: string; colors: any }) => (
+    <Typo size={12} fontWeight="700" color={colors.textMuted} style={styles.sectionLabel}>
+        {label}
+    </Typo>
+);
 
-    useEffect(() => {
-        const fetchUserData = async () => {
-            try {
-                const { data: { user }, error } = await supabase.auth.getUser();
-                if (user && !error) {
-                    const name = user.user_metadata?.name || user.email?.split('@')[0] || 'User';
-                    setUserName(name);
-                    setUserEmail(user.email || '');
-                    // Phone number would come from user metadata or backend profile
-                    // For now, you can fetch from backend if stored there
-                }
-            } catch (error) {
-                logger.error('Error fetching user data:', error);
-            }
-        };
+const rowEdge = (isFirst?: boolean, isLast?: boolean, border?: string) => ({
+    ...(isFirst && { borderTopLeftRadius: radius._15, borderTopRightRadius: radius._15 }),
+    ...(isLast && { borderBottomLeftRadius: radius._15, borderBottomRightRadius: radius._15 }),
+    ...(!isFirst && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: border }),
+});
 
-        const fetchWorkoutStats = async () => {
-            try {
-                // Get a recent workout session to fetch stats
-                const calendarData = await workoutApi.getCalendar() as { items?: Array<{ session_id: string }> };
-                if (calendarData?.items && calendarData.items.length > 0) {
-                    const stats = await workoutApi.getStats(calendarData.items[0].session_id) as any;
-                    if (stats?.stats?.consistency?.total_sessions) {
-                        setTotalWorkouts(stats.stats.consistency.total_sessions);
-                    }
-                }
-            } catch (error) {
-                // Silently fail - stats are optional
-                logger.warn('Could not fetch workout stats for profile:', error);
-            }
-        };
+const NavRow = ({
+    icon, iconBg, label, sub, isFirst, isLast, colors, onPress,
+}: {
+    icon: React.ReactNode; iconBg: string; label: string; sub?: string;
+    isFirst?: boolean; isLast?: boolean; colors: any; onPress?: () => void;
+}) => (
+    <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.7}
+        style={[styles.row, rowEdge(isFirst, isLast, colors.border)]}
+    >
+        <View style={[styles.iconBadge, { backgroundColor: iconBg }]}>{icon}</View>
+        <View style={{ flex: 1 }}>
+            <Typo size={15} fontWeight="600" color={colors.textPrimary}>{label}</Typo>
+            {sub && <Typo size={12} color={colors.textMuted} style={{ marginTop: 1 }}>{sub}</Typo>}
+        </View>
+        <Icons.CaretRight size={16} color={colors.textMuted} weight="bold" />
+    </TouchableOpacity>
+);
 
-        fetchUserData();
-        fetchWorkoutStats();
-    }, []);
+const ToggleRow = ({
+    icon, iconBg, label, sub, value, onChange, isFirst, isLast, colors, accent,
+}: {
+    icon: React.ReactNode; iconBg: string; label: string; sub?: string;
+    value: boolean; onChange: (v: boolean) => void;
+    isFirst?: boolean; isLast?: boolean; colors: any; accent: string;
+}) => (
+    <View style={[styles.row, rowEdge(isFirst, isLast, colors.border)]}>
+        <View style={[styles.iconBadge, { backgroundColor: iconBg }]}>{icon}</View>
+        <View style={{ flex: 1 }}>
+            <Typo size={15} fontWeight="600" color={colors.textPrimary}>{label}</Typo>
+            {sub && <Typo size={12} color={colors.textMuted} style={{ marginTop: 1 }}>{sub}</Typo>}
+        </View>
+        <Switch
+            value={value}
+            onValueChange={onChange}
+            trackColor={{ false: colors.cardElevated, true: accent }}
+            thumbColor="#fff"
+        />
+    </View>
+);
 
-    const handleLogout = async () => {
-        alert.alert(
-            'Log out',
-            'Are you sure you want to log out?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Log out',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            // Don't clear cache - data will persist and be refreshed from backend on next login
-                            // This ensures data is available immediately on next login
-                            await signOut();
-                            router.replace('/welcome' as any);
-                        } catch (error) {
-                            logger.error('Logout error:', error);
-                            // Still navigate even if sign out fails
-                            router.replace('/welcome' as any);
-                        }
-                    },
-                },
-            ]
-        );
-    };
-
-    const handleItemPress = (itemId: string) => {
-        // Placeholder for future navigation
-        logger.log('Settings item pressed:', itemId);
-        // You can add navigation here later
-    };
-
-    const handleComingSoon = (featureName: string) => {
-        alert.info(`${featureName} will be available in the next update!`, 'Coming Soon');
-    };
-
-    // Account section (for display in profile card)
-    const accountSection: SettingsItem[] = [
-        
-        {
-            id: 'email',
-            label: 'Email',
-            icon: 'Envelope',
-            subtitle: userEmail,
-        },
-        {
-            id: 'phone',
-            label: 'Phone number',
-            icon: 'Phone',
-            subtitle: phoneNumber || 'Not set',
-        },
-    ];
-
-    // Settings section
-    const settingsSection: SettingsItem[] = [
-        {
-            id: 'personalization',
-            label: 'Personalization',
-            icon: 'User',
-            onPress: () => handleComingSoon('Personalization'),
-        },
-        {
-            id: 'general',
-            label: 'General',
-            icon: 'Gear',
-            onPress: () => handleComingSoon('Feature'),
-        },
-        {
-            id: 'notifications',
-            label: 'Notifications',
-            icon: 'Bell',
-            onPress: () => handleComingSoon('Notifications'),
-        },
-        {
-            id: 'voice',
-            label: 'Voice',
-            icon: 'Waveform',
-            onPress: () => handleComingSoon('Voice'),
-        },
-         
-        {
-            id: 'about',
-            label: 'About',
-            icon: 'Info',
-            onPress: () => handleComingSoon('About'),
-        },
-    ];
-
-    const renderInfoItem = (item: SettingsItem, isFirst: boolean = false) => {
-        const IconComponent = Icons[item.icon] as React.ComponentType<any>;
-        return (
-            <View
-                key={item.id}
-                style={[
-                    styles.infoItem,
-                    !isFirst && { borderTopWidth: 1, borderTopColor: themeColors.border }
-                ]}
-            >
-                <IconComponent size={20} color={themeColors.accentPrimary} weight="regular" />
-                <View style={styles.infoItemContent}>
-                    <Typo
-                        size={16}
-                        color={themeColors.textPrimary}
-                        fontWeight="400"
+const SegmentRow = ({
+    icon, iconBg, label, options, value, onChange, isFirst, isLast, colors, accent,
+}: {
+    icon: React.ReactNode; iconBg: string; label: string;
+    options: string[]; value: string; onChange: (v: string) => void;
+    isFirst?: boolean; isLast?: boolean; colors: any; accent: string;
+}) => (
+    <View style={[styles.row, { alignItems: 'flex-start' }, rowEdge(isFirst, isLast, colors.border)]}>
+        <View style={[styles.iconBadge, { backgroundColor: iconBg, marginTop: 2 }]}>{icon}</View>
+        <View style={{ flex: 1 }}>
+            <Typo size={15} fontWeight="600" color={colors.textPrimary}>{label}</Typo>
+            <View style={[styles.segmentTrack, { backgroundColor: colors.cardElevated }]}>
+                {options.map(opt => (
+                    <TouchableOpacity
+                        key={opt}
+                        onPress={() => onChange(opt)}
+                        activeOpacity={0.7}
+                        style={[styles.segmentBtn, { backgroundColor: value === opt ? accent : 'transparent' }]}
                     >
-                        {item.subtitle || item.label}
-                    </Typo>
-                </View>
+                        <Typo size={13} fontWeight="600" color={value === opt ? '#fff' : colors.textMuted}>{opt}</Typo>
+                    </TouchableOpacity>
+                ))}
             </View>
-        );
-    };
+        </View>
+    </View>
+);
 
-    const renderSettingsItem = (item: SettingsItem) => {
-        const IconComponent = Icons[item.icon] as React.ComponentType<any>;
-        return (
-            <TouchableOpacity
-                key={item.id}
-                style={[styles.settingsItem, { borderColor: themeColors.border, backgroundColor: themeColors.cardBackground }]}
-                onPress={item.onPress}
-                activeOpacity={0.7}
-            >
-                <IconComponent size={20} color={themeColors.accentPrimary} weight="regular" />
-                <View style={styles.itemContent}>
-                    <Typo
-                        size={16}
-                        color={themeColors.textPrimary}
-                        fontWeight="400"
-                    >
-                        {item.label}
-                    </Typo>
-                </View>
-                <Icons.CaretRight size={20} color={themeColors.textSecondary} weight="regular" />
-            </TouchableOpacity>
-        );
+// ── Main screen ───────────────────────────────────────────────────────────────
+
+function SettingsScreen() {
+    const { colors } = useTheme();
+    const router = useRouter();
+
+    const [weightUnit, setWeightUnit] = useState('lbs');
+    const [distanceUnit, setDistanceUnit] = useState('miles');
+    const [weekStart, setWeekStart] = useState('Mon');
+    const [workoutReminders, setWorkoutReminders] = useState(true);
+    const [recoveryReminders, setRecoveryReminders] = useState(true);
+    const [goalReminders, setGoalReminders] = useState(false);
+    const [prNotifications, setPrNotifications] = useState(true);
+
+    const { signOut } = useAuth();
+
+    const handleLogout = () => {
+        router.push('/welcome' as any);
+        signOut();
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
-            <ScreenWrapper showPattern={false}>
-                <View style={[styles.whiteBackground, { backgroundColor: themeColors.background }]}>
-                    {/*Header*/}
-                    <View style={styles.header}>
-                        <TouchableOpacity
-                            onPress={() => router.back()}
-                            style={styles.backButton}
-                        >
-                            <Icons.CaretLeft size={26} color={themeColors.textPrimary} weight="bold" />
-                        </TouchableOpacity>
-                        <Typo size={24} fontWeight="700" color={themeColors.textPrimary}>
-                            Profile
-                        </Typo>
-                        <View style={styles.placeholder} />
-                    </View>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-                    <ScrollView
-                        style={styles.scrollView}
-                        contentContainerStyle={styles.scrollContent}
-                        showsVerticalScrollIndicator={false}
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity
+                        onPress={() => router.back()}
+                        style={[styles.backBtn, { backgroundColor: colors.card }]}
+                        activeOpacity={0.7}
                     >
-                        {/* Profile Card */}
-                        <View style={[styles.profileCard, { backgroundColor: themeColors.cardBackground, borderColor: themeColors.border }]}>
-                            <View style={[styles.profileIconContainer, { borderColor: themeColors.accentPrimary }]}>
-                                <Icons.User size={60} color={themeColors.accentPrimary} weight="fill" />
-                            </View>
-                            <Typo size={24} fontWeight="700" color={themeColors.textPrimary} style={styles.profileName}>
-                                {userName || 'User'}
-                            </Typo>
-                            <View style={styles.statsRow}>
-                                <Icons.Trophy size={16} color={themeColors.accentPrimary} weight="fill" />
-                                <Typo size={14} color={themeColors.textPrimary} fontWeight="400">
-                                    Workouts Completed: {totalWorkouts}
-                                </Typo>
-                            </View>
-                            
-                            {/* Account Information inside Profile Card */}
-                            <View style={[styles.accountInfoContainer, { borderTopWidth: 1, borderTopColor: themeColors.border }]}>
-                                {accountSection.map((item, index) => renderInfoItem(item, index === 0))}
-                            </View>
-                        </View>
-
-                        {/* Settings Options */}
-                        <View style={styles.section}>
-                            <View style={styles.sectionContainer}>
-                                {settingsSection.map((item) => renderSettingsItem(item))}
-                            </View>
-                        </View>
-
-                        {/*LogOut Button*/}
-                        <TouchableOpacity
-                            style={[styles.logoutButton, { borderColor: themeColors.border }]}
-                            onPress={handleLogout}
-                            activeOpacity={0.7}
-                        >
-                            <Icons.SignOut size={20} color={colors.rose} weight="regular" />
-                            <Typo
-                                size={16}
-                                color={colors.rose}
-                                fontWeight="400"
-                            >
-                                Log out
-                            </Typo>
-                        </TouchableOpacity>
-                    </ScrollView>
+                        <Icons.CaretLeft size={18} color={colors.textPrimary} weight="bold" />
+                    </TouchableOpacity>
+                    <Typo size={26} fontWeight="800" color={colors.textPrimary}>Settings</Typo>
+                    <View style={{ width: 36 }} />
                 </View>
-            </ScreenWrapper>
+
+                {/* ACCOUNT */}
+                <SectionLabel label="ACCOUNT" colors={colors} />
+                <View style={[styles.group, { backgroundColor: colors.card }]}>
+                    <NavRow icon={<Icons.Envelope size={16} color="#fff" weight="fill" />} iconBg="#6366F1"
+                        label="Email" sub="alex@example.com" isFirst colors={colors} />
+                    <NavRow icon={<Icons.Lock size={16} color="#fff" weight="fill" />} iconBg="#14B8A6"
+                        label="Password" sub="Change password" colors={colors} />
+                    <NavRow icon={<Icons.LinkSimple size={16} color="#fff" weight="bold" />} iconBg="#F97316"
+                        label="Connected Accounts" sub="Apple Health, Strava" isLast colors={colors} />
+                </View>
+
+                {/* WORKOUT PREFERENCES */}
+                <SectionLabel label="WORKOUT PREFERENCES" colors={colors} />
+                <View style={[styles.group, { backgroundColor: colors.card }]}>
+                    <SegmentRow icon={<Icons.Barbell size={16} color="#fff" weight="fill" />} iconBg="#14B8A6"
+                        label="Weight Units" options={['kg', 'lbs']} value={weightUnit} onChange={setWeightUnit}
+                        isFirst colors={colors} accent={colors.accent} />
+                    <SegmentRow icon={<Icons.Ruler size={16} color="#fff" weight="fill" />} iconBg="#14B8A6"
+                        label="Distance Units" options={['km', 'miles']} value={distanceUnit} onChange={setDistanceUnit}
+                        colors={colors} accent={colors.accent} />
+                    <SegmentRow icon={<Icons.CalendarBlank size={16} color="#fff" weight="fill" />} iconBg="#F97316"
+                        label="Week Starts" options={['Mon', 'Sun', 'Sat']} value={weekStart} onChange={setWeekStart}
+                        isLast colors={colors} accent={colors.accent} />
+                </View>
+
+                {/* AI COACH */}
+                <SectionLabel label="AI COACH" colors={colors} />
+                <View style={[styles.group, { backgroundColor: colors.card }]}>
+                    <NavRow icon={<Icons.Robot size={16} color="#fff" weight="fill" />} iconBg="#A855F7"
+                        label="Coach Personality" sub="Motivating & Direct" isFirst colors={colors} />
+                    <NavRow icon={<Icons.AlignLeft size={16} color="#fff" weight="bold" />} iconBg="#14B8A6"
+                        label="Response Length" sub="Concise" colors={colors} />
+                    <NavRow icon={<Icons.ArrowsClockwise size={16} color="#fff" weight="bold" />} iconBg="#14B8A6"
+                        label="Coaching Style" sub="Progressive Overload" isLast colors={colors} />
+                </View>
+
+                {/* NOTIFICATIONS */}
+                <SectionLabel label="NOTIFICATIONS" colors={colors} />
+                <View style={[styles.group, { backgroundColor: colors.card }]}>
+                    <ToggleRow icon={<Icons.Bell size={16} color="#fff" weight="fill" />} iconBg="#F59E0B"
+                        label="Workout Reminders" sub="Daily at 7:00 AM"
+                        value={workoutReminders} onChange={setWorkoutReminders} isFirst colors={colors} accent={colors.accent} />
+                    <ToggleRow icon={<Icons.Bell size={16} color="#fff" weight="fill" />} iconBg="#14B8A6"
+                        label="Recovery Reminders" sub="Rest day suggestions"
+                        value={recoveryReminders} onChange={setRecoveryReminders} colors={colors} accent={colors.accent} />
+                    <ToggleRow icon={<Icons.Bell size={16} color="#fff" weight="fill" />} iconBg="#14B8A6"
+                        label="Goal Reminders" sub="Weekly goal check-ins"
+                        value={goalReminders} onChange={setGoalReminders} colors={colors} accent={colors.accent} />
+                    <ToggleRow icon={<Icons.Bell size={16} color="#fff" weight="fill" />} iconBg="#A855F7"
+                        label="PR Notifications" sub="Celebrate new records"
+                        value={prNotifications} onChange={setPrNotifications} isLast colors={colors} accent={colors.accent} />
+                </View>
+
+                {/* PRIVACY & DATA */}
+                <SectionLabel label="PRIVACY & DATA" colors={colors} />
+                <View style={[styles.group, { backgroundColor: colors.card }]}>
+                    <NavRow icon={<Icons.DownloadSimple size={16} color="#fff" weight="bold" />} iconBg="#14B8A6"
+                        label="Export Workout Data" sub="Download as CSV" isFirst colors={colors} />
+                    <NavRow icon={<Icons.FileText size={16} color="#fff" weight="fill" />} iconBg="#6366F1"
+                        label="Download Progress History" sub="PDF report" colors={colors} />
+                    <NavRow icon={<Icons.ShieldCheck size={16} color="#fff" weight="fill" />} iconBg="#4B5563"
+                        label="Privacy Policy" isLast colors={colors} />
+                </View>
+
+                {/* SUPPORT */}
+                <SectionLabel label="SUPPORT" colors={colors} />
+                <View style={[styles.group, { backgroundColor: colors.card }]}>
+                    <NavRow icon={<Icons.BugBeetle size={16} color="#fff" weight="fill" />} iconBg="#EF4444"
+                        label="Report a Bug" isFirst colors={colors} />
+                    <NavRow icon={<Icons.Lightbulb size={16} color="#fff" weight="fill" />} iconBg="#F59E0B"
+                        label="Feature Request" colors={colors} />
+                    <NavRow icon={<Icons.ChatCircle size={16} color="#fff" weight="fill" />} iconBg="#14B8A6"
+                        label="Contact Support" colors={colors} />
+                    <NavRow icon={<Icons.Question size={16} color="#fff" weight="bold" />} iconBg="#4B5563"
+                        label="Help Center" isLast colors={colors} />
+                </View>
+
+                {/* Log Out */}
+                <TouchableOpacity
+                    style={[styles.group, styles.row, { backgroundColor: colors.card, marginTop: spacingY._20 }]}
+                    activeOpacity={0.7}
+                    onPress={handleLogout}
+                >
+                    <View style={[styles.iconBadge, { backgroundColor: 'rgba(239,68,68,0.15)' }]}>
+                        <Icons.SignOut size={16} color="#EF4444" weight="bold" />
+                    </View>
+                    <Typo size={15} fontWeight="600" color="#EF4444">Log Out</Typo>
+                </TouchableOpacity>
+
+                <Typo size={13} color={colors.textMuted} style={styles.footer}>FitAI v1.0.0</Typo>
+
+            </ScrollView>
         </SafeAreaView>
-    )
+    );
 }
-
-
-const SettingsComponent = Settings;
 
 export default function ProtectedSettings() {
     return (
         <AuthGuard>
-            <SettingsComponent />
+            <SettingsScreen />
         </AuthGuard>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    whiteBackground: {
-        ...StyleSheet.absoluteFillObject,
-        paddingTop: Platform.OS === 'ios' ? Dimensions.get('window').height * 0.06 : 40,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: spacingX._20,
-        paddingVertical: spacingY._15,
-    },
-    backButton: {
-        padding: spacingX._5,
-    },
-    placeholder: {
-        width: 34,
-    },
-    scrollView: {
-        flex: 1,
-    },
-    scrollContent: {
-        paddingBottom: spacingY._30,
-    },
-    
-    profileCard: {
-        alignItems: 'center',
-        paddingVertical: spacingY._30,
-        paddingHorizontal: spacingX._20,
-        marginHorizontal: spacingX._20,
-        marginTop: spacingY._20,
-        borderRadius: radius._20,
-        borderWidth: 1,
-    },
-    profileIconContainer: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        borderWidth: 3,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: spacingY._15,
-        backgroundColor: 'transparent',
-    },
-    profileName: {
-        marginBottom: spacingY._10,
-    },
-    statsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacingX._10,
-        marginBottom: spacingY._20,
-    },
-    accountInfoContainer: {
-        width: '100%',
-        marginTop: spacingY._5,
-        paddingTop: spacingY._10,
-    },
-    section: {
-        marginTop: spacingY._25,
-        paddingHorizontal: spacingX._20,
-    },
-    sectionContainer: {
-        gap: spacingY._12,
-    },
-    infoItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: spacingY._10,
-        gap: spacingX._15,
-    },
-    infoItemContent: {
-        flex: 1,
-    },
-    settingsItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: spacingY._15,
-        paddingHorizontal: spacingX._15,
-        borderRadius: radius._12,
-        borderWidth: 1,
-        gap: spacingX._15,
-    },
-    itemContent: {
-        flex: 1,
-    },
-    logoutButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: spacingY._15,
-        paddingHorizontal: spacingX._15,
-        marginTop: spacingY._30,
-        marginHorizontal: spacingX._20,
-        borderRadius: radius._12,
-        gap: spacingX._15,
-    },
+    scroll: { paddingHorizontal: spacingX._20, paddingBottom: spacingY._40 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacingY._20, marginBottom: spacingY._25 },
+    backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+    sectionLabel: { letterSpacing: 0.8, marginBottom: 8, marginTop: spacingY._20, marginLeft: 4 },
+    group: { borderRadius: radius._15, overflow: 'hidden' },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: spacingX._15, paddingVertical: 14 },
+    iconBadge: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+    segmentTrack: { flexDirection: 'row', borderRadius: 8, padding: 3, marginTop: 8 },
+    segmentBtn: { flex: 1, alignItems: 'center', paddingVertical: 6, borderRadius: 6 },
+    footer: { textAlign: 'center', marginTop: spacingY._30 },
 });

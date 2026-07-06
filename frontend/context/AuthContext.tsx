@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/utils/supabase';
+import { API_URL, MOCK_MODE } from '@/utils/config';
 import { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -13,7 +14,7 @@ const AuthContext = createContext<AuthContextType>({
     user: null,
     isAuthenticated: false,
     isLoading: true,
-    signOut: async () => {},
+    signOut: async () => { },
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -21,12 +22,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        // 🚨 MOCK MODE: Set dummy user
+        if (MOCK_MODE) {
+            console.log('🤖 MOCK MODE: Using dummy user for AuthContext');
+            setUser({
+                id: 'mock-user-id',
+                email: 'mock@example.com',
+                app_metadata: {},
+                user_metadata: {},
+                aud: 'authenticated',
+                created_at: new Date().toISOString()
+            } as any);
+            setIsLoading(false);
+            return;
+        }
+
         // Get initial session with error handling for invalid tokens
         supabase.auth.getSession()
             .then(({ data: { session }, error }) => {
                 if (error) {
                     // Handle invalid refresh token error
-                    if (error.message?.includes('Invalid Refresh Token') || 
+                    if (error.message?.includes('Invalid Refresh Token') ||
                         error.message?.includes('refresh_token_not_found')) {
                         console.log('[AuthContext] Invalid refresh token, clearing session');
                         // Clear invalid session

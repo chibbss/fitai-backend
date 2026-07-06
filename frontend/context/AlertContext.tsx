@@ -23,43 +23,61 @@ interface AlertContextType {
 const AlertContext = createContext<AlertContextType | undefined>(undefined);
 
 export const AlertProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [alert, setAlert] = useState<AlertOptions & { visible: boolean } | null>(null);
+    const [alert, setAlert] = useState<AlertOptions | null>(null);
+    const [visible, setVisible] = useState(false);
+    const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
     const showAlert = useCallback((options: AlertOptions) => {
-        console.log('[AlertProvider] showAlert called:', options);
-        setAlert({ ...options, visible: true });
+        if (!options.message) {
+            console.warn('[AlertProvider] Attempted to show alert with empty message:', options);
+            return;
+        }
+
+        // Cancel any pending "clear" timeout
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+
+        console.log('[AlertProvider] Showing alert:', options.title || 'No Title', '-', options.message);
+        setAlert(options);
+        setVisible(true);
     }, []);
 
     // Set the alert function for the utility
     React.useEffect(() => {
-        console.log('[AlertProvider] Setting alertFunction');
         setAlertFunction(showAlert);
-        // Verify it was set
-        setTimeout(() => {
-            console.log('[AlertProvider] alertFunction set:', !!showAlert);
-        }, 100);
+        return () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
     }, [showAlert]);
 
     const hideAlert = useCallback(() => {
-        console.log('[AlertProvider] hideAlert called');
-        setAlert(null);
-    }, []);
+        console.log('[AlertProvider] Hiding alert...');
+        setVisible(false);
 
-    console.log('[AlertProvider] Current alert state:', alert);
+        // Cancel any existing timeout before starting a new one
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
+        // Delay clearing the data so the exit animation has content to show
+        // Match the animation duration in CustomAlert (currently 200ms) plus a small buffer
+        timeoutRef.current = setTimeout(() => {
+            setAlert(null);
+            timeoutRef.current = null;
+        }, 250);
+    }, []);
 
     return (
         <AlertContext.Provider value={{ showAlert, hideAlert }}>
             {children}
-            {alert && (
-                <CustomAlert
-                    visible={alert.visible}
-                    title={alert.title}
-                    message={alert.message}
-                    type={alert.type}
-                    buttons={alert.buttons || [{ text: 'OK' }]}
-                    onDismiss={hideAlert}
-                />
-            )}
+            <CustomAlert
+                visible={visible}
+                title={alert?.title}
+                message={alert?.message || ''}
+                type={alert?.type}
+                buttons={alert?.buttons}
+                onDismiss={hideAlert}
+            />
         </AlertContext.Provider>
     );
 };

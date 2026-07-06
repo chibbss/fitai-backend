@@ -7,12 +7,13 @@ import {
     TouchableWithoutFeedback,
     Animated,
     Dimensions,
+    Pressable,
 } from 'react-native';
-import { radius, spacingX, spacingY, colors } from '@/constants/theme';
+import { radius, spacingX, spacingY, colors as rawColors } from '@/constants/theme';
 import Typo from '@/components/Typo';
 import Button from '@/components/Button';
 import * as Icons from 'phosphor-react-native';
-import { verticalScale } from '@/utils/styling';
+import { useTheme } from '@/context/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -41,6 +42,7 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
     buttons = [{ text: 'OK' }],
     onDismiss,
 }) => {
+    const { colors: themeColors } = useTheme();
     const scaleAnim = React.useRef(new Animated.Value(0)).current;
     const opacityAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -60,36 +62,64 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
                 }),
             ]).start();
         } else {
-            scaleAnim.setValue(0);
-            opacityAnim.setValue(0);
+            Animated.parallel([
+                Animated.timing(scaleAnim, {
+                    toValue: 0,
+                    duration: 200,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(opacityAnim, {
+                    toValue: 0,
+                    duration: 200,
+                    useNativeDriver: true,
+                }),
+            ]).start();
         }
-    }, [visible]);
+    }, [visible, scaleAnim, opacityAnim]);
+
+    useEffect(() => {
+        console.log('[CustomAlert] Mounted');
+        return () => console.log('[CustomAlert] Unmounted');
+    }, []);
+
+    const getThemeColors = () => {
+        // Force specific colors as requested
+        return {
+            bg: themeColors.background,
+            text: themeColors.textPrimary,
+            // Construct button colors based on type
+        };
+    };
 
     const getTypeConfig = () => {
+        // User requested accentPrimary for icon and button regardless of type,
+        // but we can still keep some variety if needed. 
+        // For now, let's stick to the requested accentPrimary for the main colored elements.
+
         switch (type) {
             case 'success':
                 return {
                     icon: 'CheckCircle' as keyof typeof Icons,
-                    iconColor: colors.accentPrimary,
-                    backgroundColor: colors.accentPrimary + '15',
+                    color: themeColors.accentPrimary,
+                    backgroundColor: 'transparent',
                 };
             case 'error':
                 return {
                     icon: 'XCircle' as keyof typeof Icons,
-                    iconColor: colors.accentWarm,
-                    backgroundColor: colors.accentWarm + '15',
+                    color: themeColors.accentPrimary, // Requested to use accentPrimary
+                    backgroundColor: 'transparent',
                 };
             case 'warning':
                 return {
                     icon: 'Warning' as keyof typeof Icons,
-                    iconColor: colors.accentSecondary,
-                    backgroundColor: colors.accentSecondary + '40',
+                    color: themeColors.accentPrimary, // Requested to use accentPrimary
+                    backgroundColor: 'transparent',
                 };
             default:
                 return {
                     icon: 'Info' as keyof typeof Icons,
-                    iconColor: colors.accentPrimary,
-                    backgroundColor: colors.accentPrimary + '30',
+                    color: themeColors.accentPrimary,
+                    backgroundColor: 'transparent',
                 };
         }
     };
@@ -98,155 +128,166 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
     const IconComponent = Icons[typeConfig.icon] as React.ComponentType<any>;
 
     const handleButtonPress = (button: AlertButton) => {
+        console.log('[CustomAlert] Button pressed:', button.text);
+
+        // Execute button action first
         if (button.onPress) {
-            button.onPress();
+            console.log('[CustomAlert] Executing button onPress');
+            try {
+                button.onPress();
+            } catch (e) {
+                console.error('[CustomAlert] Error in button onPress:', e);
+            }
         }
+
+        // Then dismiss
+        console.log('[CustomAlert] Calling onDismiss');
         if (onDismiss) {
             onDismiss();
+        } else {
+            console.warn('[CustomAlert] onDismiss is undefined');
         }
     };
 
     return (
-        <Modal
-            visible={visible}
-            transparent
-            animationType="none"
-            onRequestClose={onDismiss}
+        <View
+            style={[styles.container, StyleSheet.absoluteFill, { zIndex: 9999 }]}
+            pointerEvents={visible ? 'auto' : 'none'}
         >
-            <TouchableWithoutFeedback onPress={onDismiss}>
-                <Animated.View
+            {/* Backdrop - Click to dismiss */}
+            <Animated.View
+                style={[
+                    StyleSheet.absoluteFill,
+                    {
+                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                        opacity: opacityAnim,
+                    },
+                ]}
+            >
+                <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />
+            </Animated.View>
+
+            {/* Alert Box */}
+            <Animated.View
+                style={[
+                    styles.alertContainer,
+                    {
+                        backgroundColor: rawColors.white, // Use raw white color
+                        transform: [{ scale: scaleAnim }],
+                        opacity: opacityAnim, // Restore opacity animation
+                    },
+                ]}
+            >
+                {/* Icon */}
+                <View
                     style={[
-                        styles.overlay,
-                        {
-                            opacity: opacityAnim,
-                        },
+                        styles.iconContainer,
+                        { backgroundColor: typeConfig.backgroundColor },
                     ]}
                 >
-                    <TouchableWithoutFeedback>
-                        <Animated.View
+                    <IconComponent
+                        size={68}
+                        color={themeColors.background} // Force accentPrimary as requested
+                        weight="fill"
+                    />
+                </View>
+
+                {/* Title */}
+                {title && (
+                    <Typo
+                        size={22}
+                        fontWeight="800" // Bolder
+                        color={rawColors.black} // Force black
+                        style={styles.title}
+                    >
+                        {title}
+                    </Typo>
+                )}
+
+                {/* Message */}
+                <Typo
+                    size={16}
+                    color={rawColors.black} // Force black
+                    fontWeight="600" // Semi-bold for message
+                    style={styles.message}
+                >
+                    {message}
+                </Typo>
+
+                <View style={styles.buttonContainer}>
+                    {buttons.length === 1 ? (
+                        <TouchableOpacity
                             style={[
-                                styles.alertContainer,
+                                styles.button,
+                                buttons[0].style === 'destructive' &&
+                                styles.destructiveButton,
                                 {
-                                    transform: [{ scale: scaleAnim }],
-                                },
+                                    backgroundColor: buttons[0].style === 'destructive' ? themeColors.accentWarm : themeColors.accentPrimary, // Use accentPrimary
+                                    borderRadius: radius.full,
+                                    paddingVertical: spacingY._15,
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                }
                             ]}
+                            onPress={() => handleButtonPress(buttons[0])}
+                            activeOpacity={0.7}
                         >
-                            {/* Icon */}
-                            <View
-                                style={[
-                                    styles.iconContainer,
-                                    { backgroundColor: typeConfig.backgroundColor },
-                                ]}
-                            >
-                                <IconComponent
-                                    size={48}
-                                    color={typeConfig.iconColor}
-                                    weight="fill"
-                                />
-                            </View>
-
-                            {/* Title */}
-                            {title && (
-                                <Typo
-                                    size={20}
-                                    fontWeight="600"
-                                    color={colors.black}
-                                    color={colors.textPrimary}
-                                    style={styles.title}
-                                >
-                                    {title}
-                                </Typo>
-                            )}
-
-                            {/* Message */}
                             <Typo
+                                fontWeight="800" // Bolder
+                                color={rawColors.black}
                                 size={16}
-                                color={colors.neutral600}
-                                color={colors.textSecondary}
-                                style={styles.message}
                             >
-                                {message}
+                                {buttons[0].text}
                             </Typo>
-
-                            {/* Buttons */}
-                            <View style={styles.buttonContainer}>
-                                {buttons.length === 1 ? (
-                                    <Button
-                                        style={[
-                                            styles.button,
-                                            buttons[0].style === 'destructive' &&
-                                                styles.destructiveButton,
-                                        ]}
-                                        onPress={() => handleButtonPress(buttons[0])}
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={styles.multipleButtons}>
+                            {buttons.map((button, index) => (
+                                <TouchableOpacity
+                                    key={index}
+                                    style={[
+                                        styles.textButton,
+                                        button.style === 'cancel' &&
+                                        styles.cancelButton,
+                                        button.style === 'destructive' &&
+                                        styles.destructiveTextButton,
+                                    ]}
+                                    onPress={() => handleButtonPress(button)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Typo
+                                        fontWeight="800" // Bolder
+                                        color={
+                                            button.style === 'destructive'
+                                                ? themeColors.accentWarm
+                                                : button.style === 'cancel'
+                                                    ? rawColors.neutral600
+                                                    : themeColors.accentPrimary
+                                        }
+                                        size={16}
                                     >
-                                        <Typo
-                                            fontWeight="600"
-                                            color={
-                                                buttons[0].style === 'destructive'
-                                                    ? colors.surface
-                                                    : colors.textPrimary
-                                            }
-                                            size={16}
-                                        >
-                                            {buttons[0].text}
-                                        </Typo>
-                                    </Button>
-                                ) : (
-                                    <View style={styles.multipleButtons}>
-                                        {buttons.map((button, index) => (
-                                            <TouchableOpacity
-                                                key={index}
-                                                style={[
-                                                    styles.textButton,
-                                                    button.style === 'cancel' &&
-                                                        styles.cancelButton,
-                                                    button.style === 'destructive' &&
-                                                        styles.destructiveTextButton,
-                                                ]}
-                                                onPress={() => handleButtonPress(button)}
-                                            >
-                                                <Typo
-                                                    fontWeight="600"
-                                                    color={
-                                                        button.style === 'destructive'
-                                                    ? colors.accentWarm
-                                                    : button.style === 'cancel'
-                                                    ? colors.textSecondary
-                                                    : colors.accentPrimary
-                                                    }
-                                                    size={16}
-                                                >
-                                                    {button.text}
-                                                </Typo>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                )}
-                            </View>
-                        </Animated.View>
-                    </TouchableWithoutFeedback>
-                </Animated.View>
-            </TouchableWithoutFeedback>
-        </Modal>
+                                        {button.text}
+                                    </Typo>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+                </View>
+            </Animated.View>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
-    overlay: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: '100%',
-        height: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    container: {
+        width: width,
+        height: height,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: spacingX._20,
+        backgroundColor: 'transparent',
+        zIndex: 1,
     },
     alertContainer: {
-        backgroundColor: colors.white,
         borderRadius: radius._20,
         padding: spacingX._25,
         width: width * 0.85,
@@ -257,6 +298,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 8,
+        zIndex: 10,
     },
     iconContainer: {
         width: 80,
@@ -264,7 +306,7 @@ const styles = StyleSheet.create({
         borderRadius: radius.full,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: spacingY._15,
+        marginBottom: spacingY._5,
     },
     title: {
         marginBottom: spacingY._10,
@@ -283,7 +325,7 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     destructiveButton: {
-        backgroundColor: colors.rose,
+        // backgroundColor handled dynamically
     },
     multipleButtons: {
         flexDirection: 'row',

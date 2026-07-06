@@ -164,6 +164,12 @@ const handle401Error = async <T>(
 };
 
 export const getAuthToken = async (): Promise<string | null> => {
+    // 🚨 MOCK MODE: Return dummy token
+    if (MOCK_MODE) {
+        console.log('🤖 MOCK MODE: getAuthToken returning mock-auth-token');
+        return 'mock-auth-token';
+    }
+
     try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) {
@@ -380,9 +386,12 @@ export const workoutApi = {
 
     //Get weekly summary
     async getWeeklySummary(startDate?: string): Promise<WeeklySummary> {
-        // Get user ID for cache key
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id;
+        // 🤖 Use mock user ID in MOCK_MODE
+        let userId = 'mock-user-id';
+        if (!MOCK_MODE) {
+            const { data: { session } } = await supabase.auth.getSession();
+            userId = session?.user?.id || '';
+        }
         const cacheKey = `weeklySummary_${startDate || 'current'}`;
 
         // Always fetch fresh data from backend (cache is handled by component)
@@ -392,6 +401,54 @@ export const workoutApi = {
 
     // Helper method for fresh weekly summary fetch
     async getWeeklySummaryFresh(startDate?: string, userId?: string, cacheKey?: string): Promise<WeeklySummary> {
+        // 🤖 Use mock if MOCK_MODE is enabled
+        if (MOCK_MODE) {
+            logger.log('🤖 MOCK_MODE: Generating mock weekly summary data');
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const start = startDate ? new Date(startDate) : new Date();
+                    if (!startDate) {
+                        // Get Monday of current week
+                        const day = start.getDay();
+                        const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+                        start.setDate(diff);
+                    }
+
+                    const days: any[] = [];
+                    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+                    for (let i = 0; i < 7; i++) {
+                        const d = new Date(start);
+                        d.setDate(start.getDate() + i);
+                        const hasWorkout = Math.random() > 0.4;
+
+                        days.push({
+                            date: d.toISOString().split('T')[0],
+                            day_name: dayNames[i],
+                            day_number: d.getDate(),
+                            has_workout: hasWorkout,
+                            session_id: hasWorkout ? `mock-session-weekly-${i}` : null,
+                            session_name: hasWorkout ? ['Full Body', 'Push', 'Pull', 'Legs'][Math.floor(Math.random() * 4)] : undefined,
+                            volume_kg: hasWorkout ? 2000 + Math.floor(Math.random() * 3000) : 0,
+                            intensity_level: hasWorkout ? ['light', 'medium', 'heavy', 'very_heavy'][Math.floor(Math.random() * 4)] : null,
+                            has_pr: hasWorkout && Math.random() > 0.8,
+                            exercise_count: hasWorkout ? 4 + Math.floor(Math.random() * 4) : 0,
+                        });
+                    }
+
+                    const weekEnd = new Date(start);
+                    weekEnd.setDate(start.getDate() + 6);
+
+                    resolve({
+                        days,
+                        week_start: start.toISOString().split('T')[0],
+                        week_end: weekEnd.toISOString().split('T')[0],
+                        is_current_week: !startDate || new Date(startDate).getTime() > new Date().getTime() - 7 * 24 * 60 * 60 * 1000,
+                    } as WeeklySummary);
+                }, 400);
+            });
+        }
+
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -416,6 +473,42 @@ export const workoutApi = {
 
     //Get workout details (for editing)
     async getWorkoutDetails(sessionId: string): Promise<WorkoutData & { session_id?: string; occurred_at?: string; duration_minutes?: number }> {
+        // 🤖 MOCK_MODE support
+        if (MOCK_MODE) {
+            logger.log('🤖 MOCK_MODE: Returning mock workout details');
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve({
+                        session_id: sessionId,
+                        name: 'Mock Workout',
+                        description: 'This is a mock workout session',
+                        occurred_at: new Date().toISOString(),
+                        duration_minutes: 60,
+                        exercises: [
+                            {
+                                name: 'Bench Press',
+                                notes: 'Warm up well',
+                                sets: [
+                                    { reps: 10, weight: 60, rpe: 7 },
+                                    { reps: 8, weight: 80, rpe: 8 },
+                                    { reps: 5, weight: 100, rpe: 9 },
+                                ]
+                            },
+                            {
+                                name: 'Squat',
+                                notes: 'Focus on depth',
+                                sets: [
+                                    { reps: 10, weight: 80, rpe: 7 },
+                                    { reps: 8, weight: 100, rpe: 8 },
+                                    { reps: 5, weight: 120, rpe: 9 },
+                                ]
+                            }
+                        ]
+                    } as any);
+                }, 400);
+            });
+        }
+
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -442,6 +535,20 @@ export const workoutApi = {
 
     //Update workout
     async updateWorkout(sessionId: string, workoutData: WorkoutData): Promise<LogWorkoutResponse> {
+        // 🤖 MOCK_MODE support
+        if (MOCK_MODE) {
+            logger.log('🤖 MOCK_MODE: Simulating workout update success');
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve({
+                        success: true,
+                        session_id: sessionId,
+                        message: 'Workout updated successfully (Mock)'
+                    } as any);
+                }, 300);
+            });
+        }
+
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -567,6 +674,14 @@ export const workoutApi = {
 
     // Helper: Get session volume (will work once backend implements it)
     async getSessionVolume(sessionId: string) {
+        // 🤖 MOCK_MODE support
+        if (MOCK_MODE) {
+            return {
+                session_id: sessionId,
+                total_volume: 5000 + Math.floor(Math.random() * 5000)
+            };
+        }
+
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -602,55 +717,71 @@ const mockChatStream = (
     return new Promise((resolve) => {
         logger.log('🤖 MOCK MODE: Simulating chat stream for query:', query);
 
-        // Simulate realistic AI responses based on query keywords
-        const responses: Record<string, string> = {
-            'hello': 'Hello! How can I help you with your fitness journey today?',
-            'hi': 'Hi there! Ready to work on your fitness goals?',
-            'workout': 'I\'d be happy to help you with your workout! What type of exercise are you interested in?',
-            'diet': 'Nutrition is a key part of fitness. What would you like to know about your diet?',
-            'weight': 'Weight management is important. Are you looking to lose, maintain, or gain weight?',
-            'cardio': 'Cardio exercises are great for heart health and burning calories. What kind of cardio are you thinking about?',
-            'strength': 'Strength training builds muscle and increases metabolism. Are you new to lifting or experienced?',
-        };
+        // Simulate a "thinking" delay of 2 seconds
+        setTimeout(() => {
+            // Simulate realistic AI responses based on query keywords
+            const responses: Record<string, string> = {
+                'hello':
+                    "Hey 👋 Good to see you back. How’s your body feeling today — recovered or still sore from your last session?",
 
-        // Find a matching response or use a default
-        let responseText = 'I understand you\'re asking about "' + query + '". ';
+                'hi':
+                    "Welcome back. Want to log today’s workout, review your progress, or adjust your plan?",
 
-        // Check for keywords
-        const lowerQuery = query.toLowerCase();
-        let matched = false;
-        for (const [key, value] of Object.entries(responses)) {
-            if (lowerQuery.includes(key)) {
-                responseText = value + ' ' + responseText.split(' ').slice(5).join(' ');
-                matched = true;
-                break;
+                'workout':
+                    "Alright, let’s get to work. Are we focusing on upper body, lower body, or a full session today? Based on your recent activity, recovery matters — so tell me how you're feeling first.",
+
+                'diet':
+                    "Nutrition drives results. Are you aiming to improve performance, lose fat, or build muscle right now? Your intake should match your goal — let’s dial it in.",
+
+                'Lets talk weight goals':
+                    "Are you tracking weekly averages or just scale numbers? Sustainable progress comes from trends, not daily fluctuations.",
+
+                'cardio':
+                    "Cardio can improve endurance, recovery, and fat loss — depending on intensity. Are we doing steady-state or intervals today?",
+
+                'strength':
+                    "Strength training is about progressive overload and recovery. What movement are we working on? I can help structure your sets and reps."
+            };
+
+            // Find a matching response or use a default
+            let responseText = 'I understand you\'re asking about "' + query + '". ';
+
+            // Check for keywords
+            const lowerQuery = query.toLowerCase();
+            let matched = false;
+            for (const [key, value] of Object.entries(responses)) {
+                if (lowerQuery.includes(key)) {
+                    responseText = value + ' ' + responseText.split(' ').slice(5).join(' ');
+                    matched = true;
+                    break;
+                }
             }
-        }
 
-        if (!matched) {
-            responseText = `That's a great question about "${query}"! While I'm in mock mode (backend is down), I can't provide real responses. However, I can help you plan workouts, track nutrition, and provide fitness guidance once the backend is back up. What specific aspect of fitness would you like to explore?`;
-        }
-
-        // Simulate streaming by sending tokens word by word with realistic delays
-        const words = responseText.split(' ');
-        let currentIndex = 0;
-        let fullAnswer = '';
-
-        const streamInterval = setInterval(() => {
-            if (currentIndex < words.length) {
-                const token = words[currentIndex] + (currentIndex < words.length - 1 ? ' ' : '');
-                fullAnswer += token;
-                onToken(token);
-                currentIndex++;
-            } else {
-                clearInterval(streamInterval);
-                // Small delay before calling onDone
-                setTimeout(() => {
-                    onDone(fullAnswer.trim(), 1500);
-                    resolve();
-                }, 100);
+            if (!matched) {
+                responseText = `That's a great question about "${query}"! While I'm in mock mode (backend is down), I can't provide real responses. However, I can help you plan workouts, track nutrition, and provide fitness guidance once the backend is back up. What specific aspect of fitness would you like to explore?`;
             }
-        }, 50); // Simulate ~50ms per word (realistic streaming speed)
+
+            // Simulate streaming by sending tokens word by word with realistic delays
+            const words = responseText.split(' ');
+            let currentIndex = 0;
+            let fullAnswer = '';
+
+            const streamInterval = setInterval(() => {
+                if (currentIndex < words.length) {
+                    const token = words[currentIndex] + (currentIndex < words.length - 1 ? ' ' : '');
+                    fullAnswer += token;
+                    onToken(token);
+                    currentIndex++;
+                } else {
+                    clearInterval(streamInterval);
+                    // Small delay before calling onDone
+                    setTimeout(() => {
+                        onDone(fullAnswer.trim(), 1500);
+                        resolve();
+                    }, 100);
+                }
+            }, 50); // Simulate ~50ms per word (realistic streaming speed)
+        }, 2000);
     });
 };
 
@@ -674,7 +805,7 @@ const createReactNativeSSE = (
     let currentData: string[] = [];
 
     xhr.open(method, url, true);
-
+    
     // Set headers
     Object.entries(headers).forEach(([key, value]) => {
         xhr.setRequestHeader(key, value);
@@ -1091,6 +1222,25 @@ export const userApi = {
 
     // Helper method for fresh user fetch
     async getUserFresh(userId: string): Promise<UserProfile> {
+        // 🚨 MOCK MODE: Return dummy profile
+        if (MOCK_MODE) {
+            logger.log('🤖 MOCK MODE: Returning dummy user profile');
+            return {
+                id: userId,
+                email: 'mock@example.com',
+                name: 'Mock User',
+                profile: {
+                    experience_level: 'intermediate',
+                    workout_preference: 'gym'
+                },
+                goals: {
+                    primary_goal: 'build muscle'
+                },
+                metadata: {},
+                created_at: new Date().toISOString()
+            };
+        }
+
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');
 
@@ -1162,7 +1312,7 @@ export const userApi = {
         // 🤖 MOCK MODE: Skip backend call
         if (MOCK_MODE) {
             logger.log('🤖 MOCK MODE: Returning mock completion message');
-            return { message: "Hey! =��� Welcome to FitAI! I'm excited to help you on your fitness journey. Based on what you shared during onboarding, I've got a personalized plan ready for you. What would you like to start with today?" };
+            return { message: "Hey! 👋 Welcome to FitAI! I'm excited to help you on your fitness journey. Based on what you shared during onboarding, I've got a personalized plan ready for you. What would you like to start with today?" };
         }
         const token = await getAuthToken();
         if (!token) throw new Error('Authentication required');

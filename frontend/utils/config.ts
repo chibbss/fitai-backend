@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import { logger } from './logger';
 
 // 🚨 Set to true when backend is unavailable
-export const MOCK_MODE = false;
+export const MOCK_MODE = true;
 
 // Fallback API URL - Render deployment
 const FALLBACK_API_URL = 'https://fitai-api.onrender.com';

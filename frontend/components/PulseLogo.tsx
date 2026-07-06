@@ -1,23 +1,23 @@
+import { colors } from '@/constants/theme';
 import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
-  useSharedValue,
-  useAnimatedProps,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
   Easing,
   interpolateColor,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
 } from 'react-native-reanimated';
 import Svg, {
   Circle,
-  Path,
   Defs,
   LinearGradient,
-  Stop,
+  Path,
   RadialGradient,
+  Stop,
 } from 'react-native-svg';
-import { colors } from '@/constants/theme';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -77,7 +77,7 @@ const PulseLogo = ({ size = 180 }: { size?: number }) => {
               <Stop offset="100%" stopColor={colors.aquaGlow} />
             </LinearGradient>
           </Defs>
-          
+
           {/* Static neural path and nodes */}
           <Path
             d="M25,65 Q40,35 50,50 T85,40"
@@ -96,9 +96,9 @@ const PulseLogo = ({ size = 180 }: { size?: number }) => {
           <Circle cx="85" cy="40" r="4" fill="#4FFFD3" />
         </Svg>
       </View>
-      
+
       {/* Pulse glow - wrapped in Animated.View with scale and opacity animation */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.pulseGlowWrapper,
           { width: size, height: size },
